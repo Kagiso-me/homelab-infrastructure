@@ -64,14 +64,14 @@ spec:
             *Runbook:* {{ .Annotations.runbook_url }}
             {{ end }}
       webhookConfigs:
-        - url:
+        - urlSecret:
             name: alertmanager-secret
             key: webhook-url
           sendResolved: true
 
     - name: watchdog-webhook
       webhookConfigs:
-        - url:
+        - urlSecret:
             name: alertmanager-secret
             key: watchdog-webhook-url
           sendResolved: false
