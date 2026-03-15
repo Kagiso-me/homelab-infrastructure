@@ -304,7 +304,8 @@
           ports:
             web:
               port: 80
-              expose: true
+              expose:
+                default: true
               exposedPort: 80
               protocol: TCP
               # Redirect all HTTP to HTTPS
@@ -312,18 +313,21 @@
                 port: websecure
             websecure:
               port: 443
-              expose: true
+              expose:
+                default: true
               exposedPort: 443
               protocol: TCP
               tls:
                 enabled: true
             metrics:
               port: 9100
-              expose: false
+              expose:
+                default: false
               protocol: TCP
             traefik:
               port: 9000
-              expose: false
+              expose:
+                default: false
 
           # IngressClass so cert-manager http01 solvers can find Traefik
           ingressClass:

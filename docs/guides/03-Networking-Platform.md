@@ -156,7 +156,7 @@ Before running the platform playbook:
 The entire networking platform is installed by a single playbook from the Raspberry Pi control hub:
 
 ```bash
-# From the Raspberry Pi (10.0.10.80)
+# From the Raspberry Pi (10.0.10.10)
 ansible-playbook -i ansible/inventory/homelab.yml \
   ansible/playbooks/lifecycle/install-platform.yml
 ```
