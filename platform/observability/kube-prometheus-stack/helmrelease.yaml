@@ -1,0 +1,89 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "67.x"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      interval: 24h
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # ----- Grafana -----
+    grafana:
+      enabled: true
+      # Admin credentials loaded from SOPS-encrypted Secret (grafana-admin-secret.yaml)
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        storageClassName: nfs-truenas
+        size: 2Gi
+      ingress:
+        enabled: false   # managed via IngressRoute in apps layer
+      grafana.ini:
+        server:
+          root_url: https://grafana.kagiso.me
+        analytics:
+          check_for_updates: false
+
+    # ----- Prometheus -----
+    prometheus:
+      prometheusSpec:
+        retention: 15d
+        retentionSize: "15GB"
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: nfs-truenas
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 20Gi
+        # Scrape all namespaces
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+
+    # ----- Alertmanager -----
+    alertmanager:
+      alertmanagerSpec:
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: nfs-truenas
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+
+    # ----- Node Exporter -----
+    prometheus-node-exporter:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+    # ----- kube-state-metrics -----
+    kube-state-metrics:
+      metricLabelsAllowlist:
+        - pods=[*]
+        - deployments=[*]

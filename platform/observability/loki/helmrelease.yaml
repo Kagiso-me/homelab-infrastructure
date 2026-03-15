@@ -1,0 +1,44 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki-stack
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: loki-stack
+      version: "2.10.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana          # reuses the grafana HelmRepository defined in apps layer
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    loki:
+      enabled: true
+      persistence:
+        enabled: true
+        storageClassName: nfs-truenas
+        size: 20Gi
+      config:
+        table_manager:
+          retention_deletes_enabled: true
+          retention_period: 336h    # 14 days
+
+    promtail:
+      enabled: true
+      # Promtail ships logs from all pods to Loki
+      config:
+        lokiAddress: http://loki-stack:3100/loki/api/v1/push
+
+    grafana:
+      enabled: false    # Grafana managed by kube-prometheus-stack

@@ -1,0 +1,55 @@
+- name: Configure Kubernetes-ready firewall
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install UFW
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+
+    # -----------------------------
+    # SSH — LAN only
+    # -----------------------------
+    - name: Allow SSH from LAN only
+      ufw:
+        rule: allow
+        from_ip: 10.0.10.0/24
+        to_port: "22"
+        proto: tcp
+
+    # -----------------------------
+    # Kubernetes core
+    # -----------------------------
+    - name: Allow Kubernetes API
+      ufw: { rule: allow, port: "6443", proto: tcp }
+
+    - name: Allow Kubelet
+      ufw: { rule: allow, port: "10250", proto: tcp }
+
+    - name: Allow Flannel VXLAN
+      ufw: { rule: allow, port: "8472", proto: udp }
+
+    # -----------------------------
+    # Ingress
+    # -----------------------------
+    - name: Allow HTTP
+      ufw: { rule: allow, port: "80", proto: tcp }
+
+    - name: Allow HTTPS
+      ufw: { rule: allow, port: "443", proto: tcp }
+
+    # -----------------------------
+    # NodePort (optional but pragmatic)
+    # -----------------------------
+    - name: Allow NodePort range
+      ufw: { rule: allow, port: "30000:32767", proto: tcp }
+
+    # -----------------------------
+    # Enable firewall (LAST)
+    # -----------------------------
+    - name: Enable firewall
+      ufw:
+        state: enabled
+        policy: deny

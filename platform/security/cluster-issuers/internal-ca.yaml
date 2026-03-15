@@ -1,0 +1,42 @@
+# Internal self-signed CA issuer — for services that are not exposed externally.
+# Certificates issued by this CA are not trusted by browsers unless the CA cert
+# is manually installed in the OS trust store.
+# Use for: Traefik dashboard, internal monitoring endpoints, cluster-internal services.
+---
+# Self-signed issuer to bootstrap the CA certificate
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+# CA certificate (issued by selfsigned, valid for 10 years)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homelab-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: homelab-ca
+  subject:
+    organizations:
+      - Homelab
+  secretName: homelab-ca-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  duration: 87600h   # 10 years
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer
+---
+# CA-backed issuer for internal services
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca
+spec:
+  ca:
+    secretName: homelab-ca-secret

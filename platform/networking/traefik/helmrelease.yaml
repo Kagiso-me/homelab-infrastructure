@@ -1,0 +1,61 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: ingress
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: traefik
+      version: "28.x"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # k3s bundles its own Traefik — this deployment replaces it.
+    # Disable k3s bundled Traefik in k3s config before applying this.
+    deployment:
+      replicas: 1
+
+    service:
+      type: LoadBalancer
+      annotations:
+        metallb.universe.tf/loadBalancerIPs: "10.0.10.110"
+
+    # Redirect all HTTP to HTTPS globally
+    ports:
+      web:
+        redirectTo:
+          port: websecure
+      websecure:
+        tls:
+          enabled: true
+
+    # Expose Prometheus metrics
+    metrics:
+      prometheus:
+        entryPoint: metrics
+        addEntryPointsLabels: true
+        addRoutersLabels: true
+        addServicesLabels: true
+
+    # Access logs for debugging
+    logs:
+      access:
+        enabled: true
+
+    # Expose Traefik dashboard (restricted — add IngressRoute with auth separately)
+    ingressRoute:
+      dashboard:
+        enabled: false    # managed manually via IngressRoute for access control

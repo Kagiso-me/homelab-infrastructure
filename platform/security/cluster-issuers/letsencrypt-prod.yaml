@@ -1,0 +1,17 @@
+# Production Let's Encrypt issuer — issues browser-trusted certificates.
+# Rate limits apply: https://letsencrypt.org/docs/rate-limits/
+# Only use this issuer after confirming issuance works with letsencrypt-staging.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: admin@kagiso.me    # receives Let's Encrypt expiry notifications
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

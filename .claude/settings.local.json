@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv docker/guides docker/docs)",
+      "Bash(mv \"kubernetes/platform docs/ansible\" kubernetes/ansible)",
+      "Bash(mkdir -p kubernetes/docs)",
+      "Bash(mv \"kubernetes/platform docs/\"*.md kubernetes/docs/)",
+      "Bash(rmdir \"kubernetes/platform docs\")",
+      "Bash(mkdir -p docker/compose kubernetes/clusters kubernetes/infrastructure kubernetes/apps scripts)",
+      "Bash(sed -i 's/⚠️ Back this up/Back this up/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/raspberry-pi/docs/03_backup.md\")",
+      "Bash(sed -i 's/Jellyfin · Sonarr · Radarr/Jellyfin - Sonarr - Radarr/g; s/Prowlarr · SABnzbd · Overseerr/Prowlarr - SABnzbd - Overseerr/g; s/Grafana · Prometheus · Loki/Grafana - Prometheus - Loki/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/docs/00_plan.md\")",
+      "Bash(sed -i 's/TV · Movies · Music/TV - Movies - Music/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/docs/02_docker_installation_and_filesystem.md\")",
+      "Bash(sed -i \"s/Admin · Let''s Encrypt/Admin - Let''s Encrypt/g\" \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/docs/03_media_stack_and_reverse_proxy.md\")",
+      "Bash(sed -i 's/ansible · kubectl · git/ansible - kubectl - git/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/01-Node-Preparation-Hardening.md\")",
+      "Bash(sed -i 's/tywin · jaime · tyrion/tywin - jaime - tyrion/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/00-Platform-Philosophy.md\")",
+      "Bash(sed -i 's/ZFS checksums · snapshots · scrub/ZFS checksums - snapshots - scrub/g; s/tank — RAID-Z \\\\/ Mirror/tank - RAID-Z\\\\/Mirror/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/12-Storage-Architecture.md\")",
+      "Bash(sed -i 's/Prometheus · Grafana · Loki/Prometheus - Grafana - Loki/g' \"c:/Users/ktjea/OneDrive/Documents\\\\Repos/homelab-infrastructure/docs/guides/06-Platform-Namespaces.md\")",
+      "Bash(sed -i 's/20Gi · 14d retention/20Gi - 14d retention/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/07-Monitoring-Observability.md\")",
+      "Bash(sed -i 's/kube-apiserver · etcd · scheduler · controller-manager/kube-apiserver - etcd - scheduler - controller-manager/g; s/tywin — Control Plane/tywin - Control Plane/g; s/ingress · monitoring/ingress - monitoring/g; s/ingress · storage/ingress - storage/g' \"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/05-Cluster-Identity-Scheduling.md\")",
+      "Bash(grep -h \"^## Navigation\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/0*.md)",
+      "Bash(sed 's/.*job_name: //')",
+      "Bash(grep -h 'job=' /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/config/prometheus/alerts/*.yml)",
+      "Bash(sed 's/.*job=\"\"\"\"//')",
+      "Bash(sed 's/\"\"\"\".*//')",
+      "Bash(grep -E \"\\(cadvisor|traefik|node|prometheus|loki\\)\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/config/prometheus/alerts/*.yml)",
+      "Bash(grep \"node-k8s-nodes\\\\|node_k8s_nodes\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docker/config/prometheus/alerts/*.yml)",
+      "Bash(grep -E \"api.github.com|raw.githubusercontent\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs --include=*.md -r)",
+      "Bash(grep -E \"mermaid\\\\|graph|sequenceDiagram\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/*.md)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

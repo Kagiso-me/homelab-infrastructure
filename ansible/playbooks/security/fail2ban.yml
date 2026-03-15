@@ -1,0 +1,16 @@
+- name: Install Fail2Ban
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install Fail2Ban
+      apt:
+        name: fail2ban
+        state: present
+        update_cache: yes
+
+    - name: Enable Fail2Ban
+      systemd:
+        name: fail2ban
+        enabled: true
+        state: started

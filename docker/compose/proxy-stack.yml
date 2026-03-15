@@ -1,0 +1,50 @@
+# =============================================================================
+# Proxy Stack — Docker Compose
+# Nginx Proxy Manager — reverse proxy with automatic SSL (Let's Encrypt)
+# Host: 10.0.10.20
+#
+# .env.example — copy to .env and fill in values before deploying
+# -----------------------------------------------------------------------------
+# (No required env vars — NPM manages its own config via the admin UI)
+# =============================================================================
+
+name: proxy-stack
+
+networks:
+  media-net:
+    external: true
+  monitoring-net:
+    external: true
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Nginx Proxy Manager — Reverse proxy and SSL termination
+  # ---------------------------------------------------------------------------
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    networks:
+      - media-net
+      - monitoring-net
+    ports:
+      - "80:80"       # HTTP (redirects to HTTPS)
+      - "81:81"       # Admin UI
+      - "443:443"     # HTTPS
+    environment:
+      - DISABLE_IPV6=true
+    volumes:
+      - /srv/docker/appdata/npm/data:/data
+      - /etc/letsencrypt:/etc/letsencrypt
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:81/api || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

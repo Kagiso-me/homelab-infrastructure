@@ -1,0 +1,67 @@
+# k3s System Upgrade Controller
+# Manages rolling k3s upgrades via Plan resources.
+# See: https://github.com/rancher/system-upgrade-controller
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: system-upgrade
+  labels:
+    app.kubernetes.io/managed-by: flux
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: system-upgrade-controller
+  namespace: system-upgrade
+spec:
+  selector:
+    matchLabels:
+      upgrade.cattle.io/controller: system-upgrade
+  template:
+    metadata:
+      labels:
+        upgrade.cattle.io/controller: system-upgrade
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      serviceAccountName: system-upgrade
+      containers:
+        - name: system-upgrade-controller
+          image: rancher/system-upgrade-controller:v0.14.2
+          env:
+            - name: SYSTEM_UPGRADE_CONTROLLER_DEBUG
+              value: "false"
+            - name: SYSTEM_UPGRADE_CONTROLLER_THREADS
+              value: "2"
+            - name: SYSTEM_UPGRADE_JOB_ACTIVE_DEADLINE_SECONDS
+              value: "900"
+            - name: SYSTEM_UPGRADE_JOB_BACKOFF_LIMIT
+              value: "99"
+            - name: SYSTEM_UPGRADE_JOB_IMAGE_PULL_POLICY
+              value: "Always"
+            - name: SYSTEM_UPGRADE_JOB_KUBECTL_IMAGE
+              value: rancher/kubectl:v1.31.2
+            - name: SYSTEM_UPGRADE_JOB_PRIVILEGED
+              value: "true"
+          volumeMounts:
+            - name: etc-ssl
+              mountPath: /etc/ssl
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: etc-ssl
+          hostPath:
+            path: /etc/ssl
+            type: Directory
+        - name: tmp
+          emptyDir: {}

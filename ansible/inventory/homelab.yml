@@ -1,0 +1,17 @@
+all:
+  children:
+    k3s_controller:
+      hosts:
+        tywin:
+          ansible_host: 10.0.10.11
+
+    k3s_workers:
+      hosts:
+        jaime:
+          ansible_host: 10.0.10.12
+        tyrion:
+          ansible_host: 10.0.10.13
+
+  vars:
+    ansible_user: kagiso
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519

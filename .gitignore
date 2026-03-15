@@ -1,0 +1,21 @@
+# Secrets & credentials
+*.env
+.env*
+*secrets*
+*credentials*
+vault_pass.txt
+*.key
+*.pem
+
+# Ansible
+*.retry
+ansible/k3s/inventory/host_vars/*/vault.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+*.swp
+*~

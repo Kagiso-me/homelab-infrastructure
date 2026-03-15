@@ -1,0 +1,313 @@
+# =============================================================================
+# Media Stack — Docker Compose
+# Host: 10.0.10.20 | TrueNAS: 10.0.10.80
+# User: kagiso (PUID=1000, PGID=1000) | TZ: Africa/Johannesburg
+#
+# .env.example — copy to .env and fill in values before deploying
+# -----------------------------------------------------------------------------
+# PUID=1000
+# PGID=1000
+# TZ=Africa/Johannesburg
+# JELLYFIN_PublishedServerUrl=http://10.0.10.20:8096
+# SONARR_API_KEY=changeme
+# RADARR_API_KEY=changeme
+# LIDARR_API_KEY=changeme
+# PROWLARR_API_KEY=changeme
+# SABNZBD_API_KEY=changeme
+# BAZARR_API_KEY=changeme
+# OVERSEERR_API_KEY=changeme
+# NAVIDROME_ND_LASTFM_APIKEY=changeme
+# NAVIDROME_ND_LASTFM_SECRET=changeme
+# =============================================================================
+
+name: media-stack
+
+networks:
+  media-net:
+    driver: bridge
+    # media-net is created by this stack and referenced as external by proxy-stack.yml
+    # Deploy media-stack first, then proxy-stack.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Jellyfin — Media server
+  # ---------------------------------------------------------------------------
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "8096:8096"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://10.0.10.20:8096}
+    volumes:
+      - /srv/docker/appdata/jellyfin:/config
+      - /mnt/media:/media:ro
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "render"
+      - "video"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8096/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Sonarr — TV series management
+  # ---------------------------------------------------------------------------
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "8989:8989"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/sonarr:/config
+      - /mnt/media:/media
+      - /mnt/downloads:/downloads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8989/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Radarr — Movie management
+  # ---------------------------------------------------------------------------
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "7878:7878"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/radarr:/config
+      - /mnt/media:/media
+      - /mnt/downloads:/downloads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:7878/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Lidarr — Music management
+  # ---------------------------------------------------------------------------
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "8686:8686"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/lidarr:/config
+      - /mnt/media:/media
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8686/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Prowlarr — Indexer manager
+  # ---------------------------------------------------------------------------
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "9696:9696"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/prowlarr:/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9696/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Overseerr — Media request management
+  # ---------------------------------------------------------------------------
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "5055:5055"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/overseerr:/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:5055/api/v1/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # SABnzbd — Usenet download client
+  # ---------------------------------------------------------------------------
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "8080:8080"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/sabnzbd:/config
+      - /srv/downloads:/srv/downloads
+      - /mnt/downloads:/downloads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/api?mode=version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Bazarr — Subtitle management
+  # ---------------------------------------------------------------------------
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "6767:6767"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Africa/Johannesburg}
+    volumes:
+      - /srv/docker/appdata/bazarr:/config
+      - /mnt/media:/media
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:6767/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Navidrome — Music streaming server
+  # ---------------------------------------------------------------------------
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "4533:4533"
+    environment:
+      - ND_SCANSCHEDULE=1h
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=24h
+      - ND_BASEURL=
+      - ND_LASTFM_APIKEY=${NAVIDROME_ND_LASTFM_APIKEY:-}
+      - ND_LASTFM_SECRET=${NAVIDROME_ND_LASTFM_SECRET:-}
+      - TZ=${TZ:-Africa/Johannesburg}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    volumes:
+      - /srv/docker/appdata/navidrome:/data
+      - /mnt/media/music:/music:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4533/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

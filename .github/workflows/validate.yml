@@ -1,0 +1,47 @@
+name: Validate Manifests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "platform/**"
+      - "apps/**"
+      - "clusters/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "platform/**"
+      - "apps/**"
+      - "clusters/**"
+
+jobs:
+  kubeconform-validate:
+    name: kubeconform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          KUBECONFORM_VERSION="v0.6.7"
+          curl -sSL \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          chmod +x /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Run kubeconform
+        run: |
+          find platform/ apps/ clusters/ \
+            -type f \
+            \( -name "*.yaml" -o -name "*.yml" \) \
+            ! -name "gotk-components.yaml" \
+            | xargs kubeconform \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -ignore-missing-schemas \
+                -summary

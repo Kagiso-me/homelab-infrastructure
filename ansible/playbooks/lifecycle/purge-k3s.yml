@@ -1,0 +1,36 @@
+- name: Purge K3s from all nodes (DESTRUCTIVE)
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    confirm_purge: false
+
+  pre_tasks:
+    - name: Abort unless purge is explicitly confirmed
+      fail:
+        msg: |
+          ❌ PURGE ABORTED
+
+          This playbook is destructive and will REMOVE ALL K3S DATA.
+
+          To proceed, re-run with:
+            ansible-playbook playbooks/purge-k3s.yml -e confirm_purge=true
+      when: not confirm_purge
+
+  tasks:
+    - name: Stop and uninstall K3s
+      shell: |
+        /usr/local/bin/k3s-killall.sh || true
+        /usr/local/bin/k3s-uninstall.sh || true
+
+    - name: Remove K3s and Kubernetes directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/rancher
+        - /var/lib/rancher
+        - /var/lib/kubelet
+        - /etc/cni
+        - /opt/cni

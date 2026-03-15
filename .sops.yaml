@@ -1,0 +1,51 @@
+# SOPS encryption rules for this repository.
+# Files matching these patterns will be encrypted with the age public key below.
+#
+# ─── SETUP (one-time) ──────────────────────────────────────────────────────────
+#
+# Step 1 — Install age and SOPS on your automation host:
+#   sudo apt install -y age
+#   SOPS_VERSION=3.8.1
+#   curl -LO https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64
+#   sudo install -m 755 sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+#
+# Step 2 — Generate your age key pair (do this once, never commit age.key to Git):
+#   age-keygen -o age.key
+#   # Output includes your public key, e.g.: Public key: age1xxxx...
+#
+# Step 3 — Replace the placeholder public key in the creation_rules below with
+#           the public key printed by age-keygen.
+#
+# Step 4 — Encrypt the three secret files in this repo (see guide 11 for details):
+#   sops --encrypt --in-place platform/backup/velero/minio-credentials.yaml
+#   sops --encrypt --in-place platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml
+#   sops --encrypt --in-place platform/observability/alertmanager-config/alertmanager-secret.yaml
+#
+# Step 5 — Store the age private key in the cluster (after k3s + flux bootstrap):
+#   kubectl create secret generic sops-age \
+#     --namespace=flux-system \
+#     --from-file=age.agekey=age.key
+#
+# Full guide: docs/guides/11-Secrets-Management.md
+#
+# To encrypt a file:   sops --encrypt --in-place path/to/secret.yaml
+# To edit a file:      sops path/to/secret.yaml
+# To decrypt a file:   sops --decrypt path/to/secret.yaml
+# ───────────────────────────────────────────────────────────────────────────────
+
+creation_rules:
+  # Platform manifests — encrypt any file with "secret" in the name
+  - path_regex: platform/.*secret.*\.yaml$
+    age: age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY
+
+  # App manifests — encrypt any file with "secret" in the name
+  - path_regex: apps/.*secret.*\.yaml$
+    age: age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY
+
+  # Cluster layer — encrypt any file with "secret" in the name
+  - path_regex: clusters/.*secret.*\.yaml$
+    age: age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY
+
+  # Any .yaml file inside a secrets/ directory (anywhere in the repo)
+  - path_regex: .*/secrets/.*\.yaml$
+    age: age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY

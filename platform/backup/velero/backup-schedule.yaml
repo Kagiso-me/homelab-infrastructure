@@ -1,0 +1,20 @@
+# Daily backup schedule — backs up all namespaces at 03:00 daily.
+# Runs after the etcd snapshot (02:00) to avoid simultaneous I/O on TrueNAS.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-cluster-backup
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  template:
+    includedNamespaces:
+      - "*"
+    excludedNamespaces:
+      - kube-system       # system objects recreated by k3s on rebuild
+      - flux-system       # Flux recreates itself from Git on bootstrap
+    storageLocation: truenas-minio
+    ttl: 168h             # 7 days
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: true    # use file system backup for PVC data
+    labelSelector: {}

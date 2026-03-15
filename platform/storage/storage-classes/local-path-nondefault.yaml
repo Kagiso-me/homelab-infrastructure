@@ -1,0 +1,12 @@
+# Patch the k3s built-in local-path StorageClass to remove the default annotation.
+# nfs-truenas is the default StorageClass for this cluster.
+# local-path remains available for ephemeral workloads but must be referenced explicitly.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer

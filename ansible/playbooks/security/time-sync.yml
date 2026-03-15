@@ -1,0 +1,16 @@
+- name: Ensure time sync
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install chrony
+      apt:
+        name: chrony
+        state: present
+        update_cache: yes
+
+    - name: Enable chrony
+      systemd:
+        name: chrony
+        enabled: true
+        state: started

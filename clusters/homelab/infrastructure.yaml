@@ -1,0 +1,147 @@
+---
+# Platform Networking — MetalLB, Traefik (no dependencies, deploys first)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-networking
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/networking
+  prune: true
+  wait: true
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Platform Security — cert-manager + ClusterIssuers (depends on networking for ingress)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-security
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/security
+  prune: true
+  wait: true
+  dependsOn:
+    - name: platform-networking
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Platform Namespaces — creates all platform namespaces before workloads deploy
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-namespaces
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 2m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/namespaces
+  prune: true
+  dependsOn:
+    - name: platform-networking
+---
+# Platform Observability — kube-prometheus-stack, Loki, Alertmanager config
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-observability
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 15m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/observability
+  prune: true
+  dependsOn:
+    - name: platform-security
+    - name: platform-namespaces
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Platform Storage — NFS provisioner, StorageClasses
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-storage
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/storage
+  prune: true
+  dependsOn:
+    - name: platform-namespaces
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Platform Backup — Velero with MinIO on TrueNAS
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-backup
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/backup
+  prune: true
+  dependsOn:
+    - name: platform-storage
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Platform Upgrade — k3s System Upgrade Controller
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-upgrade
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/upgrade
+  prune: true
+  dependsOn:
+    - name: platform-networking

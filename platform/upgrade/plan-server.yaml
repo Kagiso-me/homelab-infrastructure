@@ -1,0 +1,20 @@
+# k3s server (control-plane) upgrade plan
+# Update spec.version to trigger a rolling upgrade.
+# The server plan must complete before the agent plan runs (via concurrency: 1).
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-server
+  namespace: system-upgrade
+spec:
+  # Pin to a specific version, or use a channel for automatic tracking:
+  # channel: https://update.k3s.io/v1-release/channels/stable
+  version: v1.31.4+k3s1
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+  serviceAccountName: system-upgrade
+  cordon: true
+  upgrade:
+    image: rancher/k3s-upgrade

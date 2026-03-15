@@ -1,0 +1,437 @@
+---
+# install-platform.yml
+#
+# Installs the Kubernetes networking platform layer on top of an existing k3s cluster.
+# Run this playbook AFTER install-cluster.yml has completed and the cluster is healthy.
+#
+# Components installed (in dependency order):
+#   1. MetalLB        — bare-metal LoadBalancer IP address pool
+#   2. cert-manager   — TLS certificate automation (Let's Encrypt / internal CA)
+#   3. Traefik        — HTTP/S ingress controller + TLS termination
+#
+# Prerequisites:
+#   - k3s cluster running (tywin CP, jaime + tyrion workers)
+#   - kubectl configured on the control plane node (~/.kube/config)
+#   - helm installed on the control plane node (installed by this playbook if absent)
+#   - DNS wildcard *.kagiso.me → 10.0.10.110 configured upstream
+#   - Ports 80, 443 accessible to the cluster's MetalLB IP range
+#
+# Usage (run from the Raspberry Pi control hub):
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/lifecycle/install-platform.yml
+#
+# To install a single component only, use tags:
+#   ansible-playbook ... --tags metallb
+#   ansible-playbook ... --tags cert-manager
+#   ansible-playbook ... --tags traefik
+#
+# Variables (override in inventory or with -e):
+#   metallb_version        : MetalLB manifest version (default: v0.14.5)
+#   metallb_ip_range       : IP pool range for LoadBalancer services (default: 10.0.10.110-10.0.10.125)
+#   cert_manager_version   : cert-manager Helm chart version (default: v1.14.4)
+#   letsencrypt_email      : Email address for Let's Encrypt registration (REQUIRED)
+#   traefik_chart_version  : Traefik Helm chart version (default: 28.3.0)
+#   traefik_loadbalancer_ip: Traefik LoadBalancer IP (default: 10.0.10.110)
+
+- name: Install Kubernetes networking platform (MetalLB + cert-manager + Traefik)
+  hosts: k3s_controller
+  become: true
+  gather_facts: true
+
+  vars:
+    metallb_version: "v0.14.5"
+    metallb_ip_range: "10.0.10.110-10.0.10.125"
+    cert_manager_version: "v1.14.4"
+    letsencrypt_email: "admin@kagiso.me"
+    traefik_chart_version: "28.3.0"
+    traefik_loadbalancer_ip: "10.0.10.110"
+    kubeconfig: "/etc/rancher/k3s/k3s.yaml"
+
+  environment:
+    KUBECONFIG: "{{ kubeconfig }}"
+
+  # ============================================================================
+  # PRE-FLIGHT — verify cluster is healthy before touching it
+  # ============================================================================
+  pre_tasks:
+
+    - name: "pre-flight | Verify kubectl is available"
+      command: kubectl version --client --output=json
+      register: kubectl_check
+      changed_when: false
+      tags: [always]
+
+    - name: "pre-flight | Verify cluster nodes are all Ready"
+      shell: |
+        kubectl get nodes --no-headers \
+          -o custom-columns='NAME:.metadata.name,READY:.status.conditions[-1].type,STATUS:.status.conditions[-1].status' \
+          | awk '$3 != "True" {print $1, "is NOT Ready"; found=1} END {if (found) exit 1}'
+      register: nodes_ready
+      changed_when: false
+      failed_when: nodes_ready.rc != 0
+      tags: [always]
+
+    - name: "pre-flight | Install helm if not present"
+      shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+      tags: [always]
+
+    - name: "pre-flight | Add required Helm repositories"
+      command: "{{ item }}"
+      loop:
+        - helm repo add metallb https://metallb.github.io/metallb
+        - helm repo add jetstack https://charts.jetstack.io
+        - helm repo add traefik https://helm.traefik.io/traefik
+        - helm repo update
+      changed_when: false
+      tags: [always]
+
+  # ============================================================================
+  # STEP 1 — MetalLB
+  # Provides LoadBalancer IP addresses on bare metal via Layer-2 ARP.
+  # ============================================================================
+  tasks:
+
+    - name: "metallb | Apply MetalLB native manifest"
+      command: >
+        kubectl apply -f
+        https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml
+      register: metallb_apply
+      changed_when: "'configured' in metallb_apply.stdout or 'created' in metallb_apply.stdout"
+      tags: [metallb]
+
+    - name: "metallb | Wait for MetalLB controller to be ready"
+      command: >
+        kubectl rollout status deployment/controller
+        -n metallb-system
+        --timeout=120s
+      changed_when: false
+      tags: [metallb]
+
+    - name: "metallb | Wait for MetalLB speaker DaemonSet to be ready"
+      command: >
+        kubectl rollout status daemonset/speaker
+        -n metallb-system
+        --timeout=120s
+      changed_when: false
+      tags: [metallb]
+
+    - name: "metallb | Apply IP address pool and L2 advertisement"
+      # The IPAddressPool and L2Advertisement CRDs are registered by the
+      # metallb-native manifest above. We must wait for them before applying.
+      # A brief pause is added because there can be a short delay between the
+      # CRD manifests being applied and the API server accepting instances.
+      pause:
+        seconds: 10
+      tags: [metallb]
+
+    - name: "metallb | Write IPAddressPool + L2Advertisement manifest"
+      copy:
+        dest: /tmp/metallb-pool.yaml
+        content: |
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            name: homelab-pool
+            namespace: metallb-system
+          spec:
+            addresses:
+              - {{ metallb_ip_range }}
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            name: homelab-l2
+            namespace: metallb-system
+          spec:
+            ipAddressPools:
+              - homelab-pool
+        mode: '0644'
+      tags: [metallb]
+
+    - name: "metallb | Apply IP pool configuration"
+      command: kubectl apply -f /tmp/metallb-pool.yaml
+      register: pool_apply
+      changed_when: "'configured' in pool_apply.stdout or 'created' in pool_apply.stdout"
+      tags: [metallb]
+
+    - name: "metallb | Verify pool was created"
+      command: kubectl get ipaddresspool -n metallb-system
+      changed_when: false
+      tags: [metallb]
+
+  # ============================================================================
+  # STEP 2 — cert-manager
+  # Automates TLS certificate requests, renewal, and Kubernetes Secret
+  # management via ACME (Let's Encrypt) or an internal CA issuer.
+  # ============================================================================
+
+    - name: "cert-manager | Install CRDs before the chart"
+      # cert-manager requires its CRDs to be installed separately so that
+      # upgrades can be managed independently of the controller.
+      command: >
+        kubectl apply -f
+        https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml
+      register: cm_crds_apply
+      changed_when: "'configured' in cm_crds_apply.stdout or 'created' in cm_crds_apply.stdout"
+      tags: [cert-manager]
+
+    - name: "cert-manager | Install cert-manager via Helm"
+      command: >
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace cert-manager
+        --create-namespace
+        --version {{ cert_manager_version }}
+        --set installCRDs=false
+        --wait
+        --timeout 5m
+      register: cm_install
+      changed_when: cm_install.rc == 0
+      tags: [cert-manager]
+
+    - name: "cert-manager | Wait for cert-manager webhook to be ready"
+      command: >
+        kubectl rollout status deployment/cert-manager-webhook
+        -n cert-manager
+        --timeout=120s
+      changed_when: false
+      tags: [cert-manager]
+
+    - name: "cert-manager | Write Let's Encrypt ClusterIssuer (staging)"
+      # Start with the staging issuer to avoid Let's Encrypt rate limits while
+      # validating the setup. Once confirmed working, apply the production issuer.
+      copy:
+        dest: /tmp/cluster-issuer-staging.yaml
+        content: |
+          ---
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-staging
+          spec:
+            acme:
+              email: {{ letsencrypt_email }}
+              server: https://acme-staging-v02.api.letsencrypt.org/directory
+              privateKeySecretRef:
+                name: letsencrypt-staging-private-key
+              solvers:
+                - http01:
+                    ingress:
+                      class: traefik
+        mode: '0644'
+      tags: [cert-manager]
+
+    - name: "cert-manager | Write Let's Encrypt ClusterIssuer (production)"
+      copy:
+        dest: /tmp/cluster-issuer-production.yaml
+        content: |
+          ---
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt
+          spec:
+            acme:
+              email: {{ letsencrypt_email }}
+              server: https://acme-v02.api.letsencrypt.org/directory
+              privateKeySecretRef:
+                name: letsencrypt-private-key
+              solvers:
+                - http01:
+                    ingress:
+                      class: traefik
+        mode: '0644'
+      tags: [cert-manager]
+
+    - name: "cert-manager | Apply both ClusterIssuers"
+      command: "kubectl apply -f {{ item }}"
+      loop:
+        - /tmp/cluster-issuer-staging.yaml
+        - /tmp/cluster-issuer-production.yaml
+      register: issuer_apply
+      changed_when: "'configured' in issuer_apply.stdout or 'created' in issuer_apply.stdout"
+      tags: [cert-manager]
+
+    - name: "cert-manager | Verify ClusterIssuers are ready"
+      shell: |
+        kubectl get clusterissuer letsencrypt letsencrypt-staging \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[0].status}{"\n"}{end}'
+      register: issuer_status
+      changed_when: false
+      failed_when: "'False' in issuer_status.stdout"
+      # Allow a delay for the ACME server registration to complete
+      retries: 6
+      delay: 10
+      until: issuer_status.rc == 0 and 'False' not in issuer_status.stdout
+      tags: [cert-manager]
+
+  # ============================================================================
+  # STEP 3 — Traefik Ingress Controller
+  # Single HTTP/S entry point for all cluster services. Assigned a LoadBalancer
+  # IP from the MetalLB pool. Handles TLS termination via cert-manager secrets.
+  # ============================================================================
+
+    - name: "traefik | Write Traefik Helm values file"
+      copy:
+        dest: /tmp/traefik-values.yaml
+        content: |
+          # Traefik Helm values for homelab k3s cluster
+          # LoadBalancer IP is pinned to a specific address in the MetalLB pool.
+          # This IP should match the DNS wildcard: *.kagiso.me → 10.0.10.110
+
+          service:
+            type: LoadBalancer
+            spec:
+              loadBalancerIP: {{ traefik_loadbalancer_ip }}
+
+          # Enable Prometheus metrics endpoint
+          metrics:
+            prometheus:
+              entryPoint: metrics
+
+          additionalArguments:
+            # Allow Traefik to read cert-manager TLS secrets in all namespaces
+            - "--providers.kubernetesingress.ingressclass=traefik"
+            - "--log.level=INFO"
+            - "--accesslog=true"
+            - "--api.dashboard=true"
+            - "--api.insecure=false"
+
+          # Ports
+          ports:
+            web:
+              port: 80
+              expose: true
+              exposedPort: 80
+              protocol: TCP
+              # Redirect all HTTP to HTTPS
+              redirectTo:
+                port: websecure
+            websecure:
+              port: 443
+              expose: true
+              exposedPort: 443
+              protocol: TCP
+              tls:
+                enabled: true
+            metrics:
+              port: 9100
+              expose: false
+              protocol: TCP
+            traefik:
+              port: 9000
+              expose: false
+
+          # IngressClass so cert-manager http01 solvers can find Traefik
+          ingressClass:
+            enabled: true
+            isDefaultClass: true
+            name: traefik
+
+          # RBAC — Traefik needs to read Secrets for TLS certs
+          rbac:
+            enabled: true
+
+          # Resource limits appropriate for a homelab control plane node
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+        mode: '0644'
+      tags: [traefik]
+
+    - name: "traefik | Install Traefik via Helm"
+      command: >
+        helm upgrade --install traefik traefik/traefik
+        --namespace traefik
+        --create-namespace
+        --version {{ traefik_chart_version }}
+        --values /tmp/traefik-values.yaml
+        --wait
+        --timeout 5m
+      register: traefik_install
+      changed_when: traefik_install.rc == 0
+      tags: [traefik]
+
+    - name: "traefik | Wait for Traefik deployment to be ready"
+      command: >
+        kubectl rollout status deployment/traefik
+        -n traefik
+        --timeout=120s
+      changed_when: false
+      tags: [traefik]
+
+    - name: "traefik | Get Traefik LoadBalancer external IP"
+      command: >
+        kubectl get svc traefik -n traefik
+        -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: traefik_ip
+      changed_when: false
+      retries: 10
+      delay: 6
+      until: traefik_ip.stdout != ""
+      tags: [traefik]
+
+    - name: "traefik | Assert LoadBalancer IP matches expected value"
+      assert:
+        that:
+          - traefik_ip.stdout == traefik_loadbalancer_ip
+        fail_msg: >
+          Traefik received IP {{ traefik_ip.stdout }} but expected
+          {{ traefik_loadbalancer_ip }}. Check the MetalLB IP pool range
+          and ensure {{ traefik_loadbalancer_ip }} is within
+          {{ metallb_ip_range }}.
+        success_msg: >
+          Traefik LoadBalancer IP is {{ traefik_ip.stdout }} ✓
+      tags: [traefik]
+
+  # ============================================================================
+  # POST-INSTALL — summary verification
+  # ============================================================================
+  post_tasks:
+
+    - name: "verify | Check all platform pods are running"
+      shell: |
+        echo "=== MetalLB ===" && \
+        kubectl get pods -n metallb-system --no-headers && \
+        echo "" && \
+        echo "=== cert-manager ===" && \
+        kubectl get pods -n cert-manager --no-headers && \
+        echo "" && \
+        echo "=== Traefik ===" && \
+        kubectl get pods -n traefik --no-headers
+      changed_when: false
+      register: platform_pods
+      tags: [always]
+
+    - name: "verify | Print platform pod status"
+      debug:
+        msg: "{{ platform_pods.stdout_lines }}"
+      tags: [always]
+
+    - name: "verify | Print Traefik LoadBalancer IP"
+      debug:
+        msg: >
+          ✓ Platform installation complete.
+          Traefik is listening on {{ traefik_ip.stdout }} (ports 80, 443).
+          DNS wildcard *.kagiso.me should resolve to this IP.
+          Test with: curl -k https://{{ traefik_ip.stdout }}
+          Expected: 404 page not found (Traefik running, no matching IngressRoute yet).
+      tags: [always]
+
+    - name: "verify | Clean up temp manifests"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/metallb-pool.yaml
+        - /tmp/cluster-issuer-staging.yaml
+        - /tmp/cluster-issuer-production.yaml
+        - /tmp/traefik-values.yaml
+      tags: [always]

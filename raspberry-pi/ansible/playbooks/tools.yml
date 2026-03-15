@@ -1,0 +1,49 @@
+---
+# raspberry-pi/ansible/playbooks/tools.yml
+# Updates CLI tools to configured versions without re-running full setup.
+# Use this after bumping version vars when new tool releases are available.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml playbooks/tools.yml
+
+- name: Update homelab CLI tools on Raspberry Pi
+  hosts: rpi
+  become: true
+
+  vars:
+    kubectl_version: "1.29.3"
+    flux_version: "2.3.0"
+    helm_version: "3.14.4"
+    k9s_version: "0.32.4"
+    sops_version: "3.8.1"
+    velero_version: "1.13.2"
+
+  tasks:
+    - name: Update kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/arm64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+        force: true
+
+    - name: Update SOPS
+      get_url:
+        url: "https://github.com/getsops/sops/releases/download/v{{ sops_version }}/sops-v{{ sops_version }}.linux.arm64"
+        dest: /usr/local/bin/sops
+        mode: "0755"
+        force: true
+
+    - name: Verify tool versions
+      shell: |
+        echo "kubectl: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
+        echo "flux: $(flux --version)"
+        echo "helm: $(helm version --short)"
+        echo "k9s: $(k9s version --short 2>/dev/null | head -1)"
+        echo "sops: $(sops --version)"
+        echo "velero: $(velero version --client-only 2>/dev/null | grep Version)"
+      register: versions
+      changed_when: false
+
+    - name: Print tool versions
+      debug:
+        msg: "{{ versions.stdout_lines }}"

@@ -1,0 +1,13 @@
+- name: Reboot nodes
+  hosts: all
+  become: true
+  serial: 1   # VERY important for clusters
+  tasks:
+    - name: Reboot the node safely
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible"
+        reboot_timeout: 300
+        connect_timeout: 5
+        pre_reboot_delay: 5
+        post_reboot_delay: 15
+        test_command: uptime

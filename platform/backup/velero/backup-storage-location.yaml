@@ -1,0 +1,26 @@
+# BackupStorageLocation — MinIO on TrueNAS (S3-compatible).
+# MinIO runs on TrueNAS (outside the cluster) so it remains accessible
+# even when the Kubernetes cluster is completely down.
+#
+# Pre-requisites (one-time, done on TrueNAS):
+#   1. Create a MinIO bucket named "velero"
+#   2. Create an access key + secret key for Velero
+#   3. Store the credentials in velero-minio-credentials Secret (see minio-credentials.yaml)
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: truenas-minio
+  namespace: velero
+spec:
+  provider: aws
+  default: true
+  objectStorage:
+    bucket: velero
+  config:
+    region: minio
+    s3Url: http://10.0.10.80:9000
+    s3ForcePathStyle: "true"
+    insecureSkipTLSVerify: "true"
+  credential:
+    name: velero-minio-credentials
+    key: cloud

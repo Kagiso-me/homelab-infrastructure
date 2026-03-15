@@ -1,0 +1,26 @@
+# k3s agent (worker) upgrade plan
+# Runs after the server plan completes. Upgrades workers one at a time.
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: k3s-agent
+  namespace: system-upgrade
+spec:
+  version: v1.31.4+k3s1   # must match plan-server.yaml
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+  serviceAccountName: system-upgrade
+  # Wait for server plan to complete before upgrading agents
+  prepare:
+    image: rancher/k3s-upgrade
+    args:
+      - prepare
+      - k3s-server
+  cordon: true
+  drain:
+    force: true
+    skipWaitForDeleteTimeout: 60
+  upgrade:
+    image: rancher/k3s-upgrade

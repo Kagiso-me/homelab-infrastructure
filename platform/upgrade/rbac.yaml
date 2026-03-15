@@ -1,0 +1,56 @@
+# RBAC for k3s System Upgrade Controller.
+# The controller needs permissions to read/update Plan CRDs, list nodes,
+# and manage the Job/DaemonSet it creates to execute upgrades.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: system-upgrade
+  namespace: system-upgrade
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system-upgrade
+rules:
+  # Manage Plans (the CRD that defines what to upgrade and when)
+  - apiGroups: ["upgrade.cattle.io"]
+    resources: ["plans", "plans/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read node metadata (labels, taints) to select upgrade targets
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # Create and monitor Jobs that run the actual upgrade on each node
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Manage the DaemonSet that drains/cordons nodes before upgrading
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read Secrets (e.g. the k3s server token used during node upgrade)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  # Manage Pods created by upgrade Jobs
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  # Evict pods from nodes being upgraded
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: system-upgrade
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system-upgrade
+subjects:
+  - kind: ServiceAccount
+    name: system-upgrade
+    namespace: system-upgrade

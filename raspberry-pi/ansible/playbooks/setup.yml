@@ -1,0 +1,172 @@
+---
+# raspberry-pi/ansible/playbooks/setup.yml
+# Full bootstrap playbook for the Raspberry Pi control hub.
+# Run once after fresh OS install, or to enforce idempotent state.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml playbooks/setup.yml
+
+- name: Bootstrap Raspberry Pi control hub
+  hosts: rpi
+  become: true
+
+  vars:
+    kubectl_version: "1.29.3"
+    flux_version: "2.3.0"
+    helm_version: "3.14.4"
+    k9s_version: "0.32.4"
+    age_version: "1.1.1"
+    sops_version: "3.8.1"
+    velero_version: "1.13.2"
+
+  tasks:
+    # ── System baseline ──────────────────────────────────────────────────
+    - name: Update apt cache and upgrade packages
+      apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - jq
+          - unzip
+          - htop
+          - nfs-common
+          - openssh-server
+          - python3-pip
+          - ansible
+        state: present
+
+    # ── SSH hardening ────────────────────────────────────────────────────
+    - name: Disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      notify: Restart sshd
+
+    - name: Disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitRootLogin"
+        line: "PermitRootLogin no"
+      notify: Restart sshd
+
+    # ── kubectl ──────────────────────────────────────────────────────────
+    - name: Download kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/arm64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    # ── Helm ─────────────────────────────────────────────────────────────
+    - name: Download and install Helm
+      shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+          DESIRED_VERSION="v{{ helm_version }}" bash
+      args:
+        creates: /usr/local/bin/helm
+
+    # ── Flux CLI ─────────────────────────────────────────────────────────
+    - name: Download Flux CLI
+      get_url:
+        url: "https://github.com/fluxcd/flux2/releases/download/v{{ flux_version }}/flux_{{ flux_version }}_linux_arm64.tar.gz"
+        dest: /tmp/flux.tar.gz
+
+    - name: Extract Flux CLI
+      unarchive:
+        src: /tmp/flux.tar.gz
+        dest: /usr/local/bin/
+        remote_src: true
+        extra_opts: ["--wildcards", "flux"]
+
+    - name: Set Flux permissions
+      file:
+        path: /usr/local/bin/flux
+        mode: "0755"
+
+    # ── k9s ──────────────────────────────────────────────────────────────
+    - name: Download k9s
+      get_url:
+        url: "https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/k9s_Linux_arm64.tar.gz"
+        dest: /tmp/k9s.tar.gz
+
+    - name: Extract k9s
+      unarchive:
+        src: /tmp/k9s.tar.gz
+        dest: /usr/local/bin/
+        remote_src: true
+        extra_opts: ["--wildcards", "k9s"]
+
+    - name: Set k9s permissions
+      file:
+        path: /usr/local/bin/k9s
+        mode: "0755"
+
+    # ── age ──────────────────────────────────────────────────────────────
+    - name: Install age
+      apt:
+        name: age
+        state: present
+
+    # ── SOPS ─────────────────────────────────────────────────────────────
+    - name: Download SOPS
+      get_url:
+        url: "https://github.com/getsops/sops/releases/download/v{{ sops_version }}/sops-v{{ sops_version }}.linux.arm64"
+        dest: /usr/local/bin/sops
+        mode: "0755"
+
+    # ── Velero CLI ───────────────────────────────────────────────────────
+    - name: Download Velero CLI
+      get_url:
+        url: "https://github.com/vmware-tanzu/velero/releases/download/v{{ velero_version }}/velero-v{{ velero_version }}-linux-arm64.tar.gz"
+        dest: /tmp/velero.tar.gz
+
+    - name: Extract Velero CLI
+      unarchive:
+        src: /tmp/velero.tar.gz
+        dest: /tmp/
+        remote_src: true
+
+    - name: Move Velero binary
+      copy:
+        src: "/tmp/velero-v{{ velero_version }}-linux-arm64/velero"
+        dest: /usr/local/bin/velero
+        mode: "0755"
+        remote_src: true
+
+    # ── kubeconfig directory ─────────────────────────────────────────────
+    - name: Ensure .kube directory exists for pi user
+      file:
+        path: /home/pi/.kube
+        state: directory
+        owner: pi
+        group: pi
+        mode: "0700"
+
+    # ── Shell conveniences ───────────────────────────────────────────────
+    - name: Add kubectl aliases to .bashrc
+      blockinfile:
+        path: /home/pi/.bashrc
+        owner: pi
+        group: pi
+        block: |
+          # Kubernetes shortcuts
+          alias k='kubectl'
+          alias kgp='kubectl get pods -A'
+          alias kgn='kubectl get nodes'
+          alias kgs='kubectl get svc -A'
+          complete -F __start_kubectl k
+          source <(kubectl completion bash)
+          source <(flux completion bash)
+
+  handlers:
+    - name: Restart sshd
+      service:
+        name: sshd
+        state: restarted

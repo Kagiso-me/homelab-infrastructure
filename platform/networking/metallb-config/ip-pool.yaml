@@ -1,0 +1,22 @@
+---
+# IP address pool for MetalLB LoadBalancer services.
+# Range: 10.0.10.110–10.0.10.125 (reserved exclusively for Kubernetes)
+# Traefik ingress is pinned to 10.0.10.110 via service annotation.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: homelab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.0.10.110-10.0.10.125
+---
+# Layer-2 advertisement — MetalLB responds to ARP requests for the pool IPs.
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: homelab-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - homelab-pool

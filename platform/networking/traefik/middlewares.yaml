@@ -1,0 +1,33 @@
+# Traefik Middlewares — global reusable middlewares for all IngressRoutes.
+#
+# How to reference from an IngressRoute in another namespace:
+#   middlewares:
+#     - name: ingress-redirect-https@kubernetescrd
+#
+# Note: The global HTTP→HTTPS redirect is ALSO configured at the entrypoint level
+# in the Traefik HelmRelease (ports.web.redirectTo.port: websecure), which means
+# ALL HTTP traffic is redirected to HTTPS automatically — even without referencing
+# this middleware. This named Middleware exists for explicit use in IngressRoutes
+# that want to declare the redirect intentionally.
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: ingress
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+# Strip trailing slash — useful for apps that break on double-slash URLs
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-slash
+  namespace: ingress
+spec:
+  redirectRegex:
+    regex: ^(https?://[^/]+/[^?]*)/$
+    replacement: ${1}
+    permanent: true

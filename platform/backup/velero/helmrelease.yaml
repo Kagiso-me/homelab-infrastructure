@@ -1,0 +1,67 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: velero
+  namespace: velero
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: velero
+      version: "8.x"
+      sourceRef:
+        kind: HelmRepository
+        name: vmware-tanzu
+        namespace: flux-system
+      interval: 24h
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # Install the AWS plugin to speak S3 (MinIO is S3-compatible)
+    initContainers:
+      - name: velero-plugin-for-aws
+        image: velero/velero-plugin-for-aws:v1.10.0
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: /target
+            name: plugins
+
+    configuration:
+      # Use the aws provider — MinIO exposes an S3-compatible API
+      backupStorageLocation:
+        - name: truenas-minio
+          provider: aws
+          bucket: velero
+          default: true
+          config:
+            region: minio
+            s3Url: http://10.0.10.80:9000
+            s3ForcePathStyle: "true"
+            insecureSkipTLSVerify: "true"
+
+    credentials:
+      # Credentials are stored in a SOPS-encrypted Secret (minio-credentials.yaml)
+      existingSecret: velero-minio-credentials
+
+    # Node-agent (formerly restic) for file-system backup of PVC data.
+    # k3s stores kubelet pod data at a non-standard path — must be overridden.
+    nodeAgent:
+      enabled: true
+      podVolumePath: /var/lib/rancher/k3s/agent/kubelet/pods
+
+    # Deploy a ServiceMonitor so Prometheus scrapes Velero metrics
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+
+    # Default backup storage location name used by the Schedule CRD
+    defaultBackupStorageLocation: truenas-minio

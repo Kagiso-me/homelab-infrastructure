@@ -1,0 +1,14 @@
+# k3s installation defaults
+
+k3s_cluster_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+
+k3s_disable:
+  - traefik
+  - servicelb
+
+k3s_extra_args:
+  - "--write-kubeconfig-mode=644"
+
+# API endpoint used for TLS SAN and kubeconfig
+k3s_api_endpoint: "{{ ansible_host }}"

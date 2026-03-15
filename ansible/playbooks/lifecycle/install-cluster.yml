@@ -1,0 +1,28 @@
+- name: Install K3s server
+  hosts: k3s_controller
+  become: true
+  roles:
+    - k3s_install
+
+- name: Install K3s workers
+  hosts: k3s_workers
+  become: true
+  roles:
+    - k3s_install
+
+- name: Fetch kubeconfig
+  hosts: k3s_controller
+  become: true
+  tasks:
+    - fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ lookup('env','HOME') }}/.kube/config"
+        flat: yes
+
+- name: Fix kubeconfig endpoint
+  hosts: localhost
+  tasks:
+    - replace:
+        path: "{{ lookup('env','HOME') }}/.kube/config"
+        regexp: 'server: https://.*:6443'
+        replace: "server: https://{{ hostvars[groups['k3s_controller'][0]].ansible_host }}:6443"
