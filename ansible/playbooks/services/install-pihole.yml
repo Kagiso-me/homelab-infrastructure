@@ -73,6 +73,14 @@
   # PI-HOLE INSTALL
   # ============================================================================
 
+    - name: "pihole | Create /etc/pihole directory"
+      file:
+        path: /etc/pihole
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
     - name: "pihole | Create setupVars.conf for unattended install"
       copy:
         dest: /etc/pihole/setupVars.conf
