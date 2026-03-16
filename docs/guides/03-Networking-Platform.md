@@ -38,12 +38,13 @@ Together these components transform a raw Kubernetes cluster into a **usable app
 6. [What the Playbook Does](#what-the-playbook-does)
 7. [DNS Configuration](#dns-configuration)
 8. [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup)
-9. [Tailscale / Headscale (Private Remote Access)](#tailscale--headscale-private-remote-access)
-10. [TLS Certificate Flow](#tls-certificate-flow)
-11. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
-12. [Verifying the Platform](#verifying-the-platform)
-13. [Exit Criteria](#exit-criteria)
-14. [Troubleshooting](#troubleshooting)
+9. [Pi-hole (Split DNS + Ad Blocking)](#pi-hole-split-dns--ad-blocking)
+10. [Tailscale / Headscale (Private Remote Access)](#tailscale--headscale-private-remote-access)
+11. [TLS Certificate Flow](#tls-certificate-flow)
+12. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
+13. [Verifying the Platform](#verifying-the-platform)
+14. [Exit Criteria](#exit-criteria)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -322,6 +323,69 @@ cloudflared tunnel route dns homelab newservice.kagiso.me
 ```
 
 > **Plex / media streaming:** Do NOT route Plex through Cloudflare Tunnel. Cloudflare's ToS prohibits proxying video streaming. Use Tailscale instead (see next section).
+
+---
+
+## Pi-hole (Split DNS + Ad Blocking)
+
+Pi-hole runs on the RPi at `10.0.10.10` alongside `cloudflared`. It serves as the DNS resolver for every device on the LAN and provides two key capabilities:
+
+- **Split DNS:** The wildcard entry `*.kagiso.me → 10.0.10.110` means all internal services with a `*.kagiso.me` hostname resolve directly to Traefik on the LAN — without being publicly exposed.
+- **Ad blocking:** Network-wide DNS-based ad filtering for all LAN clients.
+
+### Installation
+
+Pi-hole is installed via an Ansible playbook. Run from the RPi:
+
+```bash
+ansible-playbook -i ansible/inventory/homelab.yml \
+  ansible/playbooks/services/install-pihole.yml
+```
+
+The playbook installs Pi-hole, configures the `*.kagiso.me` wildcard dnsmasq directive, and sets upstream resolvers to Cloudflare `1.1.1.1` / `1.0.0.1` with DNSSEC.
+
+### Post-Install: Set USG DHCP DNS
+
+After installation, configure the UniFi Security Gateway to hand out Pi-hole as the DNS server for all DHCP clients:
+
+```
+UniFi Controller → Networks → [LAN network] → DHCP → DNS Server 1: 10.0.10.10
+```
+
+Once this is set, all LAN devices will use Pi-hole for DNS resolution automatically on their next DHCP renewal.
+
+### Admin UI
+
+Pi-hole's admin dashboard is accessible at:
+
+```
+http://10.0.10.10/admin
+```
+
+### Security Model: Certs Don't Expose Services
+
+> **The TLS certificate does not expose a service. DNS and routing do.**
+
+A service can have a valid `*.kagiso.me` cert and still be completely invisible from the internet. Pi-hole's wildcard makes the hostname resolvable on the LAN. For a service to be reachable from the WAN, it needs **both** a public Cloudflare DNS record **and** an ingress rule in the `cloudflared` config. Without those, the hostname simply does not resolve outside the LAN.
+
+### Adding a New Internal-Only Service
+
+Create an `IngressRoute` in k3s with the desired `Host(*.kagiso.me)` rule. No DNS changes are needed — Pi-hole's wildcard `*.kagiso.me → 10.0.10.110` handles resolution on the LAN automatically.
+
+The service is reachable on the LAN. It is not reachable from the WAN.
+
+### Adding a New Public Service
+
+Three steps are required:
+
+1. Create an `IngressRoute` in k3s with the desired hostname.
+2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on the RPi and restart `cloudflared`.
+3. Add a proxied CNAME record in Cloudflare DNS pointing to the tunnel:
+
+```bash
+cloudflared tunnel route dns homelab newservice.kagiso.me
+sudo systemctl restart cloudflared
+```
 
 ---
 

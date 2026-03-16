@@ -21,7 +21,7 @@ All nodes are on the same Layer-2 network segment.
 | Proxmox host (NUC) | 10.0.10.20 | Hypervisor |
 | docker-vm | 10.0.10.21 | Docker media stack |
 | staging-k3s | TBD | Single-node k3s staging |
-| RPi | 10.0.10.10 | Control hub |
+| RPi | 10.0.10.10 | Control hub (Ansible, kubectl, Pi-hole DNS, cloudflared) |
 
 ---
 
@@ -99,9 +99,31 @@ Application pod (Plex, SSH target, etc.)
 
 ## DNS Architecture
 
-All cluster services are accessed via hostnames under `kagiso.me` (public domain).
+All cluster services are accessed via hostnames under `kagiso.me`. DNS is split across two layers: Pi-hole for LAN resolution and Cloudflare for public resolution.
 
-**DNS configuration** (managed in Cloudflare DNS):
+### Pi-hole — LAN DNS Server
+
+**Pi-hole runs on the RPi at `10.0.10.10`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.10` as DNS Server 1 to all DHCP clients.
+
+Pi-hole provides:
+
+- **Wildcard DNS:** `*.kagiso.me → 10.0.10.110` (Traefik) — configured as a dnsmasq `address` directive, so every `*.kagiso.me` hostname resolves to Traefik on the LAN without per-service DNS entries.
+- **Ad blocking:** Network-wide DNS-based ad blocking for all LAN clients.
+- **Split DNS:** Internal services only need a Pi-hole entry — they are invisible from the public internet regardless of whether a TLS certificate exists for them.
+- **Upstream DNS:** All other queries are forwarded to Cloudflare `1.1.1.1` / `1.0.0.1` with DNSSEC validation.
+
+```
+# Pi-hole wildcard (dnsmasq address directive — auto-configured by Ansible playbook)
+address=/kagiso.me/10.0.10.110
+
+# Upstream resolvers (with DNSSEC)
+1.1.1.1
+1.0.0.1
+```
+
+### Cloudflare DNS — Public Access
+
+Public services additionally have proxied CNAME records in Cloudflare DNS pointing to the Cloudflare Tunnel:
 
 ```
 # Public services — DNS records are proxied through Cloudflare
@@ -111,21 +133,31 @@ nextcloud.kagiso.me  CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
 immich.kagiso.me     CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
 ```
 
-Cloudflare proxies the DNS records — external clients resolve to Cloudflare's anycast IPs, not to the home network IP. Traffic is forwarded to the homelab via the Cloudflare Tunnel.
+External clients resolve to Cloudflare's anycast IPs — the home network IP is never exposed. Traffic is forwarded to the homelab via the Cloudflare Tunnel.
 
-**Internal / direct access** (LAN or Tailscale) continues to use:
+### Split DNS Security Model
 
-```
-# Internal wildcard — resolves to Traefik directly (router or Pi-hole config)
-*.kagiso.me  A  10.0.10.110
-```
+> **The TLS certificate does not expose a service. DNS and routing do.**
 
-When on the LAN or connected via Tailscale, hostnames resolve to `10.0.10.110` (Traefik) directly, bypassing Cloudflare.
+A service with a valid `*.kagiso.me` certificate is only reachable from the internet if **both** of the following are true:
 
-Adding a new public-facing service requires:
-1. Creating an `IngressRoute` or `Ingress` resource with the desired hostname.
-2. Adding a proxied CNAME record in Cloudflare DNS pointing to the tunnel.
-3. Adding a hostname rule to the Cloudflare Tunnel configuration.
+1. A public Cloudflare DNS record (proxied CNAME to the tunnel) exists for it.
+2. A matching hostname ingress rule exists in the `cloudflared` config.
+
+An internal-only service that has a `*.kagiso.me` cert but no Cloudflare DNS record and no tunnel rule is unreachable from WAN. From the LAN, Pi-hole's wildcard resolves it to Traefik; from the internet, the hostname does not resolve at all.
+
+### Adding a New Internal-Only Service
+
+1. Create an `IngressRoute` in k3s with the desired `Host(*.kagiso.me)` rule.
+2. That is all — Pi-hole's wildcard `*.kagiso.me → 10.0.10.110` handles DNS automatically on the LAN. No Pi-hole changes needed.
+
+The service is reachable on the LAN. It is not reachable from the WAN.
+
+### Adding a New Public Service
+
+1. Create an `IngressRoute` in k3s with the desired hostname.
+2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on the RPi and restart `cloudflared`.
+3. Add a proxied CNAME record in Cloudflare DNS pointing to the tunnel (`cloudflared tunnel route dns homelab <hostname>` handles this automatically).
 
 ---
 
@@ -225,6 +257,16 @@ Applied by `playbooks/security/firewall.yml`:
 | 2379–2380 | TCP | etcd (control-plane only) |
 | 8472 | UDP | Flannel VXLAN overlay |
 | 443 | TCP | HTTPS — Traefik (LAN/Tailscale direct access only) |
+
+### USG DHCP Configuration
+
+The UniFi Security Gateway DHCP server is configured to hand out `10.0.10.10` (RPi / Pi-hole) as the DNS server for all LAN clients:
+
+```
+UniFi Controller → Networks → [LAN network] → DHCP → DNS Server 1: 10.0.10.10
+```
+
+This ensures all devices on the LAN use Pi-hole for DNS resolution, receiving both ad blocking and the `*.kagiso.me` wildcard split DNS automatically.
 
 ---
 
