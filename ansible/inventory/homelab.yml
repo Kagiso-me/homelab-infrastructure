@@ -1,5 +1,10 @@
 all:
   children:
+    rpi:
+      hosts:
+        rpi:
+          ansible_host: 10.0.10.10
+
     k3s_controller:
       hosts:
         tywin:

@@ -1,0 +1,176 @@
+---
+# install-pihole.yml
+#
+# Installs Pi-hole on the Raspberry Pi control hub (10.0.10.10).
+# Pi-hole serves as the network-wide DNS resolver and ad blocker.
+#
+# Responsibilities after install:
+#   - Network-wide ad blocking (all devices via DHCP DNS assignment)
+#   - Split DNS: *.kagiso.me → 10.0.10.110 (Traefik) for internal resolution
+#   - Upstream DNS: Cloudflare (1.1.1.1 / 1.0.0.1) with DNSSEC
+#
+# After running this playbook:
+#   1. Point your USG DHCP DNS to 10.0.10.10 (RPi) in UniFi Controller
+#   2. Verify Pi-hole admin at http://10.0.10.10/admin
+#   3. Verify *.kagiso.me resolves to 10.0.10.110 from any LAN device
+#
+# Usage (run from the Raspberry Pi itself or another Ansible host):
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-pihole.yml
+#
+# Variables:
+#   pihole_admin_password : Pi-hole web admin password (prompt if not set)
+#   pihole_upstream_dns_1 : Primary upstream DNS (default: 1.1.1.1)
+#   pihole_upstream_dns_2 : Secondary upstream DNS (default: 1.0.0.1)
+#   pihole_domain         : Local domain suffix (default: lan)
+
+- name: Install Pi-hole on Raspberry Pi
+  hosts: rpi
+  become: true
+  gather_facts: true
+
+  vars:
+    pihole_upstream_dns_1: "1.1.1.1"
+    pihole_upstream_dns_2: "1.0.0.1"
+    pihole_domain: "lan"
+    pihole_interface: "eth0"
+    pihole_ipv4_address: "10.0.10.10/24"
+    traefik_ip: "10.0.10.110"
+    kagiso_domain: "kagiso.me"
+
+  vars_prompt:
+    - name: pihole_admin_password
+      prompt: "Pi-hole admin password"
+      private: true
+      confirm: true
+
+  tasks:
+
+  # ============================================================================
+  # PRE-FLIGHT
+  # ============================================================================
+
+    - name: "preflight | Confirm running on RPi"
+      assert:
+        that:
+          - ansible_architecture in ['armv7l', 'aarch64']
+        fail_msg: "This playbook is intended for the Raspberry Pi (ARM). Got: {{ ansible_architecture }}"
+
+    - name: "preflight | Update apt cache"
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: "preflight | Install required packages"
+      apt:
+        name:
+          - curl
+          - git
+          - dnsutils
+        state: present
+
+  # ============================================================================
+  # PI-HOLE INSTALL
+  # ============================================================================
+
+    - name: "pihole | Create setupVars.conf for unattended install"
+      copy:
+        dest: /etc/pihole/setupVars.conf
+        content: |
+          WEBPASSWORD={{ pihole_admin_password | hash('sha256') | hash('sha256') }}
+          PIHOLE_INTERFACE={{ pihole_interface }}
+          IPV4_ADDRESS={{ pihole_ipv4_address }}
+          IPV6_ADDRESS=
+          QUERY_LOGGING=true
+          INSTALL_WEB_SERVER=true
+          INSTALL_WEB_INTERFACE=true
+          LIGHTTPD_ENABLED=true
+          CACHE_SIZE=10000
+          DNS_FQDN_REQUIRED=false
+          DNS_BOGUS_PRIV=true
+          DNSMASQ_LISTENING=local
+          PIHOLE_DNS_1={{ pihole_upstream_dns_1 }}
+          PIHOLE_DNS_2={{ pihole_upstream_dns_2 }}
+          DNS_SEC=true
+          REV_SERVER=true
+          REV_SERVER_DOMAIN={{ pihole_domain }}
+          REV_SERVER_TARGET=10.0.10.1
+          REV_SERVER_CIDR=10.0.10.0/24
+          BLOCKING_ENABLED=true
+        mode: '0644'
+        owner: root
+        group: root
+      register: setupvars
+
+    - name: "pihole | Download installer"
+      get_url:
+        url: https://install.pi-hole.net
+        dest: /tmp/install-pihole.sh
+        mode: '0755'
+
+    - name: "pihole | Run unattended installer"
+      command: bash /tmp/install-pihole.sh --unattended
+      register: pihole_install
+      changed_when: true
+
+    - name: "pihole | Set admin password"
+      command: pihole -a -p "{{ pihole_admin_password }}"
+      changed_when: true
+      no_log: true
+
+  # ============================================================================
+  # SPLIT DNS — wildcard *.kagiso.me → Traefik
+  # ============================================================================
+
+    - name: "dns | Write wildcard dnsmasq config for {{ kagiso_domain }}"
+      copy:
+        dest: /etc/dnsmasq.d/02-kagiso-local.conf
+        content: |
+          # Wildcard DNS — all *.kagiso.me queries resolve to Traefik on LAN.
+          # This enables valid TLS certs (DNS-01 wildcard) to work locally
+          # without making services publicly reachable.
+          # Services are only publicly accessible if explicitly configured
+          # in the Cloudflare Tunnel (cloudflared) ingress rules.
+          address=/.{{ kagiso_domain }}/{{ traefik_ip }}
+        mode: '0644'
+
+    - name: "dns | Restart Pi-hole DNS to apply wildcard config"
+      service:
+        name: pihole-FTL
+        state: restarted
+
+  # ============================================================================
+  # VERIFY
+  # ============================================================================
+
+    - name: "verify | Check Pi-hole service is running"
+      systemd:
+        name: pihole-FTL
+      register: ftl_status
+      failed_when: ftl_status.status.ActiveState != 'active'
+
+    - name: "verify | Test wildcard DNS resolution"
+      command: "dig +short grafana.{{ kagiso_domain }} @127.0.0.1"
+      register: dns_test
+      changed_when: false
+      failed_when: traefik_ip not in dns_test.stdout
+
+    - name: "verify | Test upstream DNS resolution"
+      command: "dig +short cloudflare.com @127.0.0.1"
+      register: upstream_test
+      changed_when: false
+      failed_when: upstream_test.stdout == ''
+
+    - name: "verify | Summary"
+      debug:
+        msg: |
+          Pi-hole installed successfully.
+
+          Admin UI:    http://{{ ansible_host }}/admin
+          DNS server:  {{ ansible_host }} ({{ pihole_ipv4_address | split('/') | first }})
+
+          Wildcard DNS: *.{{ kagiso_domain }} → {{ traefik_ip }} ✓
+          Upstream DNS: {{ pihole_upstream_dns_1 }} / {{ pihole_upstream_dns_2 }} ✓
+
+          Next step: In UniFi Controller, set DHCP DNS server to {{ pihole_ipv4_address | split('/') | first }}
+          Network → [your network] → DHCP → DNS Server 1: {{ pihole_ipv4_address | split('/') | first }}
