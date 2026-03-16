@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** consolidate to Cloudflare Tunnel, remove letsencrypt-staging `bcc39cb`
 - **[DEPLOY]** consolidate monitoring to k3s, decommission Docker monitoring stack `6599c0b`
 - **[DEPLOY]** add ops-log, staging environment, and GitOps promotion pipeline `c2cb80c`
 
