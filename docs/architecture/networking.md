@@ -75,18 +75,21 @@ Application pod
 - Traffic between Cloudflare Edge and cloudflared is encrypted via the tunnel.
 - Traefik still handles internal routing and host-based dispatch to services.
 
-### Traffic Flow — WireGuard (Plex / Remote Admin)
+### Traffic Flow — Tailscale (Plex / Remote Admin)
 
-Plex and media streaming are accessed remotely via WireGuard VPN. Cloudflare's ToS prohibits proxying video streaming.
+Plex and media streaming are accessed remotely via Tailscale. Cloudflare's ToS prohibits proxying video streaming. SSH and kubectl access from remote locations also use Tailscale.
 
 ```
-WireGuard client (remote device)
+Tailscale client (remote device)
   │
   ▼
-WireGuard VPN (direct tunnel to home network)
+Tailscale / Headscale coordination server
   │
   ▼
-Traefik (10.0.10.110) — or direct to Plex service
+WireGuard-encrypted peer-to-peer tunnel to home network node
+  │
+  ▼
+Plex service (direct) — or Traefik (10.0.10.110) for other apps
   │
   ▼
 Application pod (Plex, SSH target, etc.)
@@ -110,14 +113,14 @@ immich.kagiso.me     CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
 
 Cloudflare proxies the DNS records — external clients resolve to Cloudflare's anycast IPs, not to the home network IP. Traffic is forwarded to the homelab via the Cloudflare Tunnel.
 
-**Internal / direct access** (LAN or WireGuard) continues to use:
+**Internal / direct access** (LAN or Tailscale) continues to use:
 
 ```
 # Internal wildcard — resolves to Traefik directly (router or Pi-hole config)
 *.kagiso.me  A  10.0.10.110
 ```
 
-When on the LAN or connected via WireGuard, hostnames resolve to `10.0.10.110` (Traefik) directly, bypassing Cloudflare.
+When on the LAN or connected via Tailscale, hostnames resolve to `10.0.10.110` (Traefik) directly, bypassing Cloudflare.
 
 Adding a new public-facing service requires:
 1. Creating an `IngressRoute` or `Ingress` resource with the desired hostname.
@@ -128,15 +131,15 @@ Adding a new public-facing service requires:
 
 ## TLS Architecture
 
-Public TLS is handled automatically by Cloudflare at the edge. cert-manager remains in the cluster for internal CA use and for Let's Encrypt certificates used by direct/VPN access paths (e.g., Plex over WireGuard).
+TLS is handled by three separate systems depending on the access path. No Let's Encrypt issuers are deployed. Public TLS is Cloudflare's responsibility. Private access via Tailscale uses Tailscale's own certificate infrastructure.
 
 **Issuers:**
 
 | Issuer | Type | Use case |
 |--------|------|---------|
-| `letsencrypt` | ACME HTTP-01 | Direct/VPN access (e.g., Plex via WireGuard) |
-| `internal-ca` | Self-signed | Internal services with no external exposure |
-| Cloudflare edge TLS | Managed by Cloudflare | All public web services (automatic, no config required) |
+| `internal-ca` | Self-signed internal CA | Internal cluster services with no external exposure |
+
+> **Note:** No Let's Encrypt issuers are deployed. Public TLS is Cloudflare's responsibility. Private access via Tailscale uses Tailscale's own certificate infrastructure.
 
 **Certificate flow — public services (Cloudflare Tunnel):**
 
@@ -153,31 +156,19 @@ Encrypted tunnel to cloudflared → Traefik (internal plain or TLS)
 No cert-manager involvement for public TLS
 ```
 
-**Certificate flow — direct/VPN access (e.g., Plex via WireGuard):**
+**Certificate flow — private/Tailscale access (e.g., Plex, SSH, kubectl):**
 
 ```
-IngressRoute / Ingress resource created
+Tailscale client connects via encrypted peer-to-peer tunnel
   │
   ▼
-cert-manager creates CertificateRequest
+Tailscale handles its own TLS/certificate infrastructure
   │
   ▼
-ACME HTTP-01 challenge served by Traefik
-  │
-  ▼
-Let's Encrypt validates challenge
-  │
-  ▼
-Certificate issued → stored as Kubernetes Secret
-  │
-  ▼
-Traefik serves HTTPS using the Secret
-  │
-  ▼
-cert-manager renews 30 days before expiry (automatic)
+No cert-manager or Let's Encrypt involvement
 ```
 
-> **Note:** Plex is accessed remotely via WireGuard and uses a Let's Encrypt certificate directly. It does not go through Cloudflare Tunnel due to Cloudflare's ToS prohibition on video streaming proxy.
+> **Note:** Plex and remote admin access use Tailscale. Cloudflare's ToS prohibits video streaming proxy through the tunnel. cert-manager is retained only for the `internal-ca` ClusterIssuer.
 
 ---
 
@@ -187,17 +178,17 @@ Three access paths serve different use cases:
 
 | Path | Used For | TLS Source | Notes |
 |------|----------|-----------|-------|
-| Cloudflare Tunnel | All public web services | Cloudflare (automatic) | No open inbound ports required |
-| WireGuard VPN | Plex/media streaming, remote admin SSH | Let's Encrypt (cert-manager) | Cloudflare ToS prohibits video proxy |
-| Direct LAN | All internal traffic | Internal CA or Let's Encrypt | Bypasses Cloudflare entirely |
+| Cloudflare Tunnel | All public web services (Grafana, Sonarr, Nextcloud, etc.) | Cloudflare (automatic) | No open inbound ports required |
+| Tailscale / Headscale | Plex/media streaming, remote SSH, kubectl | Tailscale (own infrastructure) | Cloudflare ToS prohibits video proxy |
+| Direct LAN | All internal traffic | Internal CA (`internal-ca`) | Bypasses Cloudflare entirely |
 
 ### Cloudflare Tunnel — Web Services
 
-Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nextcloud, Immich UI, and other HTTP-based applications. The tunnel is an outbound connection from `cloudflared` (running on the RPi or Proxmox), so no inbound firewall rules are needed for web traffic.
+Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nextcloud, Immich UI, and other HTTP-based applications. The tunnel is an outbound connection from `cloudflared` (running on the RPi at `10.0.10.10`), so no inbound firewall rules are needed for web traffic.
 
-### WireGuard — Media Streaming and Remote Admin
+### Tailscale / Headscale — Media Streaming and Remote Admin
 
-Plex and any direct media access use WireGuard. Once connected, the client is on the home LAN and accesses services at their internal IPs. Remote SSH to homelab nodes also goes through WireGuard rather than the Cloudflare Tunnel.
+Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) may be run as an LXC on Proxmox in future.
 
 ### Direct LAN — Internal Traffic
 
@@ -233,9 +224,7 @@ Applied by `playbooks/security/firewall.yml`:
 | 10250 | TCP | kubelet metrics |
 | 2379–2380 | TCP | etcd (control-plane only) |
 | 8472 | UDP | Flannel VXLAN overlay |
-| 51820 | UDP | WireGuard (if used) |
-| 443 | TCP | HTTPS ingress (all nodes, MetalLB) |
-| 80 | TCP | HTTP ingress (internal redirect; no longer used for public ACME challenge) |
+| 443 | TCP | HTTPS — Traefik (LAN/Tailscale direct access only) |
 
 ---
 

@@ -11,15 +11,18 @@
 > This phase introduces the **networking platform** responsible for exposing cluster services to the network
 > in a predictable, production‑style way.
 >
-> All three components (MetalLB, cert-manager, Traefik) are installed by a **single Ansible playbook**
-> that handles ordering, dependency waits, and post-install verification automatically.
+> MetalLB, cert-manager, and Traefik are installed by a **single Ansible playbook** that handles
+> ordering, dependency waits, and post-install verification automatically. Cloudflare Tunnel and
+> Tailscale are separate setup steps covered later in this guide.
 
 The networking layer consists of:
 
 - **MetalLB** — provides LoadBalancer IP addresses on bare metal
 - **Traefik** — ingress controller handling HTTP/S routing
-- **Wildcard DNS** — human‑friendly service hostnames
-- **cert-manager** — automatic TLS certificate lifecycle
+- **Wildcard DNS** — human-friendly service hostnames
+- **cert-manager** — internal CA (`internal-ca` ClusterIssuer) for cluster-internal TLS
+- **Cloudflare Tunnel** — outbound tunnel for public service exposure (no open inbound ports)
+- **Tailscale / Headscale** — encrypted private access for Plex, SSH, and kubectl
 
 Together these components transform a raw Kubernetes cluster into a **usable application platform**.
 
@@ -34,11 +37,13 @@ Together these components transform a raw Kubernetes cluster into a **usable app
 5. [Installation — Ansible Playbook](#installation--ansible-playbook)
 6. [What the Playbook Does](#what-the-playbook-does)
 7. [DNS Configuration](#dns-configuration)
-8. [TLS Certificate Flow](#tls-certificate-flow)
-9. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
-10. [Verifying the Platform](#verifying-the-platform)
-11. [Exit Criteria](#exit-criteria)
-12. [Troubleshooting](#troubleshooting)
+8. [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup)
+9. [Tailscale / Headscale (Private Remote Access)](#tailscale--headscale-private-remote-access)
+10. [TLS Certificate Flow](#tls-certificate-flow)
+11. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
+12. [Verifying the Platform](#verifying-the-platform)
+13. [Exit Criteria](#exit-criteria)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -74,15 +79,15 @@ of the LAN.
 ```mermaid
 graph TD
     Browser["Browser"] -->|"HTTPS (public)"| CF["Cloudflare Edge<br/>TLS terminated here"]
-    CF -->|"Encrypted tunnel"| CFD["cloudflared daemon<br/>(RPi / Proxmox)"]
+    CF -->|"Encrypted tunnel"| CFD["cloudflared daemon<br/>(RPi — 10.0.10.10)"]
     CFD --> Traefik["Traefik Ingress Controller<br/>Host-based routing"]
     Traefik -->|"Host: grafana.kagiso.me"| Grafana["Grafana Service"]
     Traefik -->|"Host: app.kagiso.me"| App["Other App Services"]
-    CertManager["cert-manager<br/>Internal CA + Let's Encrypt<br/>(direct/VPN access only)"] -.->|issues TLS Secrets| Traefik
-    WG["WireGuard Client<br/>(Plex / remote admin)"] -->|"VPN tunnel"| Traefik
+    CertManager["cert-manager<br/>internal-ca ClusterIssuer only"] -.->|issues internal TLS Secrets| Traefik
+    TS["Tailscale Client<br/>(Plex / SSH / kubectl)"] -->|"Encrypted peer-to-peer tunnel"| Traefik
 ```
 
-Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel → Traefik → the target service. Cloudflare handles public TLS automatically. cert-manager runs in the background for direct/VPN access scenarios, keeping those certificates renewed and storing them as Kubernetes Secrets that Traefik serves to clients.
+Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel → Traefik → the target service. Cloudflare handles public TLS automatically. For private remote access (Plex, SSH, kubectl), Tailscale provides encrypted peer-to-peer tunnels with its own certificate infrastructure. cert-manager is retained only for the `internal-ca` ClusterIssuer used by internal cluster services.
 
 ---
 
@@ -91,7 +96,7 @@ Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel �
 | Component | Version | Namespace | Responsibility |
 |-----------|---------|-----------|----------------|
 | MetalLB | v0.14.5 | `metallb-system` | Assign LoadBalancer IPs from the local IP pool |
-| cert-manager | v1.14.4 | `cert-manager` | Issue + auto-renew TLS certificates; handles TLS for direct/VPN access; public TLS handled by Cloudflare Tunnel |
+| cert-manager | v1.14.4 | `cert-manager` | Internal CA (`internal-ca` ClusterIssuer) for cluster-internal TLS only. No Let's Encrypt issuers deployed. |
 | Traefik | 28.x | `traefik` | HTTP/S routing, TLS termination, IngressRoute CRDs |
 
 ### MetalLB — Layer-2 Mode
@@ -108,22 +113,15 @@ Traffic routed to that node → kube-proxy → Traefik pod
 **IP pool:** `10.0.10.110 – 10.0.10.125` (21 addresses available for LoadBalancer services)
 **Traefik pinned to:** `10.0.10.110`
 
-### cert-manager — Internal CA and Direct/VPN TLS
+### cert-manager — Internal CA Only
 
-cert-manager handles TLS for services accessed directly (LAN or WireGuard). Public TLS for web services is handled by Cloudflare Tunnel automatically.
+cert-manager is retained for the `internal-ca` ClusterIssuer only. It issues certificates for internal cluster services that have no external exposure.
 
-For direct/VPN access certificates:
+**No Let's Encrypt issuers are deployed.** The three TLS paths are:
 
-1. An IngressRoute references a TLS secret
-2. cert-manager sees the Certificate resource and initiates an ACME HTTP-01 challenge
-3. Let's Encrypt sends a GET to `http://<domain>/.well-known/acme-challenge/<token>`
-4. Traefik serves the challenge response (cert-manager creates a temporary route)
-5. Let's Encrypt validates and issues the certificate
-6. cert-manager stores the cert as a Kubernetes Secret
-7. Traefik reads the Secret and serves HTTPS
-8. cert-manager auto-renews 30 days before expiry
-
-cert-manager also acts as an internal CA for services that have no external exposure at all.
+- **Public TLS** → Cloudflare. TLS is terminated at the Cloudflare Edge automatically for all services routed through Cloudflare Tunnel. No cert-manager involvement.
+- **Private access TLS** → Tailscale. Plex, SSH, and kubectl remote access use Tailscale's own encrypted tunnels and certificate infrastructure. No cert-manager or Let's Encrypt involvement.
+- **Internal cluster TLS** → `internal-ca`. cert-manager issues certificates signed by the internal CA for services that communicate internally and require TLS within the cluster.
 
 ### Traefik — Ingress Controller
 
@@ -146,11 +144,11 @@ Before running the platform playbook:
 | Ansible installed on RPi | `ansible --version` |
 | RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
 | DNS wildcard configured | `*.kagiso.me → 10.0.10.110` in your internal DNS server (Pi-hole/router) |
-| Cloudflare Tunnel (cloudflared) configured | Tunnel created in Cloudflare dashboard; cloudflared running on RPi or Proxmox |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for
-> LAN and WireGuard access. Public DNS records in Cloudflare should be proxied CNAMEs pointing to
-> the Cloudflare Tunnel, not directly to the home network IP.
+> LAN and Tailscale access. MetalLB and Traefik provide the LoadBalancer IP and ingress routing
+> for LAN-accessible services. Cloudflare Tunnel setup is a separate step — see the
+> [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup) section below.
 
 ---
 
@@ -183,7 +181,6 @@ To override defaults (e.g., for a different email or IP range):
 
 ```bash
 ansible-playbook ... \
-  -e letsencrypt_email=your@email.com \
   -e metallb_ip_range=10.0.10.110-10.0.10.125 \
   -e traefik_loadbalancer_ip=10.0.10.110
 ```
@@ -213,7 +210,7 @@ sequenceDiagram
     CP->>K8s: kubectl apply cert-manager CRDs
     CP->>K8s: helm install cert-manager
     CP->>K8s: Wait for webhook rollout
-    CP->>K8s: Apply letsencrypt ClusterIssuer (internal CA)
+    CP->>K8s: Apply internal-ca ClusterIssuer
 
     Note over CP,K8s: Step 3 — Traefik
     CP->>K8s: helm install traefik (loadBalancerIP: 10.0.10.110)
@@ -230,7 +227,7 @@ expected LoadBalancer IP from MetalLB before completing.
 
 ## DNS Configuration
 
-There are two DNS layers: Cloudflare (public) and internal DNS (LAN/WireGuard).
+There are two DNS layers: Cloudflare (public) and internal DNS (LAN/Tailscale).
 
 ### Cloudflare DNS — Public access
 
@@ -244,7 +241,7 @@ Public services use proxied CNAME records in Cloudflare, pointing to the Cloudfl
 
 With Cloudflare proxying enabled, external clients resolve to Cloudflare's anycast IPs — the home network IP is never exposed publicly.
 
-### Internal DNS — LAN and WireGuard access
+### Internal DNS — LAN and Tailscale access
 
 Configure a wildcard record on the internal DNS server (Pi-hole or router):
 
@@ -252,77 +249,159 @@ Configure a wildcard record on the internal DNS server (Pi-hole or router):
 |--------|------|-------|
 | `*.kagiso.me` | A | `10.0.10.110` |
 
-This routes all internal hostnames directly to Traefik, bypassing Cloudflare. New services added to Kubernetes are immediately reachable on the LAN without DNS changes — only a new IngressRoute is required.
+This routes all internal hostnames directly to Traefik, bypassing Cloudflare. New services added to Kubernetes are immediately reachable on the LAN without DNS changes — only a new IngressRoute is required. When connected via Tailscale, the same wildcard resolves to `10.0.10.110` if the internal DNS server is set as the Tailscale DNS resolver.
+
+---
+
+## Cloudflare Tunnel Setup
+
+Cloudflare Tunnel (`cloudflared`) creates an outbound encrypted connection from the homelab to Cloudflare's edge. No inbound ports need to be opened on the router or firewall — the tunnel is initiated from inside the network.
+
+**How it works:** `cloudflared` on the RPi establishes persistent outbound connections to Cloudflare's edge. When a request arrives at `grafana.kagiso.me`, Cloudflare routes it through the tunnel to `cloudflared`, which forwards it to Traefik at `10.0.10.110`. Traefik matches the `Host` header and routes to the correct backend service.
+
+### Installation on RPi (armv7l)
+
+```bash
+# On the Raspberry Pi (10.0.10.10)
+curl -L --output cloudflared.deb \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm.deb
+sudo dpkg -i cloudflared.deb
+cloudflared --version
+```
+
+### Authenticate and Create Tunnel
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create homelab
+```
+
+`tunnel login` opens a browser to authenticate with Cloudflare. `tunnel create` registers the tunnel and writes the credentials file to `~/.cloudflared/`.
+
+### Config File
+
+Create `/etc/cloudflared/config.yml`:
+
+```yaml
+tunnel: <tunnel-id>
+credentials-file: /root/.cloudflared/<tunnel-id>.json
+ingress:
+  - hostname: grafana.kagiso.me
+    service: http://10.0.10.110
+    originRequest:
+      httpHostHeader: grafana.kagiso.me
+  - hostname: sonarr.kagiso.me
+    service: http://10.0.10.110
+    originRequest:
+      httpHostHeader: sonarr.kagiso.me
+  - service: http_status:404
+```
+
+The `httpHostHeader` ensures Traefik receives the original hostname and routes to the correct backend. The catch-all `http_status:404` at the end is required — `cloudflared` rejects configs without a final catch-all rule.
+
+### Route DNS and Install as Service
+
+```bash
+cloudflared tunnel route dns homelab grafana.kagiso.me
+cloudflared tunnel route dns homelab sonarr.kagiso.me
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
+```
+
+`tunnel route dns` creates the proxied CNAME record in Cloudflare DNS automatically.
+
+### Adding a New Service
+
+Adding a new public service only requires adding an ingress rule to `/etc/cloudflared/config.yml` and restarting `cloudflared`. No Cloudflare dashboard changes are needed if using tunnel DNS routing:
+
+```bash
+# Add rule to config.yml, then:
+sudo systemctl restart cloudflared
+# Run once to create the DNS record:
+cloudflared tunnel route dns homelab newservice.kagiso.me
+```
+
+> **Plex / media streaming:** Do NOT route Plex through Cloudflare Tunnel. Cloudflare's ToS prohibits proxying video streaming. Use Tailscale instead (see next section).
+
+---
+
+## Tailscale / Headscale (Private Remote Access)
+
+The access model is split by service type:
+
+- **Public web services** (Grafana, Sonarr, Nextcloud, etc.) → Cloudflare Tunnel
+- **Private services** (Plex, SSH, kubectl) → Tailscale
+
+Tailscale creates encrypted WireGuard-based peer-to-peer tunnels between devices. Devices enrolled in the same Tailscale network can reach each other directly using Tailscale IPs or MagicDNS hostnames.
+
+### Install Tailscale on RPi and Nodes
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+Run this on each device that needs remote access (RPi, workstation, phone, etc.). After `tailscale up`, each device gets a stable Tailscale IP (100.x.x.x range).
+
+### Accessing Plex via Tailscale
+
+Once enrolled, access Plex directly using its Tailscale IP or via MagicDNS:
+
+```
+# Direct by Tailscale IP
+http://100.x.x.x:32400/web
+
+# Via MagicDNS (if enabled in Tailscale admin)
+http://plex-host.tail<network>.ts.net:32400/web
+```
+
+No Traefik IngressRoute is required for Tailscale-only services — clients connect directly to the host running the service.
+
+### SSH and kubectl via Tailscale
+
+```bash
+# SSH to a homelab node over Tailscale
+ssh kagiso@100.x.x.x
+
+# kubectl via Tailscale (after adding Tailscale IP to kubeconfig)
+kubectl --server=https://100.x.x.x:6443 get nodes
+```
+
+### Headscale — Self-Hosted Coordination Server
+
+[Headscale](https://headscale.net/) is a self-hosted alternative to the Tailscale coordination server. Running Headscale as an LXC container on Proxmox removes the dependency on Tailscale's hosted service. This is a planned future enhancement for this homelab.
+
+> **TLS note:** Tailscale handles its own certificate infrastructure for MagicDNS and HTTPS. No cert-manager configuration or Let's Encrypt setup is required for Tailscale-connected services.
 
 ---
 
 ## TLS Certificate Flow
 
-There are two TLS paths depending on how the service is accessed:
+TLS is handled by three separate systems. No Let's Encrypt issuers are deployed in the cluster.
 
-### Path 1 — Public access via Cloudflare Tunnel
+**Public TLS → Cloudflare.** All services routed through Cloudflare Tunnel have TLS terminated automatically at the Cloudflare Edge. Cloudflare manages the certificate lifecycle with no cluster-side configuration required. No ClusterIssuer annotation is needed on IngressRoutes served via the tunnel.
 
-Cloudflare terminates TLS automatically. No cert-manager involvement is required for public web services.
+**Private access TLS → Tailscale.** Plex, SSH, and remote `kubectl` access use Tailscale's encrypted peer-to-peer tunnels. Tailscale handles its own certificate infrastructure. No cert-manager or Let's Encrypt configuration is required for these access paths.
 
-```
-Browser connects to service hostname (e.g., grafana.kagiso.me)
-  │
-  ▼
-Cloudflare resolves DNS (proxied CNAME → Cloudflare anycast IP)
-  │
-  ▼
-Cloudflare Edge terminates TLS (managed certificate — automatic)
-  │
-  ▼
-Encrypted tunnel to cloudflared → Traefik → backend service
-```
-
-No ClusterIssuer annotation is needed on IngressRoutes that are exclusively accessed via the tunnel.
-
-### Path 2 — Direct/VPN access (e.g., Plex via WireGuard)
-
-cert-manager issues Let's Encrypt certificates for services accessed directly (LAN or WireGuard).
-
-```mermaid
-sequenceDiagram
-    participant CR as IngressRoute created
-    participant CM as cert-manager
-    participant LE as Let's Encrypt
-    participant T as Traefik
-
-    CR->>CM: Certificate resource created
-    CM->>LE: ACME HTTP-01 challenge request
-    LE->>T: GET /.well-known/acme-challenge/<token>
-    T-->>LE: Challenge token served (temp route)
-    LE-->>CM: Validation passed
-    CM->>T: TLS Secret created in namespace
-    Note over T: Now serving HTTPS with valid cert
-    CM->>CM: Auto-renew 30 days before expiry
-```
-
-One ClusterIssuer is created by the playbook for direct/VPN access:
-
-- **`letsencrypt`** — Production issuer. Used for services like Plex that are accessed via WireGuard with a Let's Encrypt certificate directly.
-
-IngressRoute TLS configuration references the issuer via annotation:
+**Internal cluster TLS → `internal-ca`.** cert-manager is retained for the `internal-ca` ClusterIssuer, which signs certificates for services that communicate internally and require TLS within the cluster. IngressRoutes for internal-only services may reference this issuer:
 
 ```yaml
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: grafana
+  name: internal-service
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/cluster-issuer: internal-ca
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`grafana.kagiso.me`)
+    - match: Host(`internal-service.kagiso.me`)
       kind: Rule
       services:
-        - name: grafana
-          port: 3000
+        - name: internal-service
+          port: 8080
   tls:
-    secretName: grafana-tls
+    secretName: internal-service-tls
 ```
 
 ---
@@ -406,7 +485,7 @@ kubectl get pods -n cert-manager
 
 # cert-manager — ClusterIssuer ready
 kubectl get clusterissuer
-# Expected: letsencrypt READY=True
+# Expected: internal-ca READY=True
 
 # Traefik — running and assigned LoadBalancer IP
 kubectl get svc -n traefik
@@ -430,7 +509,7 @@ The networking platform is complete when all of the following are true:
 - ✓ `kubectl get pods -n cert-manager` — all pods Running
 - ✓ `kubectl get pods -n traefik` — pod Running
 - ✓ Traefik service shows `EXTERNAL-IP: 10.0.10.110`
-- ✓ `kubectl get clusterissuer` — `letsencrypt` issuer `READY=True`
+- ✓ `kubectl get clusterissuer` — `internal-ca` issuer `READY=True`
 - ✓ `curl -k https://10.0.10.110` returns `404 page not found`
 - ✓ DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine
 
@@ -453,22 +532,20 @@ Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.1
 **cert-manager ClusterIssuer not Ready**
 
 ```bash
-kubectl describe clusterissuer letsencrypt       # Check Status.Conditions
-kubectl logs -n cert-manager deploy/cert-manager # Look for ACME errors
+kubectl describe clusterissuer internal-ca       # Check Status.Conditions
+kubectl logs -n cert-manager deploy/cert-manager # Look for errors
 ```
 
-Common cause: the ACME account registration requires an internet connection. Verify the cluster
-can reach `acme-v02.api.letsencrypt.org`.
+Common cause: the cert-manager webhook is not yet ready. Wait for all cert-manager pods to be Running before checking the ClusterIssuer status.
 
 **Certificate stuck in `Pending`**
 
 ```bash
 kubectl describe certificate <name> -n <namespace>  # Check events
-kubectl describe certificaterequest -n <namespace>   # Check challenge status
-kubectl get challenges -n <namespace>               # HTTP-01 challenge status
+kubectl describe certificaterequest -n <namespace>   # Check issuer reference
 ```
 
-Common cause: the domain's internal DNS record is not pointing to `10.0.10.110`, so Let's Encrypt cannot complete the HTTP-01 challenge. Note: HTTP-01 challenges are only relevant for Let's Encrypt certs used in direct/VPN access scenarios — public services use Cloudflare Tunnel and do not require HTTP-01.
+Ensure the Certificate resource references `internal-ca` as the issuer and that cert-manager pods are healthy. No ACME or HTTP-01 challenges are used — certificates are signed directly by the internal CA.
 
 **Traefik returning 404 for a deployed service**
 
