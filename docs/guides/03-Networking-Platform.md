@@ -20,7 +20,7 @@ The networking layer consists of:
 - **MetalLB** — provides LoadBalancer IP addresses on bare metal
 - **Traefik** — ingress controller handling HTTP/S routing
 - **Wildcard DNS** — human-friendly service hostnames
-- **cert-manager** — internal CA (`internal-ca` ClusterIssuer) for cluster-internal TLS
+- **cert-manager** — issues browser-trusted wildcard TLS cert (`*.kagiso.me`) via Let's Encrypt DNS-01 + Cloudflare API
 - **Cloudflare Tunnel** — outbound tunnel for public service exposure (no open inbound ports)
 - **Tailscale / Headscale** — encrypted private access for Plex, SSH, and kubectl
 
@@ -97,8 +97,8 @@ Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel �
 | Component | Version | Namespace | Responsibility |
 |-----------|---------|-----------|----------------|
 | MetalLB | v0.14.5 | `metallb-system` | Assign LoadBalancer IPs from the local IP pool |
-| cert-manager | v1.14.4 | `cert-manager` | Internal CA (`internal-ca` ClusterIssuer) for cluster-internal TLS only. No Let's Encrypt issuers deployed. |
-| Traefik | 28.x | `traefik` | HTTP/S routing, TLS termination, IngressRoute CRDs |
+| cert-manager | v1.14.4 | `cert-manager` | Issues `*.kagiso.me` wildcard cert via Let's Encrypt DNS-01 (Cloudflare). Also runs `internal-ca` for cluster-internal TLS. |
+| Traefik | 28.x | `ingress` | HTTP/S routing, TLS termination, IngressRoute CRDs |
 
 ### MetalLB — Layer-2 Mode
 
@@ -114,15 +114,31 @@ Traffic routed to that node → kube-proxy → Traefik pod
 **IP pool:** `10.0.10.110 – 10.0.10.125` (21 addresses available for LoadBalancer services)
 **Traefik pinned to:** `10.0.10.110`
 
-### cert-manager — Internal CA Only
+### cert-manager — Wildcard TLS via Let's Encrypt DNS-01
 
-cert-manager is retained for the `internal-ca` ClusterIssuer only. It issues certificates for internal cluster services that have no external exposure.
+cert-manager issues a single `*.kagiso.me` wildcard certificate using Let's Encrypt and the DNS-01 challenge via the Cloudflare API. Because DNS-01 proves ownership by writing a TXT record in Cloudflare DNS — rather than by serving an HTTP challenge — the certificate is issued without any public HTTP exposure. This means **every service, including LAN-only internal services, gets a browser-trusted TLS certificate automatically**.
 
-**No Let's Encrypt issuers are deployed.** The three TLS paths are:
+The wildcard cert is stored as a Kubernetes Secret (`wildcard-kagiso-me-tls`) in the `ingress` namespace and is served by Traefik as the default TLS certificate for all IngressRoutes. No per-service `Certificate` resource is required.
 
-- **Public TLS** → Cloudflare. TLS is terminated at the Cloudflare Edge automatically for all services routed through Cloudflare Tunnel. No cert-manager involvement.
-- **Private access TLS** → Tailscale. Plex, SSH, and kubectl remote access use Tailscale's own encrypted tunnels and certificate infrastructure. No cert-manager or Let's Encrypt involvement.
-- **Internal cluster TLS** → `internal-ca`. cert-manager issues certificates signed by the internal CA for services that communicate internally and require TLS within the cluster.
+cert-manager also runs the `internal-ca` ClusterIssuer for services that require mTLS or cluster-internal TLS independent of the wildcard.
+
+**The three TLS paths are:**
+
+- **Public services** → Cloudflare Tunnel + wildcard cert. TLS is terminated at Cloudflare Edge. Internally, Traefik serves the wildcard cert to `cloudflared`.
+- **LAN / internal services** → wildcard cert via Traefik default TLSStore. Browser-trusted on any device whose DNS resolves `*.kagiso.me` to `10.0.10.110` (via Pi-hole).
+- **Private remote access** → Tailscale. Plex, SSH, and kubectl use Tailscale's own encrypted tunnels. No cert-manager involvement.
+
+**Prerequisite — Cloudflare API token Secret:**
+
+The token must be applied out-of-band before Flux reconciles the cluster-issuers:
+
+```bash
+kubectl create secret generic cloudflare-api-token \
+  --namespace cert-manager \
+  --from-literal=api-token=<your-token>
+```
+
+Required token permissions: `Zone → Zone → Read` and `Zone → DNS → Edit` (scoped to `kagiso.me`).
 
 ### Traefik — Ingress Controller
 
@@ -441,31 +457,31 @@ kubectl --server=https://100.x.x.x:6443 get nodes
 
 ## TLS Certificate Flow
 
-TLS is handled by three separate systems. No Let's Encrypt issuers are deployed in the cluster.
+TLS is handled by three paths. A single wildcard cert covers all `*.kagiso.me` services automatically.
 
-**Public TLS → Cloudflare.** All services routed through Cloudflare Tunnel have TLS terminated automatically at the Cloudflare Edge. Cloudflare manages the certificate lifecycle with no cluster-side configuration required. No ClusterIssuer annotation is needed on IngressRoutes served via the tunnel.
+**Wildcard cert → `*.kagiso.me`.** cert-manager requests one certificate from Let's Encrypt using DNS-01 (Cloudflare API). The resulting Secret (`wildcard-kagiso-me-tls` in the `ingress` namespace) is configured as Traefik's default TLS certificate via a `TLSStore` resource. Every IngressRoute using `entryPoints: [websecure]` and `tls: {}` automatically serves this cert — no per-service `Certificate` resource is needed.
 
-**Private access TLS → Tailscale.** Plex, SSH, and remote `kubectl` access use Tailscale's encrypted peer-to-peer tunnels. Tailscale handles its own certificate infrastructure. No cert-manager or Let's Encrypt configuration is required for these access paths.
+**Public services → Cloudflare Tunnel.** TLS is terminated at the Cloudflare Edge. Internally, `cloudflared` forwards requests to Traefik over HTTP. Cloudflare manages its own edge certificate separately.
 
-**Internal cluster TLS → `internal-ca`.** cert-manager is retained for the `internal-ca` ClusterIssuer, which signs certificates for services that communicate internally and require TLS within the cluster. IngressRoutes for internal-only services may reference this issuer:
+**Private remote access → Tailscale.** Plex, SSH, and `kubectl` use Tailscale's encrypted tunnels. No cert-manager involvement.
+
+**IngressRoute pattern (all services):**
 
 ```yaml
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: internal-service
-  annotations:
-    cert-manager.io/cluster-issuer: internal-ca
+  name: my-service
+  namespace: my-namespace
 spec:
   entryPoints: [websecure]
   routes:
-    - match: Host(`internal-service.kagiso.me`)
+    - match: Host(`my-service.kagiso.me`)
       kind: Rule
       services:
-        - name: internal-service
+        - name: my-service
           port: 8080
-  tls:
-    secretName: internal-service-tls
+  tls: {}    # Uses wildcard-kagiso-me-tls from Traefik default TLSStore
 ```
 
 ---
@@ -547,9 +563,13 @@ kubectl get ipaddresspool -n metallb-system
 kubectl get pods -n cert-manager
 # Expected: cert-manager, cert-manager-cainjector, cert-manager-webhook (all 1/1)
 
-# cert-manager — ClusterIssuer ready
+# cert-manager — ClusterIssuers ready
 kubectl get clusterissuer
-# Expected: internal-ca READY=True
+# Expected: internal-ca and letsencrypt-prod both READY=True
+
+# Wildcard certificate issued and ready
+kubectl get certificate -n ingress
+# Expected: wildcard-kagiso-me READY=True
 
 # Traefik — running and assigned LoadBalancer IP
 kubectl get svc -n traefik
@@ -571,10 +591,11 @@ The networking platform is complete when all of the following are true:
 
 - ✓ `kubectl get pods -n metallb-system` — all pods Running
 - ✓ `kubectl get pods -n cert-manager` — all pods Running
-- ✓ `kubectl get pods -n traefik` — pod Running
+- ✓ `kubectl get pods -n ingress` — Traefik pod Running
 - ✓ Traefik service shows `EXTERNAL-IP: 10.0.10.110`
-- ✓ `kubectl get clusterissuer` — `internal-ca` issuer `READY=True`
-- ✓ `curl -k https://10.0.10.110` returns `404 page not found`
+- ✓ `kubectl get clusterissuer` — `letsencrypt-prod` and `internal-ca` both `READY=True`
+- ✓ `kubectl get certificate -n ingress` — `wildcard-kagiso-me` `READY=True`
+- ✓ `curl https://10.0.10.110` returns `404 page not found` with a valid `*.kagiso.me` cert
 - ✓ DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine
 
 ---
@@ -596,20 +617,23 @@ Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.1
 **cert-manager ClusterIssuer not Ready**
 
 ```bash
-kubectl describe clusterissuer internal-ca       # Check Status.Conditions
+kubectl describe clusterissuer letsencrypt-prod  # Check Status.Conditions
 kubectl logs -n cert-manager deploy/cert-manager # Look for errors
 ```
 
-Common cause: the cert-manager webhook is not yet ready. Wait for all cert-manager pods to be Running before checking the ClusterIssuer status.
+Common causes:
+- cert-manager webhook not yet ready — wait for all cert-manager pods to be Running
+- `cloudflare-api-token` Secret missing from `cert-manager` namespace — apply it out-of-band (see prerequisites above)
 
-**Certificate stuck in `Pending`**
+**Wildcard certificate stuck in `Pending`**
 
 ```bash
-kubectl describe certificate <name> -n <namespace>  # Check events
-kubectl describe certificaterequest -n <namespace>   # Check issuer reference
+kubectl describe certificate wildcard-kagiso-me -n ingress   # Check events
+kubectl describe certificaterequest -n ingress               # Check issuer + challenge status
+kubectl get challenges -A                                    # DNS-01 challenge in progress?
 ```
 
-Ensure the Certificate resource references `internal-ca` as the issuer and that cert-manager pods are healthy. No ACME or HTTP-01 challenges are used — certificates are signed directly by the internal CA.
+The DNS-01 challenge creates a TXT record in Cloudflare DNS and waits for propagation (typically 30–120 seconds). If the challenge stays pending beyond 5 minutes, check that the `cloudflare-api-token` Secret exists in the `cert-manager` namespace and has the correct permissions (`Zone → Zone → Read`, `Zone → DNS → Edit`).
 
 **Traefik returning 404 for a deployed service**
 

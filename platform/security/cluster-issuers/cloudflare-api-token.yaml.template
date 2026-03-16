@@ -1,0 +1,25 @@
+# Cloudflare API Token Secret — TEMPLATE ONLY. Do NOT apply this file directly.
+#
+# This Secret must be created out-of-band (never commit real credentials to git).
+# Apply once per cluster before Flux reconciles the cluster-issuers kustomization:
+#
+#   kubectl create secret generic cloudflare-api-token \
+#     --namespace cert-manager \
+#     --from-literal=api-token=<your-cloudflare-api-token>
+#
+# Required Cloudflare API token permissions:
+#   Zone → Zone → Read
+#   Zone → DNS → Edit
+#   (Scope: kagiso.me zone only)
+#
+# The token is referenced by both letsencrypt-prod and letsencrypt-staging ClusterIssuers.
+# cert-manager uses it to create/delete TXT records for DNS-01 ACME challenges.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: REPLACE_ME

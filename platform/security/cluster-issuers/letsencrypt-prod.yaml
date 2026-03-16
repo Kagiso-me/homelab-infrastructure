@@ -1,17 +1,30 @@
-# Production Let's Encrypt issuer — issues browser-trusted certificates.
+# Production Let's Encrypt issuer — DNS-01 challenge via Cloudflare API.
+# Issues browser-trusted wildcard certificates (*.kagiso.me) without requiring
+# public HTTP access. Domain ownership is proved by writing a TXT record in
+# Cloudflare DNS using the API token stored in cloudflare-api-token Secret.
+#
 # Rate limits apply: https://letsencrypt.org/docs/rate-limits/
-# Only use this issuer after confirming issuance works with letsencrypt-staging.
+# Only use after confirming issuance works with letsencrypt-staging.
+#
+# Prerequisite: cloudflare-api-token Secret must exist in cert-manager namespace.
+# Apply it out-of-band (never commit secrets to git):
+#   kubectl create secret generic cloudflare-api-token \
+#     --namespace cert-manager \
+#     --from-literal=api-token=<your-token>
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    email: admin@kagiso.me    # receives Let's Encrypt expiry notifications
+    email: admin@kagiso.me
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
-      - http01:
-          ingress:
-            ingressClassName: traefik
+      - dns01:
+          cloudflare:
+            email: admin@kagiso.me
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

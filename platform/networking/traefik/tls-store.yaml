@@ -1,0 +1,20 @@
+# Traefik default TLS store — serves the wildcard cert for all IngressRoutes.
+#
+# A TLSStore named "default" is special in Traefik: it is used as the fallback
+# certificate for any HTTPS connection that does not match a more specific TLS
+# configuration. This means every IngressRoute using the "websecure" entryPoint
+# automatically serves the *.kagiso.me wildcard cert without needing an explicit
+# tls.secretName in the IngressRoute spec.
+#
+# IngressRoutes only need:
+#   spec:
+#     entryPoints: [websecure]
+#     tls: {}
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: ingress
+spec:
+  defaultCertificate:
+    secretName: wildcard-kagiso-me-tls

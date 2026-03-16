@@ -6,7 +6,7 @@
 #
 # Components installed (in dependency order):
 #   1. MetalLB        — bare-metal LoadBalancer IP address pool
-#   2. cert-manager   — TLS certificate automation (Let's Encrypt for VPN/direct access, internal CA)
+#   2. cert-manager   — TLS certificate automation (Let's Encrypt DNS-01 wildcard + internal CA)
 #   3. Traefik        — HTTP/S ingress controller + TLS termination
 #
 # Prerequisites:
@@ -29,7 +29,6 @@
 #   metallb_version        : MetalLB manifest version (default: v0.14.5)
 #   metallb_ip_range       : IP pool range for LoadBalancer services (default: 10.0.10.110-10.0.10.125)
 #   cert_manager_version   : cert-manager Helm chart version (default: v1.14.4)
-#   letsencrypt_email      : Email address for Let's Encrypt registration (REQUIRED)
 #   traefik_chart_version  : Traefik Helm chart version (default: 28.3.0)
 #   traefik_loadbalancer_ip: Traefik LoadBalancer IP (default: 10.0.10.110)
 
@@ -42,7 +41,6 @@
     metallb_version: "v0.14.5"
     metallb_ip_range: "10.0.10.110-10.0.10.125"
     cert_manager_version: "v1.14.4"
-    letsencrypt_email: "admin@kagiso.me"
     traefik_chart_version: "28.3.0"
     traefik_loadbalancer_ip: "10.0.10.110"
     kubeconfig: "/etc/rancher/k3s/k3s.yaml"
@@ -165,8 +163,10 @@
 
   # ============================================================================
   # STEP 2 — cert-manager
-  # Automates TLS certificate requests, renewal, and Kubernetes Secret
-  # management via ACME (Let's Encrypt) or an internal CA issuer.
+  # Automates TLS certificate issuance and renewal. Installs the controller only.
+  # ClusterIssuers (letsencrypt-prod DNS-01 + internal-ca) are applied via Flux
+  # from platform/security/cluster-issuers/. The wildcard *.kagiso.me Certificate
+  # is managed by platform/networking/traefik/wildcard-certificate.yaml.
   # ============================================================================
 
     - name: "cert-manager | Install CRDs before the chart"
@@ -200,11 +200,11 @@
       changed_when: false
       tags: [cert-manager]
 
-    # No Let's Encrypt ClusterIssuer deployed.
-    # Public TLS is handled by Cloudflare Tunnel (cloudflared on RPi).
-    # Private remote access is via Tailscale/Headscale.
-    # cert-manager is retained for the internal-ca ClusterIssuer only,
-    # which is applied via Flux (platform/security/cluster-issuers/).
+    # ClusterIssuers are applied via Flux (platform/security/cluster-issuers/).
+    # The letsencrypt-prod ClusterIssuer requires the cloudflare-api-token Secret
+    # to exist in cert-manager namespace before Flux reconciles — apply out-of-band:
+    #   kubectl create secret generic cloudflare-api-token \
+    #     --namespace cert-manager --from-literal=api-token=<token>
     - name: "cert-manager | Verify internal-ca ClusterIssuer is ready"
       shell: |
         kubectl get clusterissuer internal-ca \
@@ -278,7 +278,7 @@
               expose:
                 default: false
 
-          # IngressClass so cert-manager http01 solvers can find Traefik
+          # IngressClass — marks Traefik as the default ingress controller
           ingressClass:
             enabled: true
             isDefaultClass: true

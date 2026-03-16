@@ -1,17 +1,27 @@
-# Staging issuer — use for testing certificate issuance without consuming rate limits.
+# Staging Let's Encrypt issuer — DNS-01 challenge via Cloudflare API.
+# Use for testing certificate issuance without consuming production rate limits.
 # Certificates from staging are NOT trusted by browsers.
 # Switch to letsencrypt-prod once staging issuance is confirmed working.
+#
+# Prerequisite: cloudflare-api-token Secret must exist in cert-manager namespace.
+# Apply it out-of-band (never commit secrets to git):
+#   kubectl create secret generic cloudflare-api-token \
+#     --namespace cert-manager \
+#     --from-literal=api-token=<your-token>
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-staging
 spec:
   acme:
-    email: admin@kagiso.me    # receives Let's Encrypt expiry notifications
+    email: admin@kagiso.me
     server: https://acme-staging-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-staging-key
     solvers:
-      - http01:
-          ingress:
-            ingressClassName: traefik
+      - dns01:
+          cloudflare:
+            email: admin@kagiso.me
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
