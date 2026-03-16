@@ -3,7 +3,7 @@
 **Operator:** Kagiso
 **Type:** `HARDWARE`
 **Components:** Intel NUC NUC7i3BNH · Proxmox VE · Docker VM · Staging k3s
-**Status:** Planned — pending RAM upgrade and migration window
+**Status:** 🔄 In Progress — executing 2026-03-16
 **Downtime:** Full Docker host downtime during migration (~2–4 hours)
 
 ---
@@ -67,20 +67,27 @@ NUC (Proxmox VE)
 NFS mounts from TrueNAS are identical — `docker-vm` mounts `tera/media` the same way
 the bare NUC does today. No data migration required.
 
+> **Note — interim resource allocation:** Migration is proceeding with 16GB RAM
+> before the planned 32GB upgrade. Proxmox (~2GB) + docker-vm (8GB) + staging-k3s (6GB)
+> = 16GB exactly. Tight but functional. RAM upgrade expected ~2026-03-23, at which point
+> docker-vm will be expanded to 12GB and staging-k3s to 10GB.
+
 ---
 
 ## Migration Steps
 
-- [ ] Order and install 32GB DDR4 SO-DIMM (2× 16GB)
 - [ ] Back up Docker compose files and volumes to `archive/docker-backups` on TrueNAS
-- [ ] Install Proxmox VE on NUC
-- [ ] Create `docker-vm`, restore Docker stack, verify NFS mounts
-- [ ] Verify monitoring stack healthy from `docker-vm`
-- [ ] Create `staging-k3s` VM, install single-node k3s
+- [ ] Install Proxmox VE on NUC (wipe existing Ubuntu)
+- [ ] Create `docker-vm` (2 vCPU, 8GB, 80GB), install Docker, restore stack
+- [ ] Verify NFS mounts to TrueNAS (`tera/media`, `tera/downloads`, `archive/docker-backups`)
+- [ ] Verify monitoring stack healthy (Prometheus, Grafana, Loki, Alertmanager)
+- [ ] Create `staging-k3s` VM (2 vCPU, 6GB, 60GB), install k3s single-node
 - [ ] Bootstrap Flux on staging (`--branch=main --path=clusters/staging`)
 - [ ] Add `STAGING_KUBECONFIG` GitHub secret
 - [ ] Uncomment staging health checks in `promote-to-prod.yml`
-- [ ] Add ops-log entry when migration is complete
+- [ ] Order and install 32GB DDR4 SO-DIMM (2× 16GB) — ~2026-03-23
+- [ ] Expand docker-vm to 12GB, staging-k3s to 10GB after RAM upgrade
+- [ ] Update this entry status to ✅ Complete
 
 ---
 
