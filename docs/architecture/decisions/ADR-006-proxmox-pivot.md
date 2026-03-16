@@ -36,14 +36,22 @@ Run two VMs on the Proxmox host:
 
 | VM | vCPU | RAM | Disk | Purpose |
 |----|------|-----|------|---------|
-| `docker-vm` | 2 | 8GB | 80GB | Docker workloads (monitoring, media services) |
-| `staging-k3s` | 2 | 6GB | 60GB | Single-node k3s staging cluster |
+| `docker-vm` | 2 | 6GB | 80GB | Docker workloads (media services only) |
+| `staging-k3s` | 2 | 8GB | 60GB | Single-node k3s staging cluster |
 
-RAM will be upgraded from 16GB to 32GB (2× 16GB SO-DIMM DDR4) before migration to
-provide comfortable headroom for both VMs.
+The Docker monitoring stack (Prometheus, Grafana, Loki, Alertmanager) is **not** carried
+across into `docker-vm`. Monitoring is consolidated to the k3s kube-prometheus-stack,
+which scrapes external targets (TrueNAS, docker-vm, RPi) via `additionalScrapeConfigs`.
+This frees ~2GB RAM on docker-vm and eliminates a duplicate monitoring stack.
+
+RAM will be upgraded from 16GB to 32GB (2× 16GB SO-DIMM DDR4) after initial migration.
+After upgrade: docker-vm → 8GB, staging-k3s → 16GB, ~6GB buffer.
 
 Media files remain on TrueNAS `tera` pool, mounted via NFS to `docker-vm` — identical
 to the current bare-metal NFS mount. No data migration required.
+
+A spare Lenovo ThinkCentre M93p (i5-4570T, 16GB DDR3) is retained as a cold spare
+and is a candidate for a 4th k3s worker node when cluster capacity is needed.
 
 ---
 

@@ -52,41 +52,63 @@ NUC (bare Ubuntu)
 
 ```
 NUC (Proxmox VE)
-├── docker-vm (2 vCPU, 8GB RAM, 80GB)
+├── docker-vm (2 vCPU, 6GB RAM, 80GB)
 │   └── Docker
-│       ├── Prometheus
-│       ├── Grafana
-│       ├── Loki
-│       ├── Alertmanager
-│       └── Media services
-└── staging-k3s (2 vCPU, 6GB RAM, 60GB)
+│       └── Media services (Sonarr, Radarr, Plex, Prowlarr)
+└── staging-k3s (2 vCPU, 8GB RAM, 60GB)
     └── k3s (single node)
         └── Flux → clusters/staging → apps/staging
+
+k3s prod cluster (monitoring now covers external targets)
+└── kube-prometheus-stack
+    ├── scrapes: TrueNAS (10.0.10.80)
+    ├── scrapes: docker-vm (10.0.10.21)
+    └── scrapes: RPi (10.0.10.10)
 ```
+
+The Docker monitoring stack is **decommissioned** — not carried across into `docker-vm`.
+All monitoring consolidates to the k3s kube-prometheus-stack, which scrapes external
+targets via `additionalScrapeConfigs`. Frees ~2GB RAM on `docker-vm`.
 
 NFS mounts from TrueNAS are identical — `docker-vm` mounts `tera/media` the same way
 the bare NUC does today. No data migration required.
 
-> **Note — interim resource allocation:** Migration is proceeding with 16GB RAM
-> before the planned 32GB upgrade. Proxmox (~2GB) + docker-vm (8GB) + staging-k3s (6GB)
-> = 16GB exactly. Tight but functional. RAM upgrade expected ~2026-03-23, at which point
-> docker-vm will be expanded to 12GB and staging-k3s to 10GB.
+A spare ThinkCentre M93p is retained as a cold spare / future 4th k3s worker.
+
+> **Note — interim resource allocation:** Migration is proceeding with 16GB RAM.
+> Proxmox (~2GB) + docker-vm (6GB) + staging-k3s (8GB) = 16GB exactly. Tight but
+> functional. RAM upgrade to 32GB expected ~2026-03-23, at which point docker-vm → 8GB
+> and staging-k3s → 16GB.
 
 ---
 
 ## Migration Steps
 
+**Pre-migration (before touching the NUC):**
+- [ ] Extend kube-prometheus-stack with `additionalScrapeConfigs` for TrueNAS, NUC, RPi
+- [ ] Add PrometheusRule resources for infrastructure + TrueNAS alert rules in k3s
+- [ ] Verify all external targets healthy in k3s Prometheus before proceeding
 - [ ] Back up Docker compose files and volumes to `archive/docker-backups` on TrueNAS
+
+**Proxmox setup:**
 - [ ] Install Proxmox VE on NUC (wipe existing Ubuntu)
-- [ ] Create `docker-vm` (2 vCPU, 8GB, 80GB), install Docker, restore stack
+- [ ] Create `docker-vm` (2 vCPU, 6GB RAM, 80GB disk)
+- [ ] Install Docker on docker-vm, restore media stack (Sonarr, Radarr, Plex, Prowlarr)
+- [ ] Assign docker-vm IP: `10.0.10.21`
 - [ ] Verify NFS mounts to TrueNAS (`tera/media`, `tera/downloads`, `archive/docker-backups`)
-- [ ] Verify monitoring stack healthy (Prometheus, Grafana, Loki, Alertmanager)
-- [ ] Create `staging-k3s` VM (2 vCPU, 6GB, 60GB), install k3s single-node
+- [ ] Update kube-prometheus-stack scrape config: `10.0.10.20` → `10.0.10.21`
+- [ ] Add Proxmox host node exporter scrape target: `10.0.10.20`
+
+**Staging cluster:**
+- [ ] Create `staging-k3s` VM (2 vCPU, 8GB RAM, 60GB disk)
+- [ ] Install single-node k3s on staging-k3s VM
 - [ ] Bootstrap Flux on staging (`--branch=main --path=clusters/staging`)
 - [ ] Add `STAGING_KUBECONFIG` GitHub secret
 - [ ] Uncomment staging health checks in `promote-to-prod.yml`
+
+**Post-migration:**
 - [ ] Order and install 32GB DDR4 SO-DIMM (2× 16GB) — ~2026-03-23
-- [ ] Expand docker-vm to 12GB, staging-k3s to 10GB after RAM upgrade
+- [ ] After RAM upgrade: expand docker-vm → 8GB, staging-k3s → 16GB
 - [ ] Update this entry status to ✅ Complete
 
 ---
