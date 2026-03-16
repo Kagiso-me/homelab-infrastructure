@@ -24,12 +24,12 @@ Run all security and baseline playbooks against the newly imaged nodes.
 cd ansible
 
 # Baseline preparation
-ansible-playbook playbooks/maintenance/upgrade-nodes.yml
-ansible-playbook playbooks/security/disable-swap.yml
-ansible-playbook playbooks/security/time-sync.yml
-ansible-playbook playbooks/security/firewall.yml
-ansible-playbook playbooks/security/ssh-hardening.yml
-ansible-playbook playbooks/security/fail2ban.yml
+ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml
+ansible-playbook ansible/playbooks/security/disable-swap.yml
+ansible-playbook ansible/playbooks/security/time-sync.yml
+ansible-playbook ansible/playbooks/security/firewall.yml
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml
+ansible-playbook ansible/playbooks/security/fail2ban.yml
 ```
 
 Verify:
@@ -45,7 +45,7 @@ All nodes must respond before proceeding.
 ## Phase 2 — Kubernetes Installation (~10 min)
 
 ```bash
-ansible-playbook playbooks/lifecycle/install-cluster.yml
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
 ```
 
 Verify:
@@ -110,7 +110,7 @@ kubectl wait --for=condition=Ready node/tywin --timeout=180s
 Restart worker nodes to reconnect them:
 
 ```bash
-ansible-playbook playbooks/maintenance/reboot-nodes.yml --limit jaime,tyrion
+ansible-playbook ansible/playbooks/maintenance/reboot-nodes.yml --limit jaime,tyrion
 ```
 
 Verify all nodes Ready:
@@ -142,7 +142,7 @@ kubectl create secret generic sops-age \
 flux bootstrap git \
   --url=ssh://git@github.com/<USER>/homelab-infrastructure.git \
   --branch=main \
-  --path=clusters/homelab \
+  --path=clusters/prod \
   --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
 

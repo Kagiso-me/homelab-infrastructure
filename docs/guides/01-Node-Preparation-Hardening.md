@@ -242,7 +242,7 @@ graph LR
 Ensure all nodes are fully updated.
 
 ```
-ansible-playbook playbooks/maintenance/upgrade-nodes.yml
+ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml
 ```
 
 This performs:
@@ -260,7 +260,7 @@ Kubernetes requires swap to be disabled.
 Run:
 
 ```
-ansible-playbook playbooks/security/disable-swap.yml
+ansible-playbook ansible/playbooks/security/disable-swap.yml
 ```
 
 Swap interferes with Kubernetes scheduling and must always remain disabled.
@@ -274,7 +274,7 @@ Cluster nodes must share consistent system time.
 Run:
 
 ```
-ansible-playbook playbooks/security/time-sync.yml
+ansible-playbook ansible/playbooks/security/time-sync.yml
 ```
 
 This ensures the nodes synchronize with NTP servers.
@@ -288,7 +288,7 @@ The platform uses **UFW**.
 Apply firewall configuration:
 
 ```
-ansible-playbook playbooks/security/firewall.yml
+ansible-playbook ansible/playbooks/security/firewall.yml
 ```
 
 This ensures Kubernetes communication ports remain open while protecting the nodes.
@@ -300,7 +300,7 @@ This ensures Kubernetes communication ports remain open while protecting the nod
 Secure the SSH configuration.
 
 ```
-ansible-playbook playbooks/security/ssh-hardening.yml
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml
 ```
 
 Typical changes include:
@@ -315,7 +315,7 @@ Typical changes include:
 Enable SSH protection.
 
 ```
-ansible-playbook playbooks/security/fail2ban.yml
+ansible-playbook ansible/playbooks/security/fail2ban.yml
 ```
 
 Fail2Ban protects against brute force login attempts.

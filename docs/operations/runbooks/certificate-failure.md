@@ -3,7 +3,7 @@
 
 **Scenario:** A TLS certificate has failed to renew, or a browser is showing a security warning for a cluster service.
 
-> **Note:** Cloudflare handles TLS automatically for all public web services (Grafana, Sonarr, Nextcloud, Immich, etc.) via Cloudflare Tunnel. cert-manager certificates managed by this runbook are only used for **direct/VPN access** scenarios — primarily Plex accessed via WireGuard and any services using the internal CA. If a public-facing service shows a browser TLS error, check Cloudflare Tunnel status first before investigating cert-manager.
+> **Note:** Cloudflare handles TLS automatically for all public web services (Grafana, Sonarr, Nextcloud, Immich, etc.) via Cloudflare Tunnel. cert-manager certificates managed by this runbook are only used for **direct/VPN access** scenarios — primarily Plex accessed via Tailscale (which uses WireGuard under the hood) and any services using the internal CA. If a public-facing service shows a browser TLS error, check Cloudflare Tunnel status first before investigating cert-manager.
 
 Certificate failures tend to surface at the worst time: they produce a hard user-visible error (browser security warning) rather than a soft degradation, and they happen at expiry — often outside business hours.
 

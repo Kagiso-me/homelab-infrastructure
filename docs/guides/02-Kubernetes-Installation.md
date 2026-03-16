@@ -146,7 +146,7 @@ Cluster installation is executed using the existing playbook.
 From the automation host run:
 
 ```
-ansible-playbook playbooks/lifecycle/install-cluster.yml
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
 ```
 
 The playbook performs the following operations:

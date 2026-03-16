@@ -62,7 +62,7 @@ Application deployment follows this pipeline:
 
 ```mermaid
 graph TD
-    Git["Git Repository<br/>apps/homelab/"] -->|"poll 30m"| SC["Flux Source Controller"]
+    Git["Git Repository<br/>apps/prod/"] -->|"poll 30m"| SC["Flux Source Controller"]
     SC --> KC["Kustomize Controller"]
     SC --> HC["Helm Controller"]
     KC -->|"raw manifests"| K8s["Kubernetes Resources"]

@@ -6,4 +6,4 @@ Flux Kustomizations for media applications (Jellyfin, Sonarr, Radarr, etc.).
 >
 > This directory is reserved for future migration of media workloads to Kubernetes if desired.
 
-If you decide to migrate media apps to k8s, the pattern follows [apps/base/grafana/](../base/grafana/) — create a base Kustomization with IngressRoute, then overlay in [apps/homelab/](../homelab/).
+If you decide to migrate media apps to k8s, the pattern follows [apps/base/grafana/](../base/grafana/) — create a base Kustomization with IngressRoute, then overlay in [apps/prod/](../homelab/).

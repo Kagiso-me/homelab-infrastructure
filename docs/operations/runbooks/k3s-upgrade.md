@@ -30,7 +30,7 @@ system-upgrade-controller reads `Plan` CRDs from the cluster and applies the spe
 | Item | Value |
 |------|-------|
 | Current version check | `kubectl get nodes -o wide` |
-| Plan manifest location | `clusters/homelab/platform/upgrade/plans/` |
+| Plan manifest location | `clusters/prod/platform/upgrade/plans/` |
 | system-upgrade-controller namespace | `system-upgrade` |
 | Upgrade order | tywin → jaime → tyrion |
 | Expected per-node upgrade time | ~3–5 minutes |
@@ -82,14 +82,14 @@ The upgrade Plans live in the GitOps repository. Locate and edit them:
 
 ```bash
 # On the automation host (or any machine with a git clone of the repo):
-ls clusters/homelab/platform/upgrade/plans/
+ls clusters/prod/platform/upgrade/plans/
 # Expected files: server-plan.yaml  agent-plan.yaml
 ```
 
 Edit the server Plan (targets the control-plane):
 
 ```bash
-# In clusters/homelab/platform/upgrade/plans/server-plan.yaml
+# In clusters/prod/platform/upgrade/plans/server-plan.yaml
 # Update the version field:
 ```
 
@@ -108,7 +108,7 @@ spec:
 Commit and push the changes:
 
 ```bash
-git add clusters/homelab/platform/upgrade/plans/
+git add clusters/prod/platform/upgrade/plans/
 git commit -m "chore: upgrade k3s to v1.31.5+k3s1"
 git push origin main
 ```

@@ -103,7 +103,7 @@ Always run maintenance playbooks from the automation host with the kubeconfig pr
 The reboot playbook handles the full sequence:
 
 ```bash
-ansible-playbook playbooks/maintenance/reboot-nodes.yml
+ansible-playbook ansible/playbooks/maintenance/reboot-nodes.yml
 ```
 
 What the playbook does:
@@ -119,7 +119,7 @@ What the playbook does:
 To reboot a single node:
 
 ```bash
-ansible-playbook playbooks/maintenance/reboot-nodes.yml --limit jaime
+ansible-playbook ansible/playbooks/maintenance/reboot-nodes.yml --limit jaime
 ```
 
 Verify after:
@@ -135,7 +135,7 @@ kubectl get nodes
 OS packages must be kept current for security. Run:
 
 ```bash
-ansible-playbook playbooks/maintenance/upgrade-nodes.yml
+ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml
 ```
 
 Always upgrade **one node at a time** in this cluster. This prevents all workers from being unavailable simultaneously.
@@ -182,17 +182,17 @@ Commit the change. Flux reconciles it. The controller upgrades control-plane fir
 
 ```bash
 # Step 1 — upgrade control-plane
-ansible-playbook playbooks/lifecycle/install-cluster.yml --limit tywin
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit tywin
 
 # Step 2 — verify control-plane is healthy
 kubectl get nodes
 kubectl get pods -A | grep -v Running | grep -v Completed
 
 # Step 3 — upgrade workers one at a time
-ansible-playbook playbooks/lifecycle/install-cluster.yml --limit jaime
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit jaime
 kubectl wait --for=condition=Ready node/jaime --timeout=120s
 
-ansible-playbook playbooks/lifecycle/install-cluster.yml --limit tyrion
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit tyrion
 kubectl wait --for=condition=Ready node/tyrion --timeout=120s
 ```
 
@@ -248,13 +248,13 @@ To add a worker node:
 1. Provision new machine with Ubuntu Server
 2. Update inventory/homelab.yml to add the new node
 3. Run node preparation playbooks:
-   ansible-playbook playbooks/security/disable-swap.yml --limit new-node
-   ansible-playbook playbooks/security/firewall.yml --limit new-node
-   ansible-playbook playbooks/security/ssh-hardening.yml --limit new-node
-   ansible-playbook playbooks/security/time-sync.yml --limit new-node
-   ansible-playbook playbooks/security/fail2ban.yml --limit new-node
+   ansible-playbook ansible/playbooks/security/disable-swap.yml --limit new-node
+   ansible-playbook ansible/playbooks/security/firewall.yml --limit new-node
+   ansible-playbook ansible/playbooks/security/ssh-hardening.yml --limit new-node
+   ansible-playbook ansible/playbooks/security/time-sync.yml --limit new-node
+   ansible-playbook ansible/playbooks/security/fail2ban.yml --limit new-node
 4. Join the node:
-   ansible-playbook playbooks/lifecycle/install-cluster.yml --limit new-node
+   ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit new-node
 5. Verify:
    kubectl get nodes
 ```

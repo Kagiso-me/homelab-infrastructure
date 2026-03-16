@@ -501,8 +501,8 @@ Velero restore:
 ```
 1. Replace disk / reinstall OS on tywin
 2. Mount TrueNAS NFS share: sudo mount -a
-3. Run Ansible: ansible-playbook playbooks/security/*.yml
-4. Run Ansible: ansible-playbook playbooks/lifecycle/install-cluster.yml
+3. Run Ansible: ansible-playbook ansible/playbooks/security/*.yml
+4. Run Ansible: ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
 5. Restore etcd: k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
 6. Start k3s: systemctl start k3s
 7. Verify: kubectl get nodes

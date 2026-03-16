@@ -243,7 +243,7 @@ kubectl create secret generic sops-age \
 flux bootstrap git \
   --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
   --branch=main \
-  --path=clusters/homelab \
+  --path=clusters/prod \
   --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
 
@@ -295,7 +295,7 @@ A 13-guide series that walks through building and operating the full platform fr
 ```
 homelab-infrastructure/
 │
-├── clusters/homelab/       # Flux entry points (infrastructure.yaml, apps.yaml)
+├── clusters/prod/       # Flux entry points (infrastructure.yaml, apps.yaml)
 ├── platform/               # Cluster-wide platform components (HelmReleases)
 │   ├── networking/         # MetalLB, Traefik
 │   ├── security/           # cert-manager, ClusterIssuers

@@ -79,7 +79,7 @@ The failed node should no longer appear.
 If the node's machine is still accessible (e.g., soft failure, will be reimaged), purge k3s:
 
 ```bash
-ansible-playbook playbooks/lifecycle/purge-k3s.yml --limit <node-name>
+ansible-playbook ansible/playbooks/lifecycle/purge-k3s.yml --limit <node-name>
 ```
 
 If the machine is completely unresponsive, skip this step and proceed to reimaging.
@@ -103,12 +103,12 @@ If the IP changes, update `ansible/k3s/inventory/homelab.yml` before proceeding.
 ```bash
 cd kubernetes/ansible/k3s
 
-ansible-playbook playbooks/maintenance/upgrade-nodes.yml --limit <node-name>
-ansible-playbook playbooks/security/disable-swap.yml --limit <node-name>
-ansible-playbook playbooks/security/time-sync.yml --limit <node-name>
-ansible-playbook playbooks/security/firewall.yml --limit <node-name>
-ansible-playbook playbooks/security/ssh-hardening.yml --limit <node-name>
-ansible-playbook playbooks/security/fail2ban.yml --limit <node-name>
+ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml --limit <node-name>
+ansible-playbook ansible/playbooks/security/disable-swap.yml --limit <node-name>
+ansible-playbook ansible/playbooks/security/time-sync.yml --limit <node-name>
+ansible-playbook ansible/playbooks/security/firewall.yml --limit <node-name>
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml --limit <node-name>
+ansible-playbook ansible/playbooks/security/fail2ban.yml --limit <node-name>
 ```
 
 ---
@@ -116,7 +116,7 @@ ansible-playbook playbooks/security/fail2ban.yml --limit <node-name>
 ## Step 7 — Join the Node to the Cluster
 
 ```bash
-ansible-playbook playbooks/lifecycle/install-cluster.yml --limit <node-name>
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit <node-name>
 ```
 
 The playbook installs k3s agent and joins the node using the existing cluster token.
