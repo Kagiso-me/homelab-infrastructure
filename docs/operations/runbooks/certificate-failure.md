@@ -3,6 +3,8 @@
 
 **Scenario:** A TLS certificate has failed to renew, or a browser is showing a security warning for a cluster service.
 
+> **Note:** Cloudflare handles TLS automatically for all public web services (Grafana, Sonarr, Nextcloud, Immich, etc.) via Cloudflare Tunnel. cert-manager certificates managed by this runbook are only used for **direct/VPN access** scenarios — primarily Plex accessed via WireGuard and any services using the internal CA. If a public-facing service shows a browser TLS error, check Cloudflare Tunnel status first before investigating cert-manager.
+
 Certificate failures tend to surface at the worst time: they produce a hard user-visible error (browser security warning) rather than a soft degradation, and they happen at expiry — often outside business hours.
 
 ---
@@ -55,7 +57,7 @@ Look for the failure reason. Common failures:
 ## Step 3 — Check the ClusterIssuer Status
 
 ```bash
-kubectl describe clusterissuer letsencrypt-prod
+kubectl describe clusterissuer letsencrypt
 ```
 
 Check `Status.Conditions`. It should show `Ready: True`. If not, check the ACME account registration.
@@ -101,14 +103,8 @@ Let's Encrypt applies rate limits per domain per week. If you see rate limit err
 
 1. **Do not retry immediately** — this will exhaust the rate limit further.
 2. Wait for the rate limit window to expire (up to 1 week for the `certificates per registered domain` limit).
-3. In the meantime, use the **staging issuer** to verify the configuration works:
-
-```bash
-# Temporarily switch to staging issuer in the relevant Ingress/IngressRoute
-# cert-manager.io/cluster-issuer: letsencrypt-staging
-```
-
-4. Once the rate limit expires, switch back to `letsencrypt-prod`.
+3. In the meantime, verify the configuration is correct by inspecting the Certificate and CertificateRequest resources without triggering a new issuance attempt.
+4. Once the rate limit expires, force re-issuance using Fix A above.
 
 ### Fix D — Manually renew before expiry
 

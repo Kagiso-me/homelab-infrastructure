@@ -6,15 +6,15 @@
 #
 # Components installed (in dependency order):
 #   1. MetalLB        — bare-metal LoadBalancer IP address pool
-#   2. cert-manager   — TLS certificate automation (Let's Encrypt / internal CA)
+#   2. cert-manager   — TLS certificate automation (Let's Encrypt for VPN/direct access, internal CA)
 #   3. Traefik        — HTTP/S ingress controller + TLS termination
 #
 # Prerequisites:
 #   - k3s cluster running (tywin CP, jaime + tyrion workers)
 #   - kubectl configured on the control plane node (~/.kube/config)
 #   - helm installed on the control plane node (installed by this playbook if absent)
-#   - DNS wildcard *.kagiso.me → 10.0.10.110 configured upstream
-#   - Ports 80, 443 accessible to the cluster's MetalLB IP range
+#   - Cloudflare Tunnel (cloudflared) configured for public service exposure
+#   - DNS wildcard *.kagiso.me → Cloudflare (or 10.0.10.110 for direct/VPN access)
 #
 # Usage (run from the Raspberry Pi control hub):
 #   ansible-playbook -i ansible/inventory/homelab.yml \
@@ -200,31 +200,10 @@
       changed_when: false
       tags: [cert-manager]
 
-    - name: "cert-manager | Write Let's Encrypt ClusterIssuer (staging)"
-      # Start with the staging issuer to avoid Let's Encrypt rate limits while
-      # validating the setup. Once confirmed working, apply the production issuer.
-      copy:
-        dest: /tmp/cluster-issuer-staging.yaml
-        content: |
-          ---
-          apiVersion: cert-manager.io/v1
-          kind: ClusterIssuer
-          metadata:
-            name: letsencrypt-staging
-          spec:
-            acme:
-              email: {{ letsencrypt_email }}
-              server: https://acme-staging-v02.api.letsencrypt.org/directory
-              privateKeySecretRef:
-                name: letsencrypt-staging-private-key
-              solvers:
-                - http01:
-                    ingress:
-                      class: traefik
-        mode: '0644'
-      tags: [cert-manager]
-
     - name: "cert-manager | Write Let's Encrypt ClusterIssuer (production)"
+      # Production issuer only. Public TLS for externally exposed services is handled
+      # by Cloudflare Tunnel — Let's Encrypt certs are used for direct/VPN access
+      # (e.g. Plex over WireGuard) and internal services.
       copy:
         dest: /tmp/cluster-issuer-production.yaml
         content: |
@@ -246,23 +225,19 @@
         mode: '0644'
       tags: [cert-manager]
 
-    - name: "cert-manager | Apply both ClusterIssuers"
-      command: "kubectl apply -f {{ item }}"
-      loop:
-        - /tmp/cluster-issuer-staging.yaml
-        - /tmp/cluster-issuer-production.yaml
+    - name: "cert-manager | Apply ClusterIssuer"
+      command: "kubectl apply -f /tmp/cluster-issuer-production.yaml"
       register: issuer_apply
       changed_when: "'configured' in issuer_apply.stdout or 'created' in issuer_apply.stdout"
       tags: [cert-manager]
 
-    - name: "cert-manager | Verify ClusterIssuers are ready"
+    - name: "cert-manager | Verify ClusterIssuer is ready"
       shell: |
-        kubectl get clusterissuer letsencrypt letsencrypt-staging \
-          -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[0].status}{"\n"}{end}'
+        kubectl get clusterissuer letsencrypt \
+          -o jsonpath='{.metadata.name}{"\t"}{.status.conditions[0].status}{"\n"}'
       register: issuer_status
       changed_when: false
       failed_when: "'False' in issuer_status.stdout"
-      # Allow a delay for the ACME server registration to complete
       retries: 6
       delay: 10
       until: issuer_status.rc == 0 and 'False' not in issuer_status.stdout
@@ -435,7 +410,6 @@
         state: absent
       loop:
         - /tmp/metallb-pool.yaml
-        - /tmp/cluster-issuer-staging.yaml
         - /tmp/cluster-issuer-production.yaml
         - /tmp/traefik-values.yaml
       tags: [always]
