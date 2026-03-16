@@ -6,7 +6,9 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://loki:3100/loki/api/v1/push
+  # Ships to k3s Loki — monitoring consolidated to k3s kube-prometheus-stack.
+  # Loki is exposed via Traefik IngressRoute at loki.kagiso.me.
+  - url: http://loki.kagiso.me/loki/api/v1/push
 
 scrape_configs:
 

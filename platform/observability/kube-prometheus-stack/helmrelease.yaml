@@ -62,6 +62,41 @@ spec:
         serviceMonitorSelectorNilUsesHelmValues: false
         podMonitorSelectorNilUsesHelmValues: false
         ruleSelectorNilUsesHelmValues: false
+        # External scrape targets — hosts outside the k3s cluster.
+        # docker-vm uses post-Proxmox IP (10.0.10.21) — will show as down until migration completes.
+        additionalScrapeConfigs:
+          - job_name: node-rpi
+            static_configs:
+              - targets: ["10.0.10.10:9100"]
+                labels:
+                  instance: rpi
+                  role: control-hub
+
+          - job_name: node-docker-vm
+            static_configs:
+              - targets: ["10.0.10.21:9100"]
+                labels:
+                  instance: docker-vm
+                  role: docker-host
+
+          - job_name: cadvisor-docker-vm
+            static_configs:
+              - targets: ["10.0.10.21:8080"]
+                labels:
+                  instance: docker-vm
+
+          - job_name: node-truenas
+            static_configs:
+              - targets: ["10.0.10.80:9100"]
+                labels:
+                  instance: truenas
+                  role: storage
+
+          - job_name: smartctl-truenas
+            static_configs:
+              - targets: ["10.0.10.80:9633"]
+                labels:
+                  instance: truenas
 
     # ----- Alertmanager -----
     alertmanager:

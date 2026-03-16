@@ -4,3 +4,4 @@ resources:
   - kube-prometheus-stack
   - loki
   - alertmanager-config
+  - prometheus-rules

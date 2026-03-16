@@ -1,97 +1,26 @@
 # =============================================================================
-# Monitoring Stack — Docker Compose
-# Host: 10.0.10.20 | TZ: Africa/Johannesburg
+# Monitoring Exporters — Docker Compose
+# Host: docker-vm (10.0.10.21) | TZ: Africa/Johannesburg
 #
-# .env.example — copy to .env and fill in values before deploying
-# -----------------------------------------------------------------------------
-# GF_SECURITY_ADMIN_USER=admin
-# GF_SECURITY_ADMIN_PASSWORD=changeme
-# GF_SERVER_ROOT_URL=http://10.0.10.20:3000
+# Prometheus, Grafana, Loki, and Alertmanager have been decommissioned from
+# this host. Monitoring is now consolidated into the k3s kube-prometheus-stack.
+#
+# This compose file runs lightweight exporters only:
+#   - node-exporter  — host metrics scraped by k3s Prometheus
+#   - cAdvisor       — Docker container metrics scraped by k3s Prometheus
+#   - promtail       — ships Docker logs to k3s Loki
+#
+# Scrape targets are configured in:
+#   platform/observability/kube-prometheus-stack/helmrelease.yaml
 # =============================================================================
 
-name: monitoring-stack
-
-networks:
-  monitoring-net:
-    name: monitoring-net
-    driver: bridge
+name: monitoring-exporters
 
 services:
 
   # ---------------------------------------------------------------------------
-  # Prometheus — Metrics collection and storage
-  # ---------------------------------------------------------------------------
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    restart: unless-stopped
-    networks:
-      - monitoring-net
-    ports:
-      - "9090:9090"
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=15d"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
-      - "--web.enable-lifecycle"
-    volumes:
-      - /srv/docker/appdata/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /srv/docker/appdata/prometheus/data:/prometheus
-    user: "nobody"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ---------------------------------------------------------------------------
-  # Grafana — Metrics visualisation and dashboards
-  # ---------------------------------------------------------------------------
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    restart: unless-stopped
-    networks:
-      - monitoring-net
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-changeme}
-      - GF_SERVER_ROOT_URL=${GF_SERVER_ROOT_URL:-http://10.0.10.20:3000}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_ANALYTICS_REPORTING_ENABLED=false
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/home.json
-    volumes:
-      - /srv/docker/appdata/grafana:/var/lib/grafana
-      - /srv/docker/appdata/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      prometheus:
-        condition: service_healthy
-      loki:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ---------------------------------------------------------------------------
-  # Node Exporter — Host hardware and OS metrics
+  # Node Exporter — host hardware and OS metrics
+  # Scraped by k3s Prometheus at 10.0.10.21:9100
   # ---------------------------------------------------------------------------
   node-exporter:
     image: prom/node-exporter:latest
@@ -116,24 +45,17 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # ---------------------------------------------------------------------------
-  # cAdvisor — Container resource usage and performance metrics
+  # cAdvisor — Docker container resource and performance metrics
+  # Scraped by k3s Prometheus at 10.0.10.21:8080
   # ---------------------------------------------------------------------------
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
     restart: unless-stopped
-    networks:
-      - monitoring-net
-    # Port 8080 is exposed on the monitoring-net only (not bound to host)
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
     privileged: true
     devices:
       - /dev/kmsg:/dev/kmsg
@@ -155,65 +77,23 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # ---------------------------------------------------------------------------
-  # Loki — Log aggregation
-  # ---------------------------------------------------------------------------
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
-    restart: unless-stopped
-    networks:
-      - monitoring-net
-    ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/loki-config.yml
-    volumes:
-      - /srv/docker/appdata/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
-      - /srv/docker/appdata/loki/data:/loki
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ---------------------------------------------------------------------------
-  # Promtail — Log shipping agent
+  # Promtail — ships Docker container logs to k3s Loki
   # ---------------------------------------------------------------------------
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
     restart: unless-stopped
-    networks:
-      - monitoring-net
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
       - /srv/docker/appdata/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /run/docker.sock:/run/docker.sock:ro
-    depends_on:
-      loki:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9080/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"

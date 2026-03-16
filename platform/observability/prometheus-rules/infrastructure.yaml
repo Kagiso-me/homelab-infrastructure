@@ -1,0 +1,120 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: external-infrastructure
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: truenas.zfs
+      rules:
+        - alert: ZfsPoolDegraded
+          expr: node_zfs_pool_state{job="node-truenas", state!="online"} == 1
+          for: 5m
+          labels:
+            severity: critical
+            host: truenas
+          annotations:
+            summary: "ZFS pool {{ $labels.pool }} is {{ $labels.state }}"
+            description: "Pool {{ $labels.pool }} on TrueNAS is not online. Immediate attention required."
+            runbook: "https://wiki.homelab/runbooks/zfs-pool-degraded"
+
+        - alert: ZfsPoolScrubStale
+          expr: (time() - node_zfs_pool_scrub_time_seconds{job="node-truenas"}) > (35 * 86400)
+          for: 1h
+          labels:
+            severity: warning
+            host: truenas
+          annotations:
+            summary: "ZFS pool {{ $labels.pool }} scrub is overdue"
+            description: "Pool {{ $labels.pool }} has not been scrubbed in over 35 days."
+            runbook: "https://wiki.homelab/runbooks/zfs-scrub-stale"
+
+    - name: truenas.smart
+      rules:
+        - alert: SmartDiskHealthFailed
+          expr: smartctl_device_smart_status{job="smartctl-truenas"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            host: truenas
+          annotations:
+            summary: "SMART health failed on {{ $labels.device }}"
+            description: "Drive {{ $labels.device }} is reporting SMART health failure on TrueNAS."
+            runbook: "https://wiki.homelab/runbooks/smart-disk-health-failed"
+
+        - alert: SmartReallocationWarning
+          expr: smartctl_device_attribute{job="smartctl-truenas", attribute_name="Reallocated_Sector_Ct", value_type="raw"} > 10
+          for: 30m
+          labels:
+            severity: warning
+            host: truenas
+          annotations:
+            summary: "Reallocated sectors on {{ $labels.device }}"
+            description: "Drive {{ $labels.device }} has {{ $value }} reallocated sectors."
+            runbook: "https://wiki.homelab/runbooks/smart-reallocated-sectors"
+
+        - alert: SmartTemperatureCritical
+          expr: smartctl_device_attribute{job="smartctl-truenas", attribute_name="Temperature_Celsius", value_type="raw"} > 60
+          for: 10m
+          labels:
+            severity: critical
+            host: truenas
+          annotations:
+            summary: "Drive {{ $labels.device }} temperature critical ({{ $value }}°C)"
+            description: "Drive temperature exceeds 60°C. Risk of failure."
+            runbook: "https://wiki.homelab/runbooks/smart-temperature-critical"
+
+    - name: external.nodes
+      rules:
+        - alert: ExternalNodeDown
+          expr: up{job=~"node-rpi|node-docker-vm|node-truenas"} == 0
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} is unreachable"
+            description: "node-exporter on {{ $labels.instance }} has been unreachable for 3 minutes."
+            runbook: "https://wiki.homelab/runbooks/node-down"
+
+        - alert: ExternalNodeDiskFull
+          expr: |
+            (
+              node_filesystem_avail_bytes{job=~"node-docker-vm|node-truenas", fstype!~"tmpfs|fuse.lxcfs"}
+              / node_filesystem_size_bytes{job=~"node-docker-vm|node-truenas", fstype!~"tmpfs|fuse.lxcfs"}
+            ) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk space low on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+            description: "Less than 15% disk space remaining on {{ $labels.mountpoint }}."
+            runbook: "https://wiki.homelab/runbooks/disk-full"
+
+        - alert: ExternalNodeHighMemory
+          expr: |
+            (
+              1 - (node_memory_MemAvailable_bytes{job=~"node-rpi|node-docker-vm"}
+              / node_memory_MemTotal_bytes{job=~"node-rpi|node-docker-vm"})
+            ) > 0.90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.instance }} ({{ $value | humanizePercentage }})"
+            description: "Memory usage on {{ $labels.instance }} has been above 90% for 10 minutes."
+            runbook: "https://wiki.homelab/runbooks/high-memory"
+
+    - name: external.backups
+      rules:
+        - alert: EtcdBackupStale
+          expr: (time() - node_directory_size_bytes{job="node-truenas", path="/mnt/archive/k8s-backups/etcd"} > bool 0) == 0 or (time() - 86400) > node_filefd_maximum{job="node-truenas"}
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "etcd backup on TrueNAS may be stale"
+            description: "No recent etcd snapshot detected in archive/k8s-backups/etcd."
+            runbook: "https://wiki.homelab/runbooks/etcd-backup-stale"
