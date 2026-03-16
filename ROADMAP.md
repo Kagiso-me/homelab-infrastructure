@@ -54,6 +54,12 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 **Why:** Adds identity-based access (Google/GitHub OAuth) in front of any Cloudflare Tunnel service with no code changes. A 2-minute configuration per service that significantly raises the security bar for publicly exposed UIs.
 **Depends on:** Cloudflare Tunnel deployed
 
+### Personal Website (kagiso.me)
+**Why:** A live window into the homelab — not a static portfolio. Features a live changelog (from `CHANGELOG.md`), roadmap (from `ROADMAP.md`), real-time service status (Uptime Kuma), and adapted guides for a public audience. The site rebuilds automatically on every push to this repo via GitHub Actions so it always reflects current infrastructure state.
+**Stack:** Astro, custom dark theme (no off-the-shelf template), GitHub Pages
+**Depends on:** Active infrastructure work settled (Proxmox, Cloudflare Tunnel, Pi-hole)
+**Linked:** Separate repo — `kagiso-me/website`
+
 ---
 
 ## Later
