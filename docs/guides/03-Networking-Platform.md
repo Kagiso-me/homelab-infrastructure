@@ -276,12 +276,12 @@ Cloudflare Tunnel (`cloudflared`) creates an outbound encrypted connection from 
 
 **How it works:** `cloudflared` on the RPi establishes persistent outbound connections to Cloudflare's edge. When a request arrives at `grafana.kagiso.me`, Cloudflare routes it through the tunnel to `cloudflared`, which forwards it to Traefik at `10.0.10.110`. Traefik matches the `Host` header and routes to the correct backend service.
 
-### Installation on RPi (armv7l)
+### Installation on RPi (arm64)
 
 ```bash
 # On the Raspberry Pi (10.0.10.10)
 curl -L --output cloudflared.deb \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm.deb
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
 sudo dpkg -i cloudflared.deb
 cloudflared --version
 ```
