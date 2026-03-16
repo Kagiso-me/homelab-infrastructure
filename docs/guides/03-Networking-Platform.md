@@ -252,7 +252,6 @@ Public services use proxied CNAME records in Cloudflare, pointing to the Cloudfl
 
 | Record | Type | Value | Proxy |
 |--------|------|-------|-------|
-| `grafana.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
 | `nextcloud.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
 | `immich.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
 
@@ -303,14 +302,14 @@ Create `/etc/cloudflared/config.yml`:
 tunnel: <tunnel-id>
 credentials-file: /root/.cloudflared/<tunnel-id>.json
 ingress:
-  - hostname: grafana.kagiso.me
+  - hostname: nextcloud.kagiso.me
     service: http://10.0.10.110
     originRequest:
-      httpHostHeader: grafana.kagiso.me
-  - hostname: sonarr.kagiso.me
+      httpHostHeader: nextcloud.kagiso.me
+  - hostname: immich.kagiso.me
     service: http://10.0.10.110
     originRequest:
-      httpHostHeader: sonarr.kagiso.me
+      httpHostHeader: immich.kagiso.me
   - service: http_status:404
 ```
 
@@ -319,8 +318,8 @@ The `httpHostHeader` ensures Traefik receives the original hostname and routes t
 ### Route DNS and Install as Service
 
 ```bash
-cloudflared tunnel route dns homelab grafana.kagiso.me
-cloudflared tunnel route dns homelab sonarr.kagiso.me
+cloudflared tunnel route dns homelab nextcloud.kagiso.me
+cloudflared tunnel route dns homelab immich.kagiso.me
 sudo cloudflared service install
 sudo systemctl enable --now cloudflared
 ```
@@ -409,7 +408,7 @@ sudo systemctl restart cloudflared
 
 The access model is split by service type:
 
-- **Public web services** (Grafana, Sonarr, Nextcloud, etc.) → Cloudflare Tunnel
+- **Public web services** (Nextcloud, Immich) → Cloudflare Tunnel
 - **Private services** (Plex, SSH, kubectl) → Tailscale
 
 Tailscale creates encrypted WireGuard-based peer-to-peer tunnels between devices. Devices enrolled in the same Tailscale network can reach each other directly using Tailscale IPs or MagicDNS hostnames.
