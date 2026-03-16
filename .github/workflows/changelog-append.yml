@@ -1,0 +1,96 @@
+name: Auto-append Changelog
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "docs/ops-log/**"
+      - "**.md"
+      - ".github/**"
+
+jobs:
+  append:
+    runs-on: ubuntu-latest
+    # Never run on bot commits — prevents infinite loop
+    if: github.actor != 'github-actions[bot]'
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
+
+      - name: Parse commit and append to CHANGELOG
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          DATE=$(date +%Y-%m-%d)
+          YEAR=$(date +%Y)
+          MONTH=$(date +%B)   # e.g. March
+          MONTH_NUM=$(date +%m)
+          SECTION="## ${YEAR}-${MONTH_NUM}"
+
+          # Skip non-infra commit types
+          if echo "$COMMIT_MSG" | grep -qE "^(docs|ci|test|style|build)\b"; then
+            echo "Commit type excluded from changelog — skipping."
+            exit 0
+          fi
+
+          # Map conventional commit prefix → ops-log type
+          if echo "$COMMIT_MSG" | grep -qE "^feat"; then
+            TYPE="DEPLOY"
+          elif echo "$COMMIT_MSG" | grep -qE "^fix"; then
+            TYPE="CONFIG"
+          elif echo "$COMMIT_MSG" | grep -qE "^upgrade"; then
+            TYPE="UPGRADE"
+          elif echo "$COMMIT_MSG" | grep -qE "^chore"; then
+            TYPE="MAINTENANCE"
+          elif echo "$COMMIT_MSG" | grep -qE "^security"; then
+            TYPE="SECURITY"
+          elif echo "$COMMIT_MSG" | grep -qE "^incident"; then
+            TYPE="INCIDENT"
+          elif echo "$COMMIT_MSG" | grep -qE "^refactor"; then
+            TYPE="CONFIG"
+          elif echo "$COMMIT_MSG" | grep -qE "^network"; then
+            TYPE="NETWORK"
+          elif echo "$COMMIT_MSG" | grep -qE "^storage"; then
+            TYPE="STORAGE"
+          elif echo "$COMMIT_MSG" | grep -qE "^scale"; then
+            TYPE="SCALE"
+          elif echo "$COMMIT_MSG" | grep -qE "^hardware"; then
+            TYPE="HARDWARE"
+          else
+            echo "No conventional commit prefix matched — skipping."
+            exit 0
+          fi
+
+          # Strip the prefix to get the description
+          DESCRIPTION=$(echo "$COMMIT_MSG" | sed 's/^[^:]*: //')
+
+          # The new changelog line
+          NEW_LINE="- **[${TYPE}]** ${DESCRIPTION} \`${SHORT_SHA}\`"
+
+          # If the month section already exists, insert under it.
+          # Otherwise, add a new month section after the separator.
+          if grep -q "^${SECTION}" CHANGELOG.md; then
+            # Insert the new line directly after the section header
+            sed -i "/^${SECTION}/a\\${NEW_LINE}" CHANGELOG.md
+          else
+            # Add new month section before the first existing ## section
+            sed -i "/^## [0-9]/i\\${SECTION}\\n\\n${NEW_LINE}\\n" CHANGELOG.md
+          fi
+
+          echo "Appended: $NEW_LINE"
+
+      - name: Commit updated CHANGELOG
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet && echo "No changes to commit" && exit 0
+          git add CHANGELOG.md
+          git commit -m "ci: auto-append changelog [skip changelog]"
+          git push

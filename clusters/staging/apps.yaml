@@ -5,13 +5,13 @@ metadata:
   name: apps
   namespace: flux-system
 spec:
-  interval: 30m
+  interval: 5m
   retryInterval: 1m
   timeout: 10m
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./apps/prod
+  path: ./apps/staging
   prune: true
   dependsOn:
     - name: platform-observability
@@ -20,3 +20,9 @@ spec:
     provider: sops
     secretRef:
       name: sops-age
+  # Health checks — must pass before GitHub Actions promotes to prod
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: grafana
+      namespace: monitoring

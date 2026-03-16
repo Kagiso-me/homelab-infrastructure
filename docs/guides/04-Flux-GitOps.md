@@ -110,26 +110,50 @@ notification-controller | handles alerts and events |
 
 # Repository Structure
 
-Flux expects a repository layout that describes the cluster.
-
-Example:
+This repository uses a two-environment layout. Every change lands in `staging` first and
+is automatically promoted to `production` after validation.
 
 ```
-platform-infra/
-└── clusters
-    └── prod
-        ├── flux-system
-        ├── infrastructure
-        └── apps
+homelab-infrastructure/
+├── clusters/
+│   ├── prod/
+│   │   └── flux-system/     ← prod Flux sync (watches prod branch)
+│   └── staging/
+│       └── flux-system/     ← staging Flux sync (watches main branch)
+├── platform/                ← shared platform services (MetalLB, Traefik, cert-manager)
+└── apps/
+    ├── base/                ← shared app manifests
+    ├── prod/                ← prod overlay (full resources, production certs)
+    └── staging/             ← staging overlay (reduced resources, staging certs)
 ```
-
-Explanation:
 
 | Directory | Purpose |
 |----------|---------|
-flux-system | Flux installation manifests |
-infrastructure | platform services |
-apps | application workloads |
+`clusters/prod/flux-system` | Prod Flux sync — watches the `prod` branch |
+`clusters/staging/flux-system` | Staging Flux sync — watches the `main` branch |
+`platform/` | Shared platform services — same manifests for both environments |
+`apps/base/` | Shared application manifests |
+`apps/prod/` | Production Kustomize overlay |
+`apps/staging/` | Staging Kustomize overlay |
+
+## Promotion Model
+
+```
+git push → main
+    ↓
+GitHub Actions: kubeconform + kustomize build
+    ↓
+Flux staging reconciles (watches main)
+    ↓
+GitHub Actions: staging health checks
+    ↓
+GitHub Actions: auto-merge main → prod branch
+    ↓
+Flux prod reconciles (watches prod branch)
+```
+
+Changes never reach production without passing through staging first.
+The promotion is fully automated — no manual merge required.
 
 Flux continuously reconciles the manifests stored here.
 
@@ -188,21 +212,32 @@ flux --version
 
 # Bootstrapping the Cluster
 
-Run the bootstrap command from the machine that has the kubeconfig.
+Bootstrap **prod** cluster first (your ThinkCentre cluster):
+
+```bash
+# On the Raspberry Pi (10.0.10.10)
+flux bootstrap git \
+  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
+  --branch=prod \
+  --path=clusters/prod \
+  --private-key-file=$HOME/.ssh/flux_deploy_key
+```
+
+Bootstrap **staging** cluster when ready (single-node k3s on Docker NUC):
 
 ```bash
 flux bootstrap git \
   --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
   --branch=main \
-  --path=clusters/homelab \
+  --path=clusters/staging \
   --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
 
 Flux will:
 
 - install controllers into the `flux-system` namespace
-- commit `gotk-components.yaml` (controller manifests) into the repository
-- start reconciling the cluster state from `clusters/homelab/`
+- commit `gotk-components.yaml` into the repository
+- start reconciling from the specified path and branch
 
 > **Before running bootstrap**, ensure the `sops-age` Secret exists in `flux-system` so
 > Flux can decrypt the SOPS-encrypted secrets on its first reconciliation:
@@ -224,16 +259,9 @@ After bootstrap the repository will contain:
 
 ```
 clusters/prod/flux-system/
-```
-
-Example:
-
-```
-clusters
-└── prod
-    └── flux-system
-        ├── gotk-components.yaml
-        ├── gotk-sync.yaml
+├── gotk-components.yaml     ← all Flux controller manifests
+├── gotk-sync.yaml           ← GitRepository (prod branch) + Kustomization
+└── kustomization.yaml
 ```
 
 These manifests describe how Flux connects the cluster to Git.

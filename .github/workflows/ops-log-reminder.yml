@@ -1,0 +1,61 @@
+name: Ops Log Reminder
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for infra changes without an ops-log entry
+        run: |
+          # Files changed in this push
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+
+          echo "=== Changed files ==="
+          echo "$CHANGED"
+
+          # Check if any infra paths were touched
+          INFRA_CHANGED=$(echo "$CHANGED" | grep -E \
+            "^(platform/|apps/|clusters/|ansible/playbooks/|truenas/|docker/config/)" \
+            || true)
+
+          # Check if a new ops-log entry was added in this push
+          OPS_LOG_ADDED=$(echo "$CHANGED" | grep "^docs/ops-log/.*\.md$" || true)
+
+          if [ -z "$INFRA_CHANGED" ]; then
+            echo "No infra paths changed — no ops-log entry required."
+            exit 0
+          fi
+
+          echo ""
+          echo "=== Infra paths changed ==="
+          echo "$INFRA_CHANGED"
+
+          if [ -n "$OPS_LOG_ADDED" ]; then
+            echo ""
+            echo "✓ Ops-log entry found: $OPS_LOG_ADDED"
+            exit 0
+          fi
+
+          # Warn but do not fail
+          echo ""
+          echo "::warning::Infra files changed but no ops-log entry was added."
+          echo "::warning::Consider documenting this change in docs/ops-log/"
+          echo ""
+          echo "Changed infra files:"
+          echo "$INFRA_CHANGED"
+          echo ""
+          echo "To add an entry:"
+          echo "  cp docs/ops-log/template.md docs/ops-log/$(date +%Y-%m-%d)-your-description.md"
+          echo "  # Fill it in, then add a line to CHANGELOG.md"
+
+          # Exit 0 — this is a reminder, not a gate
+          exit 0
