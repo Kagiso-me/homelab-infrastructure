@@ -98,6 +98,10 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 ## Someday
 *Ideas worth keeping. No timeline, no commitment.*
 
+### Pulse (Uptime & Incident Monitoring Platform)
+**Why:** Build a monitoring platform that improves on Uptime Kuma and Gatus in every dimension — GitOps-native YAML config, real-time WebSocket dashboard, dependency graph with root-cause alert suppression, SLA burn rate tracking, historical reports, screenshot on failure, response body diffing, incident replay, scoped API keys, and first-class Claude Phone integration. Single Go binary, runs on bran as an out-of-band monitor.
+**Linked:** [projects/pulse/](projects/pulse/README.md)
+
 ### RPi 4 Upgrade
 The RPi 3B+ (armv7l) can't run Claude Code or any arm64-only tooling. A RPi 4 (4GB+, aarch64) would make the control hub significantly more capable — running Claude Code directly on the node for natural language infrastructure operations.
 
