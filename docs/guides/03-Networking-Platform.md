@@ -313,8 +313,8 @@ Public services use proxied CNAME records in Cloudflare, pointing to the Cloudfl
 
 | Record | Type | Value | Proxy |
 |--------|------|-------|-------|
-| `nextcloud.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
-| `immich.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
+| `cloud.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
+| `photos.kagiso.me` | CNAME | `<tunnel-id>.cfargotunnel.com` | Proxied (orange cloud) |
 
 With Cloudflare proxying enabled, external clients resolve to Cloudflare's anycast IPs — the home network IP is never exposed publicly.
 
