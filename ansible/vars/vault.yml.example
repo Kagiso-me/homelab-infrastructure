@@ -1,0 +1,17 @@
+# ansible/vars/vault.yml.example
+#
+# This is the unencrypted template for ansible/vars/vault.yml.
+# The real vault.yml is Ansible Vault encrypted and safe to commit.
+#
+# One-time setup on the Raspberry Pi:
+#   echo "your-vault-password" > ~/.vault_pass && chmod 600 ~/.vault_pass
+#   ansible-vault create ansible/vars/vault.yml
+#   # Paste the content below (with real values) into the editor, save and exit.
+#
+# To edit an existing vault file:
+#   ansible-vault edit ansible/vars/vault.yml
+#
+# To view without editing:
+#   ansible-vault view ansible/vars/vault.yml
+
+cloudflare_api_token: "your-cloudflare-api-token-here"
