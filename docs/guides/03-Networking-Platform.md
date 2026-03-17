@@ -126,18 +126,6 @@ The wildcard cert is stored as a Kubernetes Secret (`wildcard-kagiso-me-tls`) in
 - **LAN / internal services** → wildcard cert via Traefik default TLSStore. Browser-trusted on any device whose DNS resolves `*.kagiso.me` to `10.0.10.110` (via Pi-hole).
 - **Private remote access** → Tailscale. Plex, SSH, and kubectl use Tailscale's own encrypted tunnels. No cert-manager involvement.
 
-**Prerequisite — Cloudflare API token Secret:**
-
-The playbook verifies this Secret exists before applying the ClusterIssuer. Create it manually once before running the playbook:
-
-```bash
-kubectl create secret generic cloudflare-api-token \
-  --namespace cert-manager \
-  --from-literal=api-token=<your-token>
-```
-
-Required token permissions: `Zone → Zone → Read` and `Zone → DNS → Edit` (scoped to `kagiso.me`).
-
 ### Traefik — Ingress Controller
 
 Traefik is the single entry point for all HTTP/S traffic. It:
@@ -159,7 +147,6 @@ Before running the platform playbook:
 | Ansible installed on RPi | `ansible --version` |
 | RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
 | DNS wildcard configured | `*.kagiso.me → 10.0.10.110` in your internal DNS server (Pi-hole/router) |
-| Cloudflare API token Secret | `kubectl create secret generic cloudflare-api-token --namespace cert-manager --from-literal=api-token=<token>` |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for
 > LAN and Tailscale access. MetalLB and Traefik provide the LoadBalancer IP and ingress routing
@@ -179,6 +166,27 @@ ansible-playbook -i ansible/inventory/homelab.yml \
 ```
 
 **Playbook location:** [`ansible/playbooks/lifecycle/install-platform.yml`](../../ansible/playbooks/lifecycle/install-platform.yml)
+
+### Post-Install: Create Cloudflare API Token Secret
+
+Once the playbook completes, the `cert-manager` namespace exists. Create the Cloudflare API token Secret so cert-manager can complete the DNS-01 challenge and issue the wildcard certificate:
+
+```bash
+kubectl create secret generic cloudflare-api-token \
+  --namespace cert-manager \
+  --from-literal=api-token=<your-token>
+```
+
+Required token permissions: `Zone → Zone → Read` and `Zone → DNS → Edit` (scoped to `kagiso.me`).
+
+After creating the secret, verify the ClusterIssuer and certificate become Ready:
+
+```bash
+kubectl get clusterissuer
+kubectl get certificate -n ingress
+```
+
+The DNS-01 challenge typically completes within 30–120 seconds.
 
 To install only a specific component (using tags):
 
