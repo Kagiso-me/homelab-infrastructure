@@ -219,12 +219,15 @@ This decrypts, opens the editor, and re-encrypts on save. Never manually edit th
 
 ### Run the Playbook
 
-With the vault file in place, run the playbook from the Raspberry Pi. No extra flags needed — `ansible.cfg` points to `~/.vault_pass` automatically:
+With the vault file in place, run the playbook from the Raspberry Pi. No extra flags needed — `ansible.cfg` points to `~/.vault_pass` automatically.
+
+> **Important:** Run from inside the `ansible/` directory. Ansible only loads `ansible.cfg` from the current working directory — running from the repo root will cause a vault decryption error because `ansible.cfg` won't be found.
 
 ```bash
 # From the Raspberry Pi (10.0.10.10)
-ansible-playbook -i ansible/inventory/homelab.yml \
-  ansible/playbooks/lifecycle/install-platform.yml
+cd ~/homelab-infrastructure/ansible
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-platform.yml
 ```
 
 The playbook decrypts `vault.yml`, reads `cloudflare_api_token`, and creates the Kubernetes Secret in the `cert-manager` namespace as part of the run. After the playbook completes, verify the ClusterIssuer and certificate become Ready:
@@ -408,11 +411,12 @@ Pi-hole runs on the RPi at `10.0.10.10` alongside `cloudflared`. It serves as th
 
 ### Installation
 
-Pi-hole is installed via an Ansible playbook. Run from the RPi:
+Pi-hole is installed via an Ansible playbook. Run from inside the `ansible/` directory on the RPi:
 
 ```bash
-ansible-playbook -i ansible/inventory/homelab.yml \
-  ansible/playbooks/services/install-pihole.yml
+cd ~/homelab-infrastructure/ansible
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/services/install-pihole.yml
 ```
 
 The playbook installs Pi-hole, configures the `*.kagiso.me` wildcard dnsmasq directive, and sets upstream resolvers to Cloudflare `1.1.1.1` / `1.0.0.1` with DNSSEC.
