@@ -55,6 +55,12 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 **Depends on:** Proxmox migration (staging-k3s VM provisioned)
 **Linked:** [Guide 04](docs/guides/04-Flux-GitOps.md)
 
+### Claude Phone (Phil Voice Interface)
+**Why:** Voice interface for the homelab — call a SIP extension on 3CX and talk to Phil (Claude Code) to query cluster status, manage containers, check NAS health, run Ansible playbooks, and more. Phil can also call you proactively when a pod crashes, disk fills, or a service goes down. No telephony costs — all local SIP.
+**Target:** 2026-03-22 to 2026-03-28
+**Depends on:** Proxmox migration complete (docker-vm running), NUC RAM upgrade
+**Linked:** [projects/claude-phone/](projects/claude-phone/README.md) · [github.com/theNetworkChuck/claude-phone](https://github.com/theNetworkChuck/claude-phone)
+
 ### Cloudflare Zero Trust
 **Why:** Adds identity-based access (Google/GitHub OAuth) in front of any Cloudflare Tunnel service with no code changes. A 2-minute configuration per service that significantly raises the security bar for publicly exposed UIs.
 **Depends on:** Cloudflare Tunnel deployed
