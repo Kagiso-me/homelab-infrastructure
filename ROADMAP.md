@@ -37,9 +37,14 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 ## Next
 *Committed — clear enough to start, queued behind Now.*
 
-### Tailscale Setup
-**Why:** Private remote access for Plex, SSH, and kubectl — services that should never touch Cloudflare. Tailscale handles its own certificate infrastructure and gives seamless access from any device.
-**Note:** Headscale (self-hosted coordination server) is the long-term direction — Tailscale first to validate the workflow.
+### Gatus on bran (Uptime Monitoring)
+**Why:** Out-of-band uptime monitoring that survives k3s outages. Gatus runs on bran as a lightweight Go binary (~20MB RAM), config-driven via YAML (lives in this repo). Monitors public services end-to-end via Cloudflare tunnel URLs, internal services via `*.kagiso.me`, and k3s nodes directly. Exposed at `status.kagiso.me` via cloudflared.
+**Target:** 2026-03-21
+**Depends on:** Cloudflare Tunnel (for `status.kagiso.me` exposure)
+
+### Tailscale + Headscale Setup
+**Why:** Private remote access for Plex, SSH, and kubectl — services that should never touch Cloudflare. Headscale runs on bran as the self-hosted coordination server, exposed via cloudflared. Tailscale first to validate the workflow, Headscale replaces the hosted coordination server.
+**Note:** Headscale runs on bran alongside Pi-hole and cloudflared.
 
 ### NUC RAM Upgrade (16GB → 32GB)
 **Why:** With 16GB the Proxmox allocation is tight (Proxmox 2GB + docker-vm 6GB + staging-k3s 8GB = 0 headroom). 32GB unlocks 14GB for additional LXC containers and future VMs. ~$50 for a SO-DIMM DDR4 kit.
@@ -56,7 +61,7 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 
 ### Personal Website (kagiso.me)
 **Why:** A live window into the homelab — not a static portfolio. Features a live changelog (from `CHANGELOG.md`), roadmap (from `ROADMAP.md`), real-time service status (Uptime Kuma), and adapted guides for a public audience. The site rebuilds automatically on every push to this repo via GitHub Actions so it always reflects current infrastructure state.
-**Stack:** Astro, custom dark theme (no off-the-shelf template), GitHub Pages
+**Stack:** Astro, custom dark theme (no off-the-shelf template), GitHub Pages; status page pulls from Gatus at `status.kagiso.me`
 **Depends on:** Active infrastructure work settled (Proxmox, Cloudflare Tunnel, Pi-hole)
 **Linked:** Separate repo — `kagiso-me/website`
 
@@ -87,14 +92,11 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 ## Someday
 *Ideas worth keeping. No timeline, no commitment.*
 
-### Headscale (Self-hosted Tailscale Coordination Server)
-Replace reliance on Tailscale's hosted coordination server with Headscale running on the RPi or as an LXC on Proxmox. Full control, no external dependency for VPN coordination.
-
 ### RPi 4 Upgrade
 The RPi 3B+ (armv7l) can't run Claude Code or any arm64-only tooling. A RPi 4 (4GB+, aarch64) would make the control hub significantly more capable — running Claude Code directly on the node for natural language infrastructure operations.
 
-### Uptime Kuma on Contabo
-Independent external uptime monitoring from a vantage point completely separate from the homelab. If the entire homelab (or Cloudflare Tunnel) goes down, monitoring still fires from Contabo.
+### Gatus on Contabo (External Vantage Point)
+Independent external uptime monitoring from a vantage point completely separate from the homelab. Gatus on bran monitors from inside the network — Contabo adds a second check from outside. If the entire homelab or Cloudflare Tunnel goes down, this still fires.
 
 ### Wiki (Outline or Gitea)
 Self-hosted wiki at `wiki.homelab` (internal DNS). All alert runbook URLs in Prometheus already point here — they resolve automatically once the wiki is running. Runbook files in `docs/operations/runbooks/alerts/` serve as the source content.
