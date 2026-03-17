@@ -6,7 +6,7 @@
 #
 # Components installed (in dependency order):
 #   1. MetalLB        — bare-metal LoadBalancer IP address pool
-#   2. cert-manager   — TLS certificate automation (Let's Encrypt DNS-01 wildcard + internal CA)
+#   2. cert-manager   — TLS certificate automation (Let's Encrypt DNS-01 wildcard)
 #   3. Traefik        — HTTP/S ingress controller + TLS termination
 #
 # Prerequisites:
@@ -43,6 +43,7 @@
     cert_manager_version: "v1.14.4"
     traefik_chart_version: "28.3.0"
     traefik_loadbalancer_ip: "10.0.10.110"
+    letsencrypt_email: "admin@kagiso.me"
     kubeconfig: "/etc/rancher/k3s/k3s.yaml"
 
   environment:
@@ -163,10 +164,15 @@
 
   # ============================================================================
   # STEP 2 — cert-manager
-  # Automates TLS certificate issuance and renewal. Installs the controller only.
-  # ClusterIssuers (letsencrypt-prod DNS-01 + internal-ca) are applied via Flux
-  # from platform/security/cluster-issuers/. The wildcard *.kagiso.me Certificate
-  # is managed by platform/networking/traefik/wildcard-certificate.yaml.
+  # Automates TLS certificate issuance and renewal. Installs the controller,
+  # applies the letsencrypt-prod ClusterIssuer (DNS-01 via Cloudflare), and
+  # issues the *.kagiso.me wildcard certificate.
+  #
+  # Prerequisite: the cloudflare-api-token Secret must exist in cert-manager
+  # namespace before running this playbook:
+  #   kubectl create secret generic cloudflare-api-token \
+  #     --namespace cert-manager --from-literal=api-token=<token>
+  # Required token permissions: Zone → Zone → Read, Zone → DNS → Edit
   # ============================================================================
 
     - name: "cert-manager | Install CRDs before the chart"
@@ -200,21 +206,52 @@
       changed_when: false
       tags: [cert-manager]
 
-    # ClusterIssuers are applied via Flux (platform/security/cluster-issuers/).
-    # The letsencrypt-prod ClusterIssuer requires the cloudflare-api-token Secret
-    # to exist in cert-manager namespace before Flux reconciles — apply out-of-band:
-    #   kubectl create secret generic cloudflare-api-token \
-    #     --namespace cert-manager --from-literal=api-token=<token>
-    - name: "cert-manager | Verify internal-ca ClusterIssuer is ready"
+    - name: "cert-manager | Verify cloudflare-api-token Secret exists"
+      command: kubectl get secret cloudflare-api-token -n cert-manager
+      register: cf_secret_check
+      changed_when: false
+      failed_when: cf_secret_check.rc != 0
+      tags: [cert-manager]
+
+    - name: "cert-manager | Write letsencrypt-prod ClusterIssuer manifest"
+      copy:
+        dest: /tmp/cluster-issuer.yaml
+        content: |
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-prod
+          spec:
+            acme:
+              server: https://acme-v02.api.letsencrypt.org/directory
+              email: {{ letsencrypt_email }}
+              privateKeySecretRef:
+                name: letsencrypt-prod-account-key
+              solvers:
+                - dns01:
+                    cloudflare:
+                      apiTokenSecretRef:
+                        name: cloudflare-api-token
+                        key: api-token
+        mode: '0644'
+      tags: [cert-manager]
+
+    - name: "cert-manager | Apply letsencrypt-prod ClusterIssuer"
+      command: kubectl apply -f /tmp/cluster-issuer.yaml
+      register: issuer_apply
+      changed_when: "'configured' in issuer_apply.stdout or 'created' in issuer_apply.stdout"
+      tags: [cert-manager]
+
+    - name: "cert-manager | Wait for letsencrypt-prod ClusterIssuer to be ready"
       shell: |
-        kubectl get clusterissuer internal-ca \
-          -o jsonpath='{.metadata.name}{"\t"}{.status.conditions[0].status}{"\n"}'
+        kubectl get clusterissuer letsencrypt-prod \
+          -o jsonpath='{.status.conditions[0].status}'
       register: issuer_status
       changed_when: false
-      failed_when: "'False' in issuer_status.stdout"
-      retries: 6
+      failed_when: false
+      retries: 12
       delay: 10
-      until: issuer_status.rc == 0 and 'False' not in issuer_status.stdout
+      until: issuer_status.stdout == "True"
       tags: [cert-manager]
 
   # ============================================================================
@@ -344,6 +381,66 @@
           Traefik LoadBalancer IP is {{ traefik_ip.stdout }} ✓
       tags: [traefik]
 
+    - name: "traefik | Write wildcard Certificate manifest"
+      copy:
+        dest: /tmp/wildcard-cert.yaml
+        content: |
+          apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: wildcard-kagiso-me
+            namespace: traefik
+          spec:
+            secretName: wildcard-kagiso-me-tls
+            issuerRef:
+              name: letsencrypt-prod
+              kind: ClusterIssuer
+            dnsNames:
+              - "*.kagiso.me"
+        mode: '0644'
+      tags: [traefik]
+
+    - name: "traefik | Apply wildcard Certificate"
+      command: kubectl apply -f /tmp/wildcard-cert.yaml
+      register: cert_apply
+      changed_when: "'configured' in cert_apply.stdout or 'created' in cert_apply.stdout"
+      tags: [traefik]
+
+    - name: "traefik | Write default TLSStore manifest"
+      copy:
+        dest: /tmp/tlsstore.yaml
+        content: |
+          apiVersion: traefik.io/v1alpha1
+          kind: TLSStore
+          metadata:
+            name: default
+            namespace: traefik
+          spec:
+            defaultCertificate:
+              secretName: wildcard-kagiso-me-tls
+        mode: '0644'
+      tags: [traefik]
+
+    - name: "traefik | Apply default TLSStore"
+      command: kubectl apply -f /tmp/tlsstore.yaml
+      register: tlsstore_apply
+      changed_when: "'configured' in tlsstore_apply.stdout or 'created' in tlsstore_apply.stdout"
+      tags: [traefik]
+
+    - name: "traefik | Wait for wildcard certificate to be issued"
+      # DNS-01 challenge propagation typically takes 30-120 seconds.
+      # Let's Encrypt rate limits: 5 failed validations per hour, 50 certs per domain per week.
+      shell: |
+        kubectl get certificate wildcard-kagiso-me -n traefik \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: cert_status
+      changed_when: false
+      failed_when: false
+      retries: 24
+      delay: 15
+      until: cert_status.stdout == "True"
+      tags: [traefik]
+
   # ============================================================================
   # POST-INSTALL — summary verification
   # ============================================================================
@@ -385,4 +482,7 @@
       loop:
         - /tmp/metallb-pool.yaml
         - /tmp/traefik-values.yaml
+        - /tmp/cluster-issuer.yaml
+        - /tmp/wildcard-cert.yaml
+        - /tmp/tlsstore.yaml
       tags: [always]
