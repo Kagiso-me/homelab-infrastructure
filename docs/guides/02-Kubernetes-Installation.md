@@ -65,27 +65,29 @@ The automation repository used for cluster installation has the following struct
 
 ```
 ansible/
-└── k3s
-    ├── ansible.cfg
-    ├── inventory
-    │   └── homelab.yml
-    ├── playbooks
-    │   ├── lifecycle
-    │   │   ├── install-cluster.yml
-    │   │   └── purge-k3s.yml
-    │   ├── maintenance
-    │   │   ├── reboot-nodes.yml
-    │   │   └── upgrade-nodes.yml
-    │   └── security
-    │       ├── disable-swap.yml
-    │       ├── fail2ban.yml
-    │       ├── firewall.yml
-    │       ├── ssh-hardening.yml
-    │       └── time-sync.yml
-    └── roles
-        └── k3s_install
-            ├── defaults
-            └── tasks
+├── ansible.cfg
+├── inventory
+│   └── homelab.yml
+├── playbooks
+│   ├── lifecycle
+│   │   ├── install-cluster.yml
+│   │   ├── install-platform.yml
+│   │   └── purge-k3s.yml
+│   ├── maintenance
+│   │   ├── reboot-nodes.yml
+│   │   └── upgrade-nodes.yml
+│   ├── security
+│   │   ├── disable-swap.yml
+│   │   ├── fail2ban.yml
+│   │   ├── firewall.yml
+│   │   ├── ssh-hardening.yml
+│   │   └── time-sync.yml
+│   └── services
+│       └── install-pihole.yml
+└── roles
+    └── k3s_install
+        ├── defaults
+        └── tasks
 ```
 
 This repository represents **the source of truth for cluster provisioning**.
@@ -146,7 +148,7 @@ Cluster installation is executed using the existing playbook.
 From the automation host run:
 
 ```
-ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
+ansible-playbook playbooks/lifecycle/install-cluster.yml
 ```
 
 The playbook performs the following operations:
