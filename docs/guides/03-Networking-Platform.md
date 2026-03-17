@@ -167,19 +167,71 @@ ansible-playbook -i ansible/inventory/homelab.yml \
 
 **Playbook location:** [`ansible/playbooks/lifecycle/install-platform.yml`](../../ansible/playbooks/lifecycle/install-platform.yml)
 
-### Post-Install: Create Cloudflare API Token Secret
+### Pre-Install: Ansible Vault Setup (one-time)
 
-Once the playbook completes, the `cert-manager` namespace exists. Create the Cloudflare API token Secret so cert-manager can complete the DNS-01 challenge and issue the wildcard certificate:
+The playbook needs your Cloudflare API token to create a Kubernetes Secret for cert-manager. Rather than typing the token in plaintext or passing it as a command-line argument every run, this repo uses **Ansible Vault** — a built-in Ansible feature that encrypts a YAML file using a password you choose.
 
-```bash
-kubectl create secret generic cloudflare-api-token \
-  --namespace cert-manager \
-  --from-literal=api-token=<your-token>
+**How it works:**
+
+```
+ansible/vars/vault.yml          ← encrypted file — safe to commit to git
+~/.vault_pass                   ← your vault password — lives on the RPi only, never committed
 ```
 
-Required token permissions: `Zone → Zone → Read` and `Zone → DNS → Edit` (scoped to `kagiso.me`).
+The encrypted file looks like gibberish on disk. When Ansible runs, it reads `~/.vault_pass` automatically, decrypts `vault.yml` in memory, and injects the token value into the playbook. The token never appears in plaintext anywhere in the repo or on disk during the run.
 
-After creating the secret, verify the ClusterIssuer and certificate become Ready:
+**Step 1 — Create the vault password file on the Raspberry Pi**
+
+This is the password that encrypts and decrypts your secrets. Choose something strong and keep it safe — if you lose it you will need to re-create the vault file.
+
+```bash
+# On the Raspberry Pi (10.0.10.10)
+echo "your-chosen-vault-password" > ~/.vault_pass
+chmod 600 ~/.vault_pass   # restrict to your user only
+```
+
+**Step 2 — Create the encrypted vault file**
+
+```bash
+# Still on the Raspberry Pi, from the repo root
+ansible-vault create ansible/vars/vault.yml
+```
+
+This opens a text editor (nano by default). Type the following, replacing the placeholder with your real Cloudflare token:
+
+```yaml
+cloudflare_api_token: "your-cloudflare-api-token-here"
+```
+
+Save and exit (`Ctrl+X → Y → Enter` in nano). Ansible encrypts the file immediately.
+
+**What the file looks like after encryption** (this is what gets committed to git):
+
+```
+$ANSIBLE_VAULT;1.1;AES256
+66386134653765363934346162623065613138646364646665...
+```
+
+It is completely unreadable without the vault password.
+
+**Required Cloudflare token permissions:** `Zone → Zone → Read` and `Zone → DNS → Edit` scoped to `kagiso.me`. Create the token at Cloudflare dashboard → My Profile → API Tokens.
+
+**Editing the vault file later** (e.g. to rotate the token):
+
+```bash
+ansible-vault edit ansible/vars/vault.yml
+```
+
+This decrypts, opens the editor, and re-encrypts on save. Never manually edit the encrypted file — it will corrupt it.
+
+**Running the playbook** — no extra flags needed. `ansible.cfg` points to `~/.vault_pass` automatically:
+
+```bash
+ansible-playbook -i ansible/inventory/homelab.yml \
+  ansible/playbooks/lifecycle/install-platform.yml
+```
+
+The playbook decrypts `vault.yml`, reads `cloudflare_api_token`, and creates the Kubernetes Secret in the `cert-manager` namespace as part of the run. After the playbook completes, verify the ClusterIssuer and certificate become Ready:
 
 ```bash
 kubectl get clusterissuer
@@ -631,7 +683,7 @@ kubectl logs -n cert-manager deploy/cert-manager # Look for errors
 
 Common causes:
 - cert-manager webhook not yet ready — wait for all cert-manager pods to be Running
-- `cloudflare-api-token` Secret missing from `cert-manager` namespace — create it before running the playbook (see prerequisites above)
+- `cloudflare-api-token` Secret missing from `cert-manager` namespace — ensure `ansible/vars/vault.yml` exists and `~/.vault_pass` is on the RPi (see [Ansible Vault Setup](#pre-install-ansible-vault-setup-one-time))
 
 **Wildcard certificate stuck in `Pending`**
 
