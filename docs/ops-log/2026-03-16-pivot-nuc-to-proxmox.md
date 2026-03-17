@@ -36,87 +36,273 @@ network complexity. VMs solve this properly.
 
 ---
 
-## Before (current state)
+## Before → After
+
+### Before
 
 ```
-NUC (bare Ubuntu)
-└── Docker
-    ├── Prometheus
-    ├── Grafana
-    ├── Loki
-    ├── Alertmanager
-    └── Media services (Sonarr, Radarr, Plex)
+NUC (bare Ubuntu 22.04) — 10.0.10.20
+└── Docker Compose
+    ├── Prometheus + Grafana + Loki + Alertmanager
+    └── Sonarr, Radarr, Plex (+ arr stack)
 ```
 
-## After (target state)
+### After
 
 ```
-NUC (Proxmox VE)
-├── docker-vm (2 vCPU, 6GB RAM, 80GB)
-│   └── Docker
-│       └── Media services (Sonarr, Radarr, Plex, Prowlarr)
-└── staging-k3s (2 vCPU, 8GB RAM, 60GB)
-    └── k3s (single node)
-        └── Flux → clusters/staging → apps/staging
-
-k3s prod cluster (monitoring now covers external targets)
-└── kube-prometheus-stack
-    ├── scrapes: TrueNAS (10.0.10.80)
-    ├── scrapes: docker-vm (10.0.10.21)
-    └── scrapes: RPi (10.0.10.10)
+NUC (Proxmox VE) — 10.0.10.20
+├── docker-vm       — 10.0.10.21 (2 vCPU, 8GB RAM, 80GB)
+│   └── Docker Compose
+│       └── Sonarr, Radarr, Plex (+ arr stack)
+└── staging-k3s     — 10.0.10.22 (2 vCPU, 6GB RAM, 60GB)
+    └── k3s single-node
+        └── Flux → clusters/staging/ → apps/staging/
 ```
 
-The Docker monitoring stack is **decommissioned** — not carried across into `docker-vm`.
-All monitoring consolidates to the k3s kube-prometheus-stack, which scrapes external
-targets via `additionalScrapeConfigs`. Frees ~2GB RAM on `docker-vm`.
+Monitoring stack is **decommissioned from Docker** — kube-prometheus-stack on k3s
+scrapes all external targets via `additionalScrapeConfigs`. Frees ~2GB RAM on `docker-vm`.
 
-NFS mounts from TrueNAS are identical — `docker-vm` mounts `tera/media` the same way
-the bare NUC does today. No data migration required.
+NFS mounts from TrueNAS are identical — `docker-vm` mounts `tera/media` the same way.
+No data migration required.
+
+### VM Resource Allocation
+
+| | Proxmox host | docker-vm | staging-k3s | Total |
+|---|---|---|---|---|
+| **RAM (16GB now)** | ~2GB | 8GB | 6GB | 16GB |
+| **RAM (32GB after upgrade)** | ~2GB | 12GB | 10GB | ~24GB |
+| **vCPU** | — | 2 | 2 | 4 threads |
+| **Disk** | ~40GB | 80GB | 60GB | ~180GB |
+
+> **Interim resource note:** Migration proceeding with 16GB RAM. RAM upgrade to 32GB
+> expected ~2026-03-23, at which point docker-vm → 12GB and staging-k3s → 10GB.
 
 A spare ThinkCentre M93p is retained as a cold spare / future 4th k3s worker.
 
-> **Note — interim resource allocation:** Migration is proceeding with 16GB RAM.
-> Proxmox (~2GB) + docker-vm (6GB) + staging-k3s (8GB) = 16GB exactly. Tight but
-> functional. RAM upgrade to 32GB expected ~2026-03-23, at which point docker-vm → 8GB
-> and staging-k3s → 16GB.
-
 ---
 
-## Migration Steps
+## Pre-Migration Checklist
 
-**Pre-migration (before touching the NUC):**
+Before touching the NUC:
+
 - [ ] Extend kube-prometheus-stack with `additionalScrapeConfigs` for TrueNAS, NUC, RPi
 - [ ] Add PrometheusRule resources for infrastructure + TrueNAS alert rules in k3s
 - [ ] Verify all external targets healthy in k3s Prometheus before proceeding
-- [ ] Back up Docker compose files and volumes to `archive/docker-backups` on TrueNAS
+- [ ] TrueNAS `archive/docker-backups` dataset accessible and has free space
+- [ ] Docker compose files committed in this repo (under `docker/`)
+- [ ] Note any volumes with state that aren't in TrueNAS (Grafana dashboards, Prometheus data)
+- [ ] Proxmox VE ISO downloaded and flashed to USB (8GB+)
+- [ ] SSH access to RPi (`10.0.10.10`) confirmed — control hub during outage
 
-**Proxmox setup:**
-- [ ] Install Proxmox VE on NUC (wipe existing Ubuntu)
-- [ ] Create `docker-vm` (2 vCPU, 6GB RAM, 80GB disk)
-- [ ] Install Docker on docker-vm, restore media stack (Sonarr, Radarr, Plex, Prowlarr)
-- [ ] Assign docker-vm IP: `10.0.10.21`
-- [ ] Verify NFS mounts to TrueNAS (`tera/media`, `tera/downloads`, `archive/docker-backups`)
-- [ ] Update kube-prometheus-stack scrape config: `10.0.10.20` → `10.0.10.21`
-- [ ] Add Proxmox host node exporter scrape target: `10.0.10.20`
+---
 
-**Staging cluster:**
-- [ ] Create `staging-k3s` VM (2 vCPU, 8GB RAM, 60GB disk)
-- [ ] Install single-node k3s on staging-k3s VM
-- [ ] Bootstrap Flux on staging (`--branch=main --path=clusters/staging`)
-- [ ] Add `STAGING_KUBECONFIG` GitHub secret
-- [ ] Uncomment staging health checks in `promote-to-prod.yml`
+## Step 1 — Backup Docker Host
 
-**Post-migration:**
-- [ ] Order and install 32GB DDR4 SO-DIMM (2× 16GB) — ~2026-03-23
-- [ ] After RAM upgrade: expand docker-vm → 8GB, staging-k3s → 16GB
-- [ ] Update this entry status to ✅ Complete
+From the NUC (`ssh kagiso@10.0.10.20`):
+
+```bash
+# Mount the TrueNAS backup share
+sudo mkdir -p /mnt/archive
+sudo mount -t nfs 10.0.10.80:/mnt/archive /mnt/archive
+
+# Create a timestamped backup directory
+BACKUP_DIR="/mnt/archive/docker-backups/pre-proxmox-$(date +%Y%m%d)"
+sudo mkdir -p "$BACKUP_DIR"
+
+# Backup compose files and configs
+sudo tar czf "$BACKUP_DIR/docker-compose-backup.tar.gz" \
+  ~/docker/ \
+  /etc/docker/ \
+  2>/dev/null
+
+# Export named volumes (includes Grafana dashboards, Prometheus TSDB, app state)
+sudo tar czf "$BACKUP_DIR/docker-volumes.tar.gz" /var/lib/docker/volumes/
+
+# Verify
+ls -lah "$BACKUP_DIR"
+```
+
+---
+
+## Step 2 — Install Proxmox VE
+
+1. Flash Proxmox VE ISO to USB (Rufus on Windows or `dd` on Linux)
+2. Boot NUC from USB — press **F10** at boot for boot menu
+3. Installer settings:
+   - Target disk: 256GB NVMe
+   - Hostname: `nuc.homelab`
+   - IP: `10.0.10.20` (same as before — keeps DNS/NFS exports working)
+   - Gateway: `10.0.10.1`
+   - DNS: `10.0.10.1`
+4. First login — Proxmox web UI at `https://10.0.10.20:8006`
+5. Disable enterprise repo (no subscription):
+
+```bash
+ssh root@10.0.10.20
+
+echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
+  > /etc/apt/sources.list.d/pve-community.list
+sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/pve-enterprise.list
+apt update && apt dist-upgrade -y
+```
+
+---
+
+## Step 3 — Create docker-vm
+
+```bash
+# From Proxmox host (after uploading Ubuntu 22.04 ISO to Proxmox storage)
+qm create 100 \
+  --name docker-vm \
+  --memory 8192 \
+  --cores 2 \
+  --net0 virtio,bridge=vmbr0 \
+  --ide2 local:iso/ubuntu-22.04-live-server.iso,media=cdrom \
+  --scsi0 local-lvm:80 \
+  --boot order=ide2 \
+  --ostype l26
+
+qm start 100
+```
+
+During Ubuntu install: hostname `docker-vm`, IP `10.0.10.21` (static), user `kagiso`, enable SSH.
+
+```bash
+# After install — install Docker
+ssh kagiso@10.0.10.21
+curl -fsSL https://get.docker.com | sudo bash
+sudo usermod -aG docker kagiso
+```
+
+---
+
+## Step 4 — Restore Docker Stack
+
+```bash
+ssh kagiso@10.0.10.21
+
+# Mount TrueNAS NFS shares
+sudo mkdir -p /mnt/media /mnt/downloads /mnt/archive
+echo "10.0.10.80:/mnt/tera/media    /mnt/media     nfs  defaults,_netdev  0 0" | sudo tee -a /etc/fstab
+echo "10.0.10.80:/mnt/tera          /mnt/downloads  nfs  defaults,_netdev  0 0" | sudo tee -a /etc/fstab
+echo "10.0.10.80:/mnt/archive       /mnt/archive    nfs  defaults,_netdev  0 0" | sudo tee -a /etc/fstab
+sudo mount -a
+
+# Restore compose files and volumes from backup
+BACKUP_DIR="/mnt/archive/docker-backups/pre-proxmox-$(date +%Y%m%d)"
+sudo tar xzf "$BACKUP_DIR/docker-compose-backup.tar.gz" -C /
+sudo tar xzf "$BACKUP_DIR/docker-volumes.tar.gz" -C /
+
+# Start services
+cd ~/docker && docker compose up -d
+
+# Verify
+docker ps
+```
+
+---
+
+## Step 5 — Create staging-k3s VM
+
+```bash
+# From Proxmox host
+qm create 101 \
+  --name staging-k3s \
+  --memory 6144 \
+  --cores 2 \
+  --net0 virtio,bridge=vmbr0 \
+  --ide2 local:iso/ubuntu-22.04-live-server.iso,media=cdrom \
+  --scsi0 local-lvm:60 \
+  --boot order=ide2 \
+  --ostype l26
+
+qm start 101
+```
+
+During Ubuntu install: hostname `staging`, IP `10.0.10.22` (static), user `kagiso`, enable SSH.
+
+```bash
+# Install k3s (single-node)
+ssh kagiso@10.0.10.22
+curl -sfL https://get.k3s.io | sh -s - \
+  --disable traefik \
+  --write-kubeconfig-mode 644
+
+kubectl get nodes
+```
+
+---
+
+## Step 6 — Bootstrap Flux on Staging
+
+From the RPi (`ssh kagiso@10.0.10.10`):
+
+```bash
+# Copy and fix kubeconfig
+scp kagiso@10.0.10.22:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
+sed -i 's/127.0.0.1/10.0.10.22/' ~/.kube/staging-config
+export KUBECONFIG=~/.kube/staging-config
+
+# Bootstrap Flux against the staging path
+flux bootstrap github \
+  --owner=Kagiso-me \
+  --repository=homelab-infrastructure \
+  --branch=main \
+  --path=clusters/staging \
+  --personal
+
+# Verify
+flux get kustomizations
+flux get helmreleases -A
+```
+
+---
+
+## Step 7 — Enable Staging Promotion Gate
+
+Once staging is healthy, add the `STAGING_KUBECONFIG` GitHub Actions secret:
+
+```bash
+# From RPi — encode staging kubeconfig
+cat ~/.kube/staging-config | base64 | tr -d '\n'
+```
+
+Add as a GitHub Actions secret named `STAGING_KUBECONFIG`, then uncomment the
+`staging-health` job in [`.github/workflows/promote-to-prod.yml`](../../.github/workflows/promote-to-prod.yml).
+
+---
+
+## Post-Migration — Consolidate Monitoring
+
+Extend kube-prometheus-stack to scrape all external targets, then decommission the
+Docker monitoring stack:
+
+- Proxmox host node exporter: `10.0.10.20:9100`
+- docker-vm node exporter: `10.0.10.21:9100`
+- TrueNAS SNMP / node exporter: `10.0.10.80`
+- RPi node exporter: `10.0.10.10:9100`
+
+---
+
+## Post-RAM Upgrade — Expand VM Resources (~2026-03-23)
+
+```bash
+qm shutdown 100 && qm set 100 --memory 12288 && qm start 100
+qm shutdown 101 && qm set 101 --memory 10240 && qm start 101
+```
 
 ---
 
 ## Rollback
 
-If Proxmox install goes wrong — bare metal reinstall of Ubuntu and restore Docker
-stack from `archive/docker-backups`. TrueNAS media is untouched throughout.
+If Proxmox install fails:
+
+1. Reinstall Ubuntu 22.04 on the NUC (same IP `10.0.10.20`)
+2. Install Docker, mount TrueNAS NFS shares
+3. Restore from `archive/docker-backups/pre-proxmox-YYYYMMDD/`
+4. `docker compose up -d`
+
+TrueNAS and the k3s cluster are completely unaffected throughout.
 
 ---
 
@@ -125,4 +311,3 @@ stack from `archive/docker-backups`. TrueNAS media is untouched throughout.
 - ADR: `docs/architecture/decisions/ADR-006-proxmox-pivot.md`
 - Staging cluster config: `clusters/staging/`
 - Promotion pipeline: `.github/workflows/promote-to-prod.yml`
-- Docker backup runbook: `docs/operations/runbooks/alerts/backup-runbooks.md`

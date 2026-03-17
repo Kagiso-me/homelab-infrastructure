@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 09 of 12
+**Guide:** 09 of 13
 
 > The final step in building the platform is enabling **application delivery**.
 >

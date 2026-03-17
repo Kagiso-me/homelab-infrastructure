@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 10 of 12
+**Guide:** 10 of 13
 
 > Building a Kubernetes platform is only half the work.
 > Operating it reliably over time is where real platform engineering begins.

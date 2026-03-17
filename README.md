@@ -268,6 +268,20 @@ RPi key material (age key, SSH keys, kubeconfig) is separately backed up encrypt
 
 ---
 
+## Projects
+
+Custom applications, operational tooling, and platform initiatives built on top of this infrastructure.
+
+→ **[View project board](projects/README.md)**
+
+| Project | Type | Description |
+|---------|------|-------------|
+| [Beesly](projects/DEV-beesly/) | `DEV` | Personal AI assistant — voice, alerts, calendar, reminders |
+| [Pulse](projects/DEV-pulse/) | `DEV` | Self-hosted uptime & incident monitoring platform |
+| [kagiso.me](projects/OPS-kagiso-me.github.io/) | `OPS` | Personal website and portfolio |
+
+---
+
 ## Deployment Guides
 
 A 13-guide series that walks through building and operating the full platform from bare metal.

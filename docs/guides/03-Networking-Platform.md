@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐☆☆☆ (7/10)
-**Guide:** 03 of 12
+**Guide:** 03 of 13
 
 > Kubernetes clusters running on bare-metal do not provide built‑in load balancers or ingress gateways.
 >
@@ -118,7 +118,7 @@ Traffic routed to that node → kube-proxy → Traefik pod
 
 cert-manager issues a single `*.kagiso.me` wildcard certificate using Let's Encrypt and the DNS-01 challenge via the Cloudflare API. Because DNS-01 proves ownership by writing a TXT record in Cloudflare DNS — rather than by serving an HTTP challenge — the certificate is issued without any public HTTP exposure. This means **every service, including LAN-only internal services, gets a browser-trusted TLS certificate automatically**.
 
-The wildcard cert is stored as a Kubernetes Secret (`wildcard-kagiso-me-tls`) in the `traefik` namespace and is configured as Traefik's default TLS certificate via a `TLSStore` resource. No per-service `Certificate` resource is required.
+The wildcard cert is stored as a Kubernetes Secret (`wildcard-kagiso-me-tls`) in the `ingress` namespace and is configured as Traefik's default TLS certificate via a `TLSStore` resource. No per-service `Certificate` resource is required.
 
 **The three TLS paths are:**
 
@@ -460,7 +460,7 @@ kubectl --server=https://100.x.x.x:6443 get nodes
 
 TLS is handled by three paths. A single wildcard cert covers all `*.kagiso.me` services automatically.
 
-**Wildcard cert → `*.kagiso.me`.** cert-manager requests one certificate from Let's Encrypt using DNS-01 (Cloudflare API). The resulting Secret (`wildcard-kagiso-me-tls` in the `traefik` namespace) is configured as Traefik's default TLS certificate via a `TLSStore` resource. Every IngressRoute using `entryPoints: [websecure]` and `tls: {}` automatically serves this cert — no per-service `Certificate` resource is needed.
+**Wildcard cert → `*.kagiso.me`.** cert-manager requests one certificate from Let's Encrypt using DNS-01 (Cloudflare API). The resulting Secret (`wildcard-kagiso-me-tls` in the `ingress` namespace) is configured as Traefik's default TLS certificate via a `TLSStore` resource. Every IngressRoute using `entryPoints: [websecure]` and `tls: {}` automatically serves this cert — no per-service `Certificate` resource is needed.
 
 **Public services → Cloudflare Tunnel.** TLS is terminated at the Cloudflare Edge. Internally, `cloudflared` forwards requests to Traefik over HTTP. Cloudflare manages its own edge certificate separately.
 
@@ -568,11 +568,11 @@ kubectl get clusterissuer
 # Expected: letsencrypt-prod READY=True
 
 # Wildcard certificate issued and ready
-kubectl get certificate -n traefik
+kubectl get certificate -n ingress
 # Expected: wildcard-kagiso-me READY=True
 
 # Traefik — running and assigned LoadBalancer IP
-kubectl get svc traefik -n traefik
+kubectl get svc traefik -n ingress
 # Expected: traefik TYPE=LoadBalancer EXTERNAL-IP=10.0.10.110
 
 # End-to-end — Traefik is responding (expect 404, not connection refused)
@@ -591,10 +591,10 @@ The networking platform is complete when all of the following are true:
 
 - ✓ `kubectl get pods -n metallb-system` — all pods Running
 - ✓ `kubectl get pods -n cert-manager` — all pods Running
-- ✓ `kubectl get pods -n traefik` — Traefik pod Running
+- ✓ `kubectl get pods -n ingress` — Traefik pod Running
 - ✓ Traefik service shows `EXTERNAL-IP: 10.0.10.110`
 - ✓ `kubectl get clusterissuer` — `letsencrypt-prod` `READY=True`
-- ✓ `kubectl get certificate -n traefik` — `wildcard-kagiso-me` `READY=True`
+- ✓ `kubectl get certificate -n ingress` — `wildcard-kagiso-me` `READY=True`
 - ✓ `curl https://10.0.10.110` returns `404 page not found` with a valid `*.kagiso.me` cert
 - ✓ DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine
 

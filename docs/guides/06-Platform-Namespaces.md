@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 06 of 12
+**Guide:** 06 of 13
 
 > Kubernetes does not enforce how workloads are organised.
 > Without structure, clusters quickly become difficult to manage.

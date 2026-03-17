@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 08 of 12
+**Guide:** 08 of 13
 
 > Kubernetes makes deploying systems easy.
 >

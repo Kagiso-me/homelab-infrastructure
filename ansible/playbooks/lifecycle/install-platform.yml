@@ -345,7 +345,7 @@
     - name: "traefik | Install Traefik via Helm"
       command: >
         helm upgrade --install traefik traefik/traefik
-        --namespace traefik
+        --namespace ingress
         --create-namespace
         --version {{ traefik_chart_version }}
         --values /tmp/traefik-values.yaml
@@ -358,14 +358,14 @@
     - name: "traefik | Wait for Traefik deployment to be ready"
       command: >
         kubectl rollout status deployment/traefik
-        -n traefik
+        -n ingress
         --timeout=120s
       changed_when: false
       tags: [traefik]
 
     - name: "traefik | Get Traefik LoadBalancer external IP"
       command: >
-        kubectl get svc traefik -n traefik
+        kubectl get svc traefik -n ingress
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
       register: traefik_ip
       changed_when: false
@@ -395,7 +395,7 @@
           kind: Certificate
           metadata:
             name: wildcard-kagiso-me
-            namespace: traefik
+            namespace: ingress
           spec:
             secretName: wildcard-kagiso-me-tls
             issuerRef:
@@ -403,6 +403,7 @@
               kind: ClusterIssuer
             dnsNames:
               - "*.kagiso.me"
+              - "kagiso.me"
         mode: '0644'
       tags: [traefik]
 
@@ -420,7 +421,7 @@
           kind: TLSStore
           metadata:
             name: default
-            namespace: traefik
+            namespace: ingress
           spec:
             defaultCertificate:
               secretName: wildcard-kagiso-me-tls
@@ -437,7 +438,7 @@
       # DNS-01 challenge propagation typically takes 30-120 seconds.
       # Let's Encrypt rate limits: 5 failed validations per hour, 50 certs per domain per week.
       shell: |
-        kubectl get certificate wildcard-kagiso-me -n traefik \
+        kubectl get certificate wildcard-kagiso-me -n ingress \
           -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
       register: cert_status
       changed_when: false
@@ -461,7 +462,7 @@
         kubectl get pods -n cert-manager --no-headers && \
         echo "" && \
         echo "=== Traefik ===" && \
-        kubectl get pods -n traefik --no-headers
+        kubectl get pods -n ingress --no-headers
       changed_when: false
       register: platform_pods
       tags: [always]

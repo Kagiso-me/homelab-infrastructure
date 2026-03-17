@@ -1,9 +1,10 @@
-# Claude Phone — Phil Voice Interface
+# Beesly — Personal AI Assistant
 
 > **Status:** Planning — 2026-03-17
-> **Reference:** [github.com/theNetworkChuck/claude-phone](https://github.com/theNetworkChuck/claude-phone)
 
-A voice interface for the homelab. Call a SIP extension on 3CX, speak a command, and Phil (Claude Code) responds in natural speech. Phil can also call *you* proactively when a pod crashes, disk fills, or a service goes down.
+Beesly is a personal AI assistant with a voice interface. Call a SIP extension, speak naturally, and Beesly responds. She can also call *you* proactively — when a pod crashes, a disk fills, or a service goes down.
+
+But Beesly is not just an infrastructure tool. The vision is a full personal assistant — the kind that can run you through your schedule for next Monday, remind you to cancel a gym membership, or handle anything else you'd ask a real assistant to do. Infrastructure awareness is one capability among many.
 
 ---
 
@@ -20,21 +21,26 @@ voice-app  (Docker — Drachtio + FreeSWITCH + STT/TTS)
     │  Whisper STT ──► text
     │  text ◄── ElevenLabs TTS
     ▼
-claude-api-server  (HTTP :3333)
+beesly-server  (HTTP :3333)
     │
     ▼
-Claude Code CLI  (system prompt + MCP tools)
-    ├── kubectl       ──► k3s cluster (tywin/jaime/tyrion)
-    ├── docker        ──► docker-vm containers
-    ├── Proxmox API   ──► NUC VMs
-    ├── TrueNAS API   ──► pool/disk health
-    ├── Prometheus    ──► PromQL queries
-    ├── Gatus         ──► service uptime
-    ├── Ansible       ──► run playbooks
-    └── Slack API     ──► DMs / channel posts
+Claude API  (system prompt + MCP tools)
+    ├── Infrastructure
+    │   ├── kubectl       ──► k3s cluster (tywin/jaime/tyrion)
+    │   ├── docker        ──► docker-vm containers
+    │   ├── Proxmox API   ──► NUC VMs
+    │   ├── TrueNAS API   ──► pool/disk health
+    │   ├── Prometheus    ──► PromQL queries
+    │   ├── Pulse         ──► service uptime
+    │   └── Ansible       ──► run playbooks
+    └── Personal
+        ├── Google Calendar ──► schedule queries + event creation
+        ├── Reminders       ──► create/read/complete tasks
+        ├── Slack API       ──► DMs / channel posts
+        └── Web search      ──► general knowledge queries
 
 Proactive alerts:
-    Gatus/Alertmanager webhook ──► claude-api-server ──► 3CX outbound call ──► your phone
+    Pulse/Alertmanager webhook ──► beesly-server ──► 3CX outbound call ──► your phone
 ```
 
 ---
@@ -46,7 +52,7 @@ Proactive alerts:
 | PBX | 3CX self-hosted | Free tier, SIP standard, no per-minute cost |
 | STT | OpenAI Whisper API | Best accuracy; negligible cost at homelab volume |
 | TTS | ElevenLabs | Natural voice; free tier covers homelab use |
-| LLM | Claude Code CLI | Full tool-use + Claude Max already paid |
+| LLM | Claude API | Full tool-use; Claude Max already paid |
 | Deployment | All-in-one on docker-vm | bran (RPi 3B+) incompatible with Claude Code |
 
 ---
@@ -57,25 +63,25 @@ All containers run on **docker-vm** (`10.0.10.21`) inside Proxmox on the NUC.
 
 ```
 docker-vm  10.0.10.21
-├── 3CX container        (SIP PBX)
-├── voice-app container  (STT/TTS/SIP bridge)
-└── claude-api-server    (HTTP :3333 — Claude Code CLI)
+├── 3CX container         (SIP PBX)
+├── voice-app container   (STT/TTS/SIP bridge)
+└── beesly-server         (HTTP :3333 — Claude API)
 ```
 
-> After the NUC RAM upgrade (~2026-03-23), bump docker-vm to 8 GB to give Phil headroom alongside the media stack.
+> After the NUC RAM upgrade (~2026-03-23), bump docker-vm to 8 GB to give Beesly headroom alongside the media stack.
 
 ---
 
 ## Prerequisites
 
 - [ ] docker-vm running and accessible at `10.0.10.21`
-- [ ] Claude Code CLI installed on docker-vm and authenticated (`claude login`)
-- [ ] Claude Max subscription (required by claude-phone)
+- [ ] Claude API key configured
 - [ ] OpenAI API key (Whisper STT)
 - [ ] ElevenLabs API key (TTS)
 - [ ] Softphone registered to 3CX (Linphone or Zoiper on mobile)
 - [ ] `kubectl` configured on docker-vm pointing at k3s cluster
 - [ ] Ansible accessible from docker-vm (via SSH to bran or installed locally)
+- [ ] Google Calendar API credentials (for personal assistant features)
 
 ---
 
@@ -97,56 +103,60 @@ Create a Debian 12 VM (1 vCPU, 2 GB RAM) on the NUC solely for 3CX. Useful if 3C
 ### 3CX initial setup
 
 1. Complete setup wizard — choose self-hosted
-2. Create extension `9000` for Phil
+2. Create extension `9000` for Beesly
 3. Note SIP credentials for voice-app config
 
 ---
 
-## Step 2 — Deploy voice-app + claude-api-server
+## Step 2 — Deploy voice-app + beesly-server
 
 ```bash
-# SSH into docker-vm
-ssh user@10.0.10.21
+ssh kagiso@10.0.10.21
 
-# Install claude-phone CLI
-curl -sSL https://raw.githubusercontent.com/theNetworkChuck/claude-phone/main/install.sh | bash
+# Clone and configure
+git clone https://github.com/Kagiso-me/beesly ~/.beesly
+cd ~/.beesly
 
-# Run setup wizard
-claude-phone setup
-# Prompts: 3CX SIP address, extension/password, OpenAI key, ElevenLabs key
-# Device name → Phil
+cp .env.example .env
+# Fill in: 3CX SIP address, extension/password, Anthropic key, OpenAI key, ElevenLabs key
 
 # Start the stack
-claude-phone start
-claude-phone doctor
+docker compose up -d
+docker compose ps
 ```
-
-The generated `docker-compose.yml` lives at `~/.claude-phone/docker-compose.yml` — copy it into this directory for version control.
 
 ---
 
-## Step 3 — Phil's System Prompt
+## Step 3 — Beesly's System Prompt
 
-Edit `~/.claude-phone/config.json`, extension `9000`, `systemPrompt` field:
+Edit `config/system-prompt.txt`:
 
 ```
-You are Phil, the intelligent assistant for this homelab.
-You have access to tools to query and manage:
+You are Beesly, an intelligent personal assistant.
+
+Infrastructure access — you can query and manage:
 - k3s Kubernetes cluster (nodes: tywin 10.0.10.11, jaime .12, tyrion .13)
 - Docker containers on docker-vm (10.0.10.21)
 - Proxmox hypervisor on the NUC (10.0.10.20) — VMs: docker-vm, staging-k3s
 - TrueNAS NAS (10.0.10.80) — pools: core (SSD mirror), archive (HDD mirror), tera (media)
 - Prometheus metrics via kube-prometheus-stack
-- Gatus uptime monitoring at status.kagiso.me
+- Pulse uptime monitoring at status.kagiso.me
 - Ansible playbooks (control node: bran 10.0.10.10)
-Keep responses concise — this is a voice interface. Avoid lists; speak in sentences.
+
+Personal access — you can:
+- Read and create Google Calendar events
+- Create and complete reminders
+- Send Slack messages
+
+Keep responses concise — this is a voice interface. Avoid bullet points; speak in sentences.
+When asked about your schedule or personal tasks, be specific with dates and times.
 ```
 
 ---
 
 ## Step 4 — Homelab Tool Scripts
 
-Shell scripts in `tools/` that Claude Code can invoke. Register each as an allowed command.
+Shell scripts in `tools/` that Beesly can invoke:
 
 ```bash
 # tools/k3s-status.sh
@@ -162,23 +172,19 @@ ssh root@10.0.10.80 "zpool status -x"
 # tools/docker-status.sh
 docker ps --format "table {{.Names}}\t{{.Status}}"
 
-# tools/gatus-check.sh
+# tools/pulse-check.sh
 curl -s http://status.kagiso.me/api/v1/endpoints/statuses \
   | jq '.[] | select(.results[-1].success==false) | .name'
-
-# tools/slack-notify.sh
-curl -X POST -H 'Content-type: application/json' \
-  --data "{\"text\":\"$1\"}" "$SLACK_WEBHOOK_URL"
 ```
 
 ---
 
 ## Step 5 — Proactive Outbound Calls
 
-Configure Gatus and Alertmanager to POST to the claude-api-server webhook:
+Configure Pulse and Alertmanager to POST to the beesly-server webhook:
 
 ```yaml
-# In Gatus config
+# In Pulse config
 alerting:
   custom:
     url: http://10.0.10.21:3333/webhook/alert
@@ -190,16 +196,16 @@ alerting:
 ```yaml
 # Alertmanager receiver
 receivers:
-  - name: claude-phone
+  - name: beesly
     webhook_configs:
       - url: http://10.0.10.21:3333/webhook/alert
 ```
 
-Phil receives the webhook, assesses severity, and either:
+Beesly receives the webhook, assesses severity, and either:
 - **Calls your extension** for critical alerts (pod crashloop, node NotReady, disk >90%)
 - **Sends a Slack message** for informational alerts (backup complete, disk >80% warning)
 
-> Outbound call initiation is a custom extension beyond NetworkChuck's repo. The anticipated approach is FreeSWITCH ESL (Event Socket Layer), which is already embedded in the voice-app container. The claude-api-server opens a TCP connection to FreeSWITCH's ESL port (`:8021`) and issues a `bgapi originate` command — no 3CX API required. Exact ESL config depends on how Drachtio exposes it; confirm against the running stack at implementation time.
+> Outbound call initiation uses FreeSWITCH ESL (Event Socket Layer). Beesly-server opens a TCP connection to FreeSWITCH's ESL port (`:8021`) and issues a `bgapi originate` command.
 
 ---
 
@@ -207,13 +213,13 @@ Phil receives the webhook, assesses severity, and either:
 
 ```bash
 # Stack health
-claude-phone doctor
+docker compose ps
 
-# Test inbound call
-# Dial 9000 from softphone
-# "Phil, what's the status of my k3s cluster?"
-# "Phil, how much space is left on the tera pool?"
-# "Phil, are all Gatus services healthy?"
+# Test inbound call — dial 9000 from softphone
+# "Beesly, what's the status of my k3s cluster?"
+# "Beesly, how much space is left on the tera pool?"
+# "Beesly, what does my Monday look like next week?"
+# "Beesly, remind me to cancel my gym membership on Friday"
 
 # Test proactive webhook
 curl -X POST http://10.0.10.21:3333/webhook/alert \
@@ -236,10 +242,21 @@ curl -X POST http://10.0.10.21:3333/webhook/alert \
 
 ---
 
-## Future
+## Roadmap
 
+### v1 — Infrastructure assistant
 - [ ] Bump docker-vm to 8 GB after NUC RAM upgrade (2026-03-23)
+- [ ] Inbound call: query k3s, Docker, TrueNAS, Proxmox, Pulse
+- [ ] Proactive outbound calls for critical alerts
+- [ ] Slack notification fallback for non-critical alerts
+
+### v2 — Personal assistant
+- [ ] Google Calendar — read schedule, create events
+- [ ] Reminders — create, list, complete
+- [ ] Tailscale-accessible SIP — call Beesly from outside the home network
+
+### v3 — Extended
 - [ ] Local TTS fallback (Piper) for internet outage resilience
-- [ ] Multiple extensions: Phil `9000` + read-only guest `9001`
+- [ ] Multiple extensions: Beesly `9000` + read-only guest `9001`
 - [ ] Call recording to `/mnt/archive/backups/voice-logs/`
-- [ ] Tailscale-accessible SIP — call Phil from outside the home network
+- [ ] Web search for general knowledge queries

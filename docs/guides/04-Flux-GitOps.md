@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 04 of 12
+**Guide:** 04 of 13
 
 > Up to this point the cluster has been built using traditional infrastructure automation.
 > Nodes were prepared with Ansible, Kubernetes was installed, and the networking platform

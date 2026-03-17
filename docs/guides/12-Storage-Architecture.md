@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 12 of 12
+**Guide:** 12 of 13
 
 > Kubernetes workloads that need persistent state — databases, monitoring time-series data, media libraries — require storage that outlives pods.
 >

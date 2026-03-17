@@ -27,7 +27,17 @@
       "Bash(grep -E \"api.github.com|raw.githubusercontent\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs --include=*.md -r)",
       "Bash(grep -E \"mermaid\\\\|graph|sequenceDiagram\" /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/*.md)",
       "Bash(xargs grep:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(find /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/platform -name \"*.yaml\" -exec grep -l \"namespace:\" {})",
+      "Bash(xargs -I {} grep \"namespace:\" {})",
+      "Bash(find /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure -name \"*.md\" -exec grep -l \"\\\\.kagiso\\\\.me\" {})",
+      "Bash(for f:*)",
+      "Bash(do sed:*)",
+      "Bash(done)",
+      "Bash(grep \"Guide:.*of 1\" docs/guides/*.md)",
+      "Bash(mv projects/claude-phone projects/DEV-beesly)",
+      "Bash(mv projects/pulse projects/DEV-pulse)",
+      "Bash(mkdir projects/OPS-kagiso-me.github.io)"
     ]
   }
 }

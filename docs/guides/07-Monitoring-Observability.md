@@ -3,7 +3,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 07 of 12
+**Guide:** 07 of 13
 
 > A system that cannot be observed cannot be operated. You don't know it's
 > broken until a user tells you — and by then the data that would explain

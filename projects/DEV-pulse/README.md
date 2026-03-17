@@ -39,7 +39,7 @@ pulse-server  (Go binary)
     ├── History store      — SQLite (default) / PostgreSQL
     ├── WebSocket hub      — real-time dashboard push
     ├── REST API           — scoped API keys, OpenAPI docs
-    └── Notifier           — Slack, Teams, Discord, PagerDuty, webhook, email, Claude Phone
+    └── Notifier           — Slack, Teams, Discord, PagerDuty, webhook, email, Beesly
 
 pulse-frontend  (React)
     ├── Live dashboard     — WebSocket, real-time status
@@ -115,7 +115,7 @@ Severity-based routing so the right channel gets the right message:
 # config/alerts.yaml
 routing:
   - severity: critical
-    channels: [claude-phone, slack-ops]    # Phil calls you + Slack
+    channels: [beesly, slack-ops]    # Phil calls you + Slack
   - severity: warning
     channels: [slack-ops]
   - severity: info
@@ -217,7 +217,7 @@ Key scopes: `read`, `write`, `admin`. Rate-limited per key. OpenAPI docs at `/ap
 | Telegram | |
 | Email | Rich HTML with incident timeline |
 | Webhook | Generic — compatible with n8n, Zapier, Make |
-| **Claude Phone** | First-class — critical alerts trigger Phil to call you |
+| **Beesly** | First-class — critical alerts trigger Phil to call you |
 | Prometheus | `/metrics` endpoint — Grafana can scrape Pulse directly |
 
 ---
@@ -275,7 +275,7 @@ For this homelab specifically:
 - Runs on **bran** (`10.0.10.10`) as the out-of-band monitor (survives k3s outages)
 - Scrapes k3s services via `*.kagiso.me` and internal IPs
 - Prometheus `/metrics` scraped by kube-prometheus-stack → Grafana dashboards
-- Feeds alerts to Claude Phone — critical incidents trigger Phil to call
+- Feeds alerts to Beesly — critical incidents trigger Phil to call
 - Config lives in `projects/pulse/config/` — GitOps managed, Flux-reconciled
 
 ---

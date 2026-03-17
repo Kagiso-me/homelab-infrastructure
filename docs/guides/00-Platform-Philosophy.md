@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐☆☆☆☆☆☆☆☆☆ (1/10)
-**Guide:** 00 of 12
+**Guide:** 00 of 13
 
 > This handbook documents the design, deployment, and operation of a production‑grade Kubernetes homelab platform.
 >
