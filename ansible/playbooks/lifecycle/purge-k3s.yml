@@ -19,10 +19,13 @@
       when: not confirm_purge
 
   tasks:
-    - name: Stop and uninstall K3s
-      shell: |
-        /usr/local/bin/k3s-killall.sh || true
-        /usr/local/bin/k3s-uninstall.sh || true
+    - name: Kill all k3s processes
+      command: /usr/local/bin/k3s-killall.sh
+      ignore_errors: true
+
+    - name: Uninstall k3s
+      command: /usr/local/bin/k3s-uninstall.sh
+      ignore_errors: true
 
     - name: Remove K3s and Kubernetes directories
       file:
@@ -34,3 +37,12 @@
         - /var/lib/kubelet
         - /etc/cni
         - /opt/cni
+        - /root/.kube
+        - /var/log/pods
+        - /var/log/containers
+
+    - name: Verify k3s binary is gone
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+      failed_when: k3s_binary.stat.exists

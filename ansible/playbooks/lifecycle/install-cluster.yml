@@ -14,7 +14,8 @@
   hosts: k3s_controller
   become: true
   tasks:
-    - fetch:
+    - name: Fetch kubeconfig from control plane
+      fetch:
         src: /etc/rancher/k3s/k3s.yaml
         dest: "{{ lookup('env','HOME') }}/.kube/config"
         flat: yes
@@ -22,7 +23,31 @@
 - name: Fix kubeconfig endpoint
   hosts: localhost
   tasks:
-    - replace:
+    - name: Replace 127.0.0.1 with control plane IP in kubeconfig
+      replace:
         path: "{{ lookup('env','HOME') }}/.kube/config"
-        regexp: 'server: https://.*:6443'
-        replace: "server: https://{{ hostvars[groups['k3s_controller'][0]].ansible_host }}:6443"
+        regexp: '^(\s*server: https://).*(:6443.*)$'
+        replace: '\g<1>{{ hostvars[groups["k3s_controller"][0]].ansible_host }}\g<2>'
+
+- name: Verify cluster health
+  hosts: k3s_controller
+  become: true
+  tasks:
+    - name: Wait for all nodes to be Ready
+      shell: |
+        kubectl get nodes \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
+          | grep -v "^$" | awk '$2 != "True" {print $1, "is NOT Ready"; found=1} END {if (found) exit 1}'
+      register: nodes_ready
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: nodes_ready.rc == 0
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Print cluster node status
+      command: kubectl get nodes
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml

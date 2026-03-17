@@ -35,6 +35,7 @@
     pihole_domain: "lan"
     pihole_interface: "eth0"
     pihole_ipv4_address: "10.0.10.10/24"
+    pihole_rev_server_target: "10.0.10.1"
     traefik_ip: "10.0.10.110"
     kagiso_domain: "kagiso.me"
 
@@ -102,7 +103,7 @@
           DNS_SEC=true
           REV_SERVER=true
           REV_SERVER_DOMAIN={{ pihole_domain }}
-          REV_SERVER_TARGET=10.0.10.1
+          REV_SERVER_TARGET={{ pihole_rev_server_target }}
           REV_SERVER_CIDR=10.0.10.0/24
           BLOCKING_ENABLED=true
         mode: '0644'
@@ -121,10 +122,10 @@
       register: pihole_install
       changed_when: true
 
-    - name: "pihole | Set admin password"
-      command: pihole -a -p "{{ pihole_admin_password }}"
-      changed_when: true
-      no_log: true
+    - name: "pihole | Remove installer script"
+      file:
+        path: /tmp/install-pihole.sh
+        state: absent
 
   # ============================================================================
   # SPLIT DNS — wildcard *.kagiso.me → Traefik
@@ -143,7 +144,7 @@
         mode: '0644'
 
     - name: "dns | Restart Pi-hole DNS to apply wildcard config"
-      service:
+      systemd:
         name: pihole-FTL
         state: restarted
 
@@ -162,12 +163,18 @@
       register: dns_test
       changed_when: false
       failed_when: traefik_ip not in dns_test.stdout
+      retries: 6
+      delay: 5
+      until: traefik_ip in dns_test.stdout
 
     - name: "verify | Test upstream DNS resolution"
       command: "dig +short cloudflare.com @127.0.0.1"
       register: upstream_test
       changed_when: false
       failed_when: upstream_test.stdout == ''
+      retries: 6
+      delay: 5
+      until: upstream_test.stdout != ''
 
     - name: "verify | Summary"
       debug:

@@ -61,10 +61,11 @@
       tags: [always]
 
     - name: "pre-flight | Verify cluster nodes are all Ready"
+      # Uses the Ready condition explicitly rather than relying on condition array ordering.
       shell: |
-        kubectl get nodes --no-headers \
-          -o custom-columns='NAME:.metadata.name,READY:.status.conditions[-1].type,STATUS:.status.conditions[-1].status' \
-          | awk '$3 != "True" {print $1, "is NOT Ready"; found=1} END {if (found) exit 1}'
+        kubectl get nodes \
+          -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
+          | awk '$2 != "True" {print $1, "is NOT Ready"; found=1} END {if (found) exit 1}'
       register: nodes_ready
       changed_when: false
       failed_when: nodes_ready.rc != 0
@@ -117,13 +118,17 @@
       changed_when: false
       tags: [metallb]
 
-    - name: "metallb | Apply IP address pool and L2 advertisement"
-      # The IPAddressPool and L2Advertisement CRDs are registered by the
-      # metallb-native manifest above. We must wait for them before applying.
-      # A brief pause is added because there can be a short delay between the
-      # CRD manifests being applied and the API server accepting instances.
-      pause:
-        seconds: 10
+    - name: "metallb | Wait for IPAddressPool CRD to be established"
+      # The CRD must be fully registered before we can create instances of it.
+      shell: |
+        kubectl get crd ipaddresspools.metallb.io \
+          -o jsonpath='{.status.conditions[?(@.type=="Established")].status}'
+      register: crd_ready
+      changed_when: false
+      failed_when: false
+      retries: 12
+      delay: 5
+      until: crd_ready.stdout == "True"
       tags: [metallb]
 
     - name: "metallb | Write IPAddressPool + L2Advertisement manifest"
@@ -195,7 +200,7 @@
         --wait
         --timeout 5m
       register: cm_install
-      changed_when: cm_install.rc == 0
+      changed_when: "'has been upgraded' in cm_install.stdout or 'has been deployed' in cm_install.stdout"
       tags: [cert-manager]
 
     - name: "cert-manager | Wait for cert-manager webhook to be ready"
@@ -297,6 +302,7 @@
               # Redirect all HTTP to HTTPS
               redirectTo:
                 port: websecure
+                scheme: https
             websecure:
               port: 443
               expose:
@@ -346,7 +352,7 @@
         --wait
         --timeout 5m
       register: traefik_install
-      changed_when: traefik_install.rc == 0
+      changed_when: "'has been upgraded' in traefik_install.stdout or 'has been deployed' in traefik_install.stdout"
       tags: [traefik]
 
     - name: "traefik | Wait for Traefik deployment to be ready"

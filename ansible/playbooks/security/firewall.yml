@@ -1,6 +1,10 @@
-- name: Configure Kubernetes-ready firewall
+- name: Configure firewall
   hosts: all
   become: true
+
+  vars:
+    lan_subnet: "10.0.10.0/24"
+    bran_ip: "10.0.10.10"
 
   tasks:
     - name: Install UFW
@@ -9,47 +13,113 @@
         state: present
         update_cache: yes
 
-    # -----------------------------
-    # SSH — LAN only
-    # -----------------------------
-    - name: Allow SSH from LAN only
+    # -------------------------------------------------------------------------
+    # SSH
+    # k3s nodes: bran only (10.0.10.10 is the only Ansible control hub).
+    # RPi (bran): LAN only — accessed from workstations on the LAN.
+    # -------------------------------------------------------------------------
+    - name: Allow SSH from bran only (k3s nodes)
       ufw:
         rule: allow
-        from_ip: 10.0.10.0/24
+        from_ip: "{{ bran_ip }}"
         to_port: "22"
         proto: tcp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
 
-    # -----------------------------
-    # Kubernetes core
-    # -----------------------------
-    - name: Allow Kubernetes API
-      ufw: { rule: allow, port: "6443", proto: tcp }
+    - name: Allow SSH from LAN (RPi)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "22"
+        proto: tcp
+      when: inventory_hostname in groups['rpi']
 
-    - name: Allow Kubelet
-      ufw: { rule: allow, port: "10250", proto: tcp }
+    # -------------------------------------------------------------------------
+    # Kubernetes API — controller only, LAN only
+    # Workers and external hosts do not need to reach the API server directly.
+    # -------------------------------------------------------------------------
+    - name: Allow Kubernetes API (controller only, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "6443"
+        proto: tcp
+      when: inventory_hostname in groups['k3s_controller']
 
-    - name: Allow Flannel VXLAN
-      ufw: { rule: allow, port: "8472", proto: udp }
+    # -------------------------------------------------------------------------
+    # Kubernetes internals — k3s nodes only, LAN only
+    # -------------------------------------------------------------------------
+    - name: Allow Kubelet (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "10250"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
 
-    # -----------------------------
-    # Ingress
-    # -----------------------------
-    - name: Allow HTTP
-      ufw: { rule: allow, port: "80", proto: tcp }
+    - name: Allow Flannel VXLAN (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "8472"
+        proto: udp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
 
-    - name: Allow HTTPS
-      ufw: { rule: allow, port: "443", proto: tcp }
+    # -------------------------------------------------------------------------
+    # Ingress — k3s nodes only, LAN only
+    # Cloudflare Tunnel (cloudflared) connects from 10.0.10.10 (bran) which is
+    # within the LAN subnet. No public inbound HTTP/HTTPS is ever needed.
+    # -------------------------------------------------------------------------
+    - name: Allow HTTP (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "80"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
 
-    # -----------------------------
-    # NodePort (optional but pragmatic)
-    # -----------------------------
-    - name: Allow NodePort range
-      ufw: { rule: allow, port: "30000:32767", proto: tcp }
+    - name: Allow HTTPS (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "443"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
 
-    # -----------------------------
-    # Enable firewall (LAST)
-    # -----------------------------
-    - name: Enable firewall
+    # -------------------------------------------------------------------------
+    # NodePort — k3s nodes, LAN only
+    # -------------------------------------------------------------------------
+    - name: Allow NodePort range (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "30000:32767"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+
+    # -------------------------------------------------------------------------
+    # DNS — RPi only (Pi-hole)
+    # -------------------------------------------------------------------------
+    - name: Allow DNS TCP (RPi only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "53"
+        proto: tcp
+      when: inventory_hostname in groups['rpi']
+
+    - name: Allow DNS UDP (RPi only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "53"
+        proto: udp
+      when: inventory_hostname in groups['rpi']
+
+    # -------------------------------------------------------------------------
+    # Enable (LAST — do not reorder)
+    # -------------------------------------------------------------------------
+    - name: Enable firewall with default deny
       ufw:
         state: enabled
         policy: deny

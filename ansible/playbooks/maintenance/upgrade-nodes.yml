@@ -2,6 +2,7 @@
   hosts: all
   become: true
   gather_facts: true
+  serial: 1
 
   tasks:
     - name: Update apt cache
@@ -16,3 +17,18 @@
     - name: Remove unused packages
       apt:
         autoremove: yes
+
+    - name: Check if reboot is required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot if kernel or systemd was updated
+      reboot:
+        msg: "Reboot required after package upgrade"
+        reboot_timeout: 300
+        connect_timeout: 5
+        pre_reboot_delay: 5
+        post_reboot_delay: 15
+        test_command: uptime
+      when: reboot_required.stat.exists

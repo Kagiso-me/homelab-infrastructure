@@ -1,4 +1,4 @@
-- name: Install Fail2Ban
+- name: Install and configure Fail2Ban
   hosts: all
   become: true
 
@@ -9,8 +9,39 @@
         state: present
         update_cache: yes
 
-    - name: Enable Fail2Ban
+    - name: Write jail.local
+      copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [DEFAULT]
+          bantime  = 1h
+          findtime = 10m
+          maxretry = 5
+          backend  = systemd
+
+          [sshd]
+          enabled  = true
+          port     = ssh
+          filter   = sshd
+          maxretry = 3
+        mode: '0644'
+        owner: root
+        group: root
+
+    - name: Enable and start Fail2Ban
       systemd:
         name: fail2ban
         enabled: true
-        state: started
+        state: restarted
+
+    - name: Verify Fail2Ban is running
+      command: fail2ban-client status
+      register: f2b_status
+      changed_when: false
+      failed_when: f2b_status.rc != 0
+
+    - name: Verify SSH jail is active
+      command: fail2ban-client status sshd
+      register: sshd_jail
+      changed_when: false
+      failed_when: sshd_jail.rc != 0
