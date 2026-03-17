@@ -147,6 +147,7 @@ Before running the platform playbook:
 | Ansible installed on RPi | `ansible --version` |
 | RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
 | DNS wildcard configured | `*.kagiso.me → 10.0.10.110` in your internal DNS server (Pi-hole/router) |
+| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi with your Cloudflare API token — see [Ansible Vault Setup](#pre-install-ansible-vault-setup-one-time) below before running the playbook |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for
 > LAN and Tailscale access. MetalLB and Traefik provide the LoadBalancer IP and ingress routing
@@ -156,14 +157,6 @@ Before running the platform playbook:
 ---
 
 ## Installation — Ansible Playbook
-
-The entire networking platform is installed by a single playbook from the Raspberry Pi control hub:
-
-```bash
-# From the Raspberry Pi (10.0.10.10)
-ansible-playbook -i ansible/inventory/homelab.yml \
-  ansible/playbooks/lifecycle/install-platform.yml
-```
 
 **Playbook location:** [`ansible/playbooks/lifecycle/install-platform.yml`](../../ansible/playbooks/lifecycle/install-platform.yml)
 
@@ -224,9 +217,12 @@ ansible-vault edit ansible/vars/vault.yml
 
 This decrypts, opens the editor, and re-encrypts on save. Never manually edit the encrypted file — it will corrupt it.
 
-**Running the playbook** — no extra flags needed. `ansible.cfg` points to `~/.vault_pass` automatically:
+### Run the Playbook
+
+With the vault file in place, run the playbook from the Raspberry Pi. No extra flags needed — `ansible.cfg` points to `~/.vault_pass` automatically:
 
 ```bash
+# From the Raspberry Pi (10.0.10.10)
 ansible-playbook -i ansible/inventory/homelab.yml \
   ansible/playbooks/lifecycle/install-platform.yml
 ```
