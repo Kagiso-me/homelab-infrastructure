@@ -322,7 +322,7 @@ git push
 kubectl create namespace flux-system || true
 kubectl create secret generic sops-age \
   --namespace=flux-system \
-  --from-file=age.agekey=~/age.key
+  --from-file=age.agekey=$HOME/age.key
 ```
 
 Verify:
