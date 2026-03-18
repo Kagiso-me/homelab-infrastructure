@@ -14,4 +14,31 @@
 # To view without editing:
 #   ansible-vault view ansible/vars/vault.yml
 
+# ------------------------------------------------------------------------------
+# Cloudflare (used by cert-manager for DNS-01 TLS challenge)
+# Scope required: Zone:Read + DNS:Edit, restricted to kagiso.me
+# ------------------------------------------------------------------------------
 cloudflare_api_token: "your-cloudflare-api-token-here"
+
+# ------------------------------------------------------------------------------
+# Flux GitOps SSH deploy key
+# Generated once by: flux bootstrap github --owner=Kagiso-me \
+#   --repository=homelab-infrastructure --branch=prod --path=clusters/prod
+#
+# After bootstrap, retrieve the private key from the cluster:
+#   kubectl get secret flux-system -n flux-system \
+#     -o jsonpath='{.data.identity}' | base64 -d
+#
+# Retrieve known_hosts:
+#   kubectl get secret flux-system -n flux-system \
+#     -o jsonpath='{.data.known_hosts}' | base64 -d
+#
+# Store both here so install-platform.yml can recreate the secret on a fresh
+# cluster without re-running flux bootstrap.
+# ------------------------------------------------------------------------------
+flux_github_ssh_private_key: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  your-flux-deploy-key-here
+  -----END OPENSSH PRIVATE KEY-----
+
+flux_github_known_hosts: "github.com ssh-ed25519 AAAA..."

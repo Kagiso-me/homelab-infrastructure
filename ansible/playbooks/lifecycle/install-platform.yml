@@ -1,48 +1,52 @@
 ---
 # install-platform.yml
 #
-# Installs the Kubernetes networking platform layer on top of an existing k3s cluster.
-# Run this playbook AFTER install-cluster.yml has completed and the cluster is healthy.
+# Bootstraps Flux GitOps onto a k3s cluster and waits for the full platform
+# layer to converge. Run this playbook AFTER install-cluster.yml.
 #
-# Components installed (in dependency order):
-#   1. MetalLB        — bare-metal LoadBalancer IP address pool
-#   2. cert-manager   — TLS certificate automation (Let's Encrypt DNS-01 wildcard)
-#   3. Traefik        — HTTP/S ingress controller + TLS termination
+# What this does (in order):
+#   1. Installs the flux2 CLI on the control plane node
+#   2. Applies the Flux controllers from the committed gotk-components.yaml
+#   3. Creates the flux-system SSH deploy key secret (from vault)
+#   4. Applies the GitRepository + Kustomization sync from gotk-sync.yaml
+#   5. Waits for all platform kustomizations to reach Ready state
+#
+# Flux then reconciles everything else from Git:
+#   - MetalLB        — bare-metal LoadBalancer IP address pool
+#   - Traefik        — HTTP/S ingress controller + TLS termination
+#   - cert-manager   — TLS certificate automation (Let's Encrypt DNS-01 wildcard)
+#   - All other platform and app components defined in the repo
+#
+# DO NOT install MetalLB, Traefik, or cert-manager directly from this playbook.
+# Those components are fully managed by Flux via GitOps. Installing them here
+# creates duplicate resources that conflict with Flux-managed deployments.
 #
 # Prerequisites:
-#   - k3s cluster running (tywin CP, jaime + tyrion workers)
-#   - kubectl configured on the control plane node (~/.kube/config)
-#   - helm installed on the control plane node (installed by this playbook if absent)
-#   - Cloudflare Tunnel (cloudflared) configured for public service exposure
-#   - DNS wildcard *.kagiso.me → Cloudflare (or 10.0.10.110 for direct/VPN access)
+#   - k3s cluster running (install-cluster.yml completed successfully)
+#   - GitHub SSH deploy key added to the homelab-infrastructure repo
+#     (one-time: flux bootstrap github --owner=Kagiso-me --repository=homelab-infrastructure)
+#   - ansible/vars/vault.yml contains:
+#       cloudflare_api_token       — Cloudflare API token (used by cert-manager)
+#       flux_github_ssh_private_key — SSH private key for the Flux deploy key
+#       flux_github_known_hosts    — github.com SSH known_hosts entry
 #
-# Usage (run from the Raspberry Pi control hub):
+# Usage:
 #   ansible-playbook -i ansible/inventory/homelab.yml \
 #     ansible/playbooks/lifecycle/install-platform.yml
 #
-# To install a single component only, use tags:
-#   ansible-playbook ... --tags metallb
-#   ansible-playbook ... --tags cert-manager
-#   ansible-playbook ... --tags traefik
+# To re-run after a cluster rebuild, the same command applies — idempotent.
 #
-# Variables (override in inventory or with -e):
-#   metallb_version        : MetalLB manifest version (default: v0.14.5)
-#   metallb_ip_range       : IP pool range for LoadBalancer services (default: 10.0.10.110-10.0.10.125)
-#   cert_manager_version   : cert-manager Helm chart version (default: v1.14.4)
-#   traefik_chart_version  : Traefik Helm chart version (default: 28.3.0)
-#   traefik_loadbalancer_ip: Traefik LoadBalancer IP (default: 10.0.10.110)
-#
-# Secrets (from ansible/vars/vault.yml — Ansible Vault encrypted, safe to commit):
-#   cloudflare_api_token   : Cloudflare API token (Zone:Read + DNS:Edit scoped to kagiso.me)
-#
-#   One-time setup on the Raspberry Pi:
-#     echo "your-vault-password" > ~/.vault_pass && chmod 600 ~/.vault_pass
-#     ansible-vault create ansible/vars/vault.yml
-#     # Type inside the editor: cloudflare_api_token: "your-token-here"
-#
-#   See docs/guides/03-Networking-Platform.md for full Ansible Vault walkthrough.
+# First-time GitHub deploy key setup (one-time, not automated here):
+#   flux bootstrap github \
+#     --owner=Kagiso-me \
+#     --repository=homelab-infrastructure \
+#     --branch=prod \
+#     --path=clusters/prod \
+#     --personal
+#   # Then add the generated private key to vault:
+#   ansible-vault edit ansible/vars/vault.yml
 
-- name: Install Kubernetes networking platform (MetalLB + cert-manager + Traefik)
+- name: Bootstrap Flux GitOps and wait for platform convergence
   hosts: k3s_controller
   become: true
   gather_facts: true
@@ -51,12 +55,7 @@
     - ../../vars/vault.yml
 
   vars:
-    metallb_version: "v0.14.5"
-    metallb_ip_range: "10.0.10.110-10.0.10.125"
-    cert_manager_version: "v1.14.4"
-    traefik_chart_version: "28.3.0"
-    traefik_loadbalancer_ip: "10.0.10.110"
-    letsencrypt_email: "admin@kagiso.me"
+    flux_version: "2.4.0"
     kubeconfig: "/etc/rancher/k3s/k3s.yaml"
 
   environment:
@@ -74,7 +73,6 @@
       tags: [always]
 
     - name: "pre-flight | Verify cluster nodes are all Ready"
-      # Uses the Ready condition explicitly rather than relying on condition array ordering.
       shell: |
         kubectl get nodes \
           -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
@@ -84,415 +82,210 @@
       failed_when: nodes_ready.rc != 0
       tags: [always]
 
-    - name: "pre-flight | Install helm if not present"
-      shell: |
-        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-      args:
-        creates: /usr/local/bin/helm
-      tags: [always]
-
-    - name: "pre-flight | Add required Helm repositories"
-      command: "{{ item }}"
-      loop:
-        - helm repo add metallb https://metallb.github.io/metallb
-        - helm repo add jetstack https://charts.jetstack.io
-        - helm repo add traefik https://helm.traefik.io/traefik
-        - helm repo update
-      changed_when: false
-      tags: [always]
-
-  # ============================================================================
-  # STEP 1 — MetalLB
-  # Provides LoadBalancer IP addresses on bare metal via Layer-2 ARP.
-  # ============================================================================
   tasks:
 
-    - name: "metallb | Apply MetalLB native manifest"
-      command: >
-        kubectl apply -f
-        https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml
-      register: metallb_apply
-      changed_when: "'configured' in metallb_apply.stdout or 'created' in metallb_apply.stdout"
-      tags: [metallb]
+    # ============================================================================
+    # STEP 1 — flux2 CLI
+    # Needed for waiting on kustomization status in later steps.
+    # ============================================================================
 
-    - name: "metallb | Wait for MetalLB controller to be ready"
-      command: >
-        kubectl rollout status deployment/controller
-        -n metallb-system
-        --timeout=120s
-      changed_when: false
-      tags: [metallb]
-
-    - name: "metallb | Wait for MetalLB speaker DaemonSet to be ready"
-      command: >
-        kubectl rollout status daemonset/speaker
-        -n metallb-system
-        --timeout=120s
-      changed_when: false
-      tags: [metallb]
-
-    - name: "metallb | Wait for IPAddressPool CRD to be established"
-      # The CRD must be fully registered before we can create instances of it.
-      shell: |
-        kubectl get crd ipaddresspools.metallb.io \
-          -o jsonpath='{.status.conditions[?(@.type=="Established")].status}'
-      register: crd_ready
+    - name: "flux | Check if flux CLI is installed"
+      command: flux version --client
+      register: flux_installed
       changed_when: false
       failed_when: false
-      retries: 12
-      delay: 5
-      until: crd_ready.stdout == "True"
-      tags: [metallb]
+      tags: [flux]
 
-    - name: "metallb | Write IPAddressPool + L2Advertisement manifest"
+    - name: "flux | Install flux2 CLI"
+      shell: |
+        curl -s https://fluxcd.io/install.sh | FLUX_VERSION={{ flux_version }} bash
+      when: flux_installed.rc != 0
+      tags: [flux]
+
+    # ============================================================================
+    # STEP 2 — Apply Flux controllers
+    # gotk-components.yaml was committed by 'flux bootstrap' and contains all
+    # Flux CRDs and controllers. Applying it is idempotent.
+    # ============================================================================
+
+    - name: "flux | Copy gotk-components.yaml to control plane"
       copy:
-        dest: /tmp/metallb-pool.yaml
-        content: |
-          ---
-          apiVersion: metallb.io/v1beta1
-          kind: IPAddressPool
-          metadata:
-            name: homelab-pool
-            namespace: metallb-system
-          spec:
-            addresses:
-              - {{ metallb_ip_range }}
-          ---
-          apiVersion: metallb.io/v1beta1
-          kind: L2Advertisement
-          metadata:
-            name: homelab-l2
-            namespace: metallb-system
-          spec:
-            ipAddressPools:
-              - homelab-pool
+        src: "../../../clusters/prod/flux-system/gotk-components.yaml"
+        dest: /tmp/gotk-components.yaml
         mode: '0644'
-      tags: [metallb]
+      tags: [flux]
 
-    - name: "metallb | Apply IP pool configuration"
-      command: kubectl apply -f /tmp/metallb-pool.yaml
-      register: pool_apply
-      changed_when: "'configured' in pool_apply.stdout or 'created' in pool_apply.stdout"
-      tags: [metallb]
+    - name: "flux | Apply Flux controllers (CRDs + deployments)"
+      command: kubectl apply -f /tmp/gotk-components.yaml
+      register: gotk_apply
+      changed_when: "'configured' in gotk_apply.stdout or 'created' in gotk_apply.stdout"
+      tags: [flux]
 
-    - name: "metallb | Verify pool was created"
-      command: kubectl get ipaddresspool -n metallb-system
-      changed_when: false
-      tags: [metallb]
-
-  # ============================================================================
-  # STEP 2 — cert-manager
-  # Automates TLS certificate issuance and renewal. Installs the controller,
-  # creates the cloudflare-api-token Secret from vault, applies the
-  # letsencrypt-prod ClusterIssuer (DNS-01 via Cloudflare), and issues the
-  # *.kagiso.me wildcard certificate.
-  # ============================================================================
-
-    - name: "cert-manager | Install CRDs before the chart"
-      # cert-manager requires its CRDs to be installed separately so that
-      # upgrades can be managed independently of the controller.
+    - name: "flux | Wait for Flux controllers to be ready"
       command: >
-        kubectl apply -f
-        https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml
-      register: cm_crds_apply
-      changed_when: "'configured' in cm_crds_apply.stdout or 'created' in cm_crds_apply.stdout"
-      tags: [cert-manager]
-
-    - name: "cert-manager | Install cert-manager via Helm"
-      command: >
-        helm upgrade --install cert-manager jetstack/cert-manager
-        --namespace cert-manager
-        --create-namespace
-        --version {{ cert_manager_version }}
-        --set installCRDs=false
-        --wait
-        --timeout 5m
-      register: cm_install
-      changed_when: "'has been upgraded' in cm_install.stdout or 'has been deployed' in cm_install.stdout"
-      tags: [cert-manager]
-
-    - name: "cert-manager | Wait for cert-manager webhook to be ready"
-      command: >
-        kubectl rollout status deployment/cert-manager-webhook
-        -n cert-manager
+        kubectl rollout status deployment/{{ item }}
+        -n flux-system
         --timeout=120s
+      loop:
+        - helm-controller
+        - kustomize-controller
+        - notification-controller
+        - source-controller
       changed_when: false
-      tags: [cert-manager]
+      tags: [flux]
 
-    - name: "cert-manager | Create cloudflare-api-token Secret"
-      # Token value comes from ansible/vars/vault.yml (Ansible Vault encrypted).
-      # --dry-run=client -o yaml | kubectl apply makes this idempotent:
-      # safe to re-run even if the secret already exists.
+    # ============================================================================
+    # STEP 3 — Create Flux SSH deploy key secret
+    # The flux-system secret holds the GitHub SSH key used to pull the repo.
+    # Key is stored in Ansible Vault. On a fresh cluster, this secret does not
+    # exist yet and must be created before the GitRepository can sync.
+    # ============================================================================
+
+    - name: "flux | Write SSH private key to temp file"
+      copy:
+        content: "{{ flux_github_ssh_private_key }}"
+        dest: /tmp/flux-identity
+        mode: '0600'
+      no_log: true
+      tags: [flux]
+
+    - name: "flux | Write SSH known_hosts to temp file"
+      copy:
+        content: "{{ flux_github_known_hosts }}"
+        dest: /tmp/flux-known-hosts
+        mode: '0644'
+      tags: [flux]
+
+    - name: "flux | Create flux-system namespace"
+      command: kubectl create namespace flux-system --dry-run=client -o yaml
+      register: ns_yaml
+      changed_when: false
+      tags: [flux]
+
+    - name: "flux | Apply flux-system namespace"
+      shell: echo "{{ ns_yaml.stdout }}" | kubectl apply -f -
+      changed_when: false
+      tags: [flux]
+
+    - name: "flux | Create flux-system SSH secret"
       shell: >
-        kubectl create secret generic cloudflare-api-token
-        --namespace cert-manager
-        --from-literal=api-token={{ cloudflare_api_token }}
+        kubectl create secret generic flux-system
+        --namespace flux-system
+        --from-file=identity=/tmp/flux-identity
+        --from-file=known_hosts=/tmp/flux-known-hosts
         --dry-run=client -o yaml | kubectl apply -f -
       changed_when: false
-      tags: [cert-manager]
+      no_log: true
+      tags: [flux]
 
-    - name: "cert-manager | Write letsencrypt-prod ClusterIssuer manifest"
+    - name: "flux | Remove temp key files"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/flux-identity
+        - /tmp/flux-known-hosts
+      tags: [flux]
+
+    # ============================================================================
+    # STEP 4 — Apply GitRepository + Kustomization sync
+    # gotk-sync.yaml tells Flux where to pull from (the GitHub repo) and which
+    # path to reconcile (clusters/prod). Flux takes it from here.
+    # ============================================================================
+
+    - name: "flux | Copy gotk-sync.yaml to control plane"
       copy:
-        dest: /tmp/cluster-issuer.yaml
-        content: |
-          apiVersion: cert-manager.io/v1
-          kind: ClusterIssuer
-          metadata:
-            name: letsencrypt-prod
-          spec:
-            acme:
-              server: https://acme-v02.api.letsencrypt.org/directory
-              email: {{ letsencrypt_email }}
-              privateKeySecretRef:
-                name: letsencrypt-prod-account-key
-              solvers:
-                - dns01:
-                    cloudflare:
-                      apiTokenSecretRef:
-                        name: cloudflare-api-token
-                        key: api-token
+        src: "../../../clusters/prod/flux-system/gotk-sync.yaml"
+        dest: /tmp/gotk-sync.yaml
         mode: '0644'
-      tags: [cert-manager]
+      tags: [flux]
 
-    - name: "cert-manager | Apply letsencrypt-prod ClusterIssuer"
-      command: kubectl apply -f /tmp/cluster-issuer.yaml
-      register: issuer_apply
-      changed_when: "'configured' in issuer_apply.stdout or 'created' in issuer_apply.stdout"
-      tags: [cert-manager]
+    - name: "flux | Apply GitRepository and Kustomization sync"
+      command: kubectl apply -f /tmp/gotk-sync.yaml
+      register: sync_apply
+      changed_when: "'configured' in sync_apply.stdout or 'created' in sync_apply.stdout"
+      tags: [flux]
 
-    - name: "cert-manager | Wait for letsencrypt-prod ClusterIssuer to be ready"
+    - name: "flux | Wait for GitRepository to sync"
       shell: |
-        kubectl get clusterissuer letsencrypt-prod \
-          -o jsonpath='{.status.conditions[0].status}'
-      register: issuer_status
-      changed_when: false
-      failed_when: false
-      retries: 12
-      delay: 10
-      until: issuer_status.stdout == "True"
-      tags: [cert-manager]
-
-  # ============================================================================
-  # STEP 3 — Traefik Ingress Controller
-  # Single HTTP/S entry point for all cluster services. Assigned a LoadBalancer
-  # IP from the MetalLB pool. Handles TLS termination via cert-manager secrets.
-  # ============================================================================
-
-    - name: "traefik | Write Traefik Helm values file"
-      copy:
-        dest: /tmp/traefik-values.yaml
-        content: |
-          # Traefik Helm values for homelab k3s cluster
-          # LoadBalancer IP is pinned to a specific address in the MetalLB pool.
-          # This IP should match the DNS wildcard: *.kagiso.me → 10.0.10.110
-
-          service:
-            type: LoadBalancer
-            spec:
-              loadBalancerIP: {{ traefik_loadbalancer_ip }}
-
-          # Enable Prometheus metrics endpoint
-          metrics:
-            prometheus:
-              entryPoint: metrics
-
-          additionalArguments:
-            # Allow Traefik to read cert-manager TLS secrets in all namespaces
-            - "--providers.kubernetesingress.ingressclass=traefik"
-            - "--log.level=INFO"
-            - "--accesslog=true"
-            - "--api.dashboard=true"
-            - "--api.insecure=false"
-
-          # Ports
-          ports:
-            web:
-              port: 80
-              expose:
-                default: true
-              exposedPort: 80
-              protocol: TCP
-              # Redirect all HTTP to HTTPS
-              redirectTo:
-                port: websecure
-                scheme: https
-            websecure:
-              port: 443
-              expose:
-                default: true
-              exposedPort: 443
-              protocol: TCP
-              tls:
-                enabled: true
-            metrics:
-              port: 9100
-              expose:
-                default: false
-              protocol: TCP
-            traefik:
-              port: 9000
-              expose:
-                default: false
-
-          # IngressClass — marks Traefik as the default ingress controller
-          ingressClass:
-            enabled: true
-            isDefaultClass: true
-            name: traefik
-
-          # RBAC — Traefik needs to read Secrets for TLS certs
-          rbac:
-            enabled: true
-
-          # Resource limits appropriate for a homelab control plane node
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "256Mi"
-        mode: '0644'
-      tags: [traefik]
-
-    - name: "traefik | Install Traefik via Helm"
-      command: >
-        helm upgrade --install traefik traefik/traefik
-        --namespace ingress
-        --create-namespace
-        --version {{ traefik_chart_version }}
-        --values /tmp/traefik-values.yaml
-        --wait
-        --timeout 5m
-      register: traefik_install
-      changed_when: "'has been upgraded' in traefik_install.stdout or 'has been deployed' in traefik_install.stdout"
-      tags: [traefik]
-
-    - name: "traefik | Wait for Traefik deployment to be ready"
-      command: >
-        kubectl rollout status deployment/traefik
-        -n ingress
-        --timeout=120s
-      changed_when: false
-      tags: [traefik]
-
-    - name: "traefik | Get Traefik LoadBalancer external IP"
-      command: >
-        kubectl get svc traefik -n ingress
-        -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-      register: traefik_ip
-      changed_when: false
-      retries: 10
-      delay: 6
-      until: traefik_ip.stdout != ""
-      tags: [traefik]
-
-    - name: "traefik | Assert LoadBalancer IP matches expected value"
-      assert:
-        that:
-          - traefik_ip.stdout == traefik_loadbalancer_ip
-        fail_msg: >
-          Traefik received IP {{ traefik_ip.stdout }} but expected
-          {{ traefik_loadbalancer_ip }}. Check the MetalLB IP pool range
-          and ensure {{ traefik_loadbalancer_ip }} is within
-          {{ metallb_ip_range }}.
-        success_msg: >
-          Traefik LoadBalancer IP is {{ traefik_ip.stdout }} ✓
-      tags: [traefik]
-
-    - name: "traefik | Write wildcard Certificate manifest"
-      copy:
-        dest: /tmp/wildcard-cert.yaml
-        content: |
-          apiVersion: cert-manager.io/v1
-          kind: Certificate
-          metadata:
-            name: wildcard-kagiso-me
-            namespace: ingress
-          spec:
-            secretName: wildcard-kagiso-me-tls
-            issuerRef:
-              name: letsencrypt-prod
-              kind: ClusterIssuer
-            dnsNames:
-              - "*.kagiso.me"
-              - "kagiso.me"
-        mode: '0644'
-      tags: [traefik]
-
-    - name: "traefik | Apply wildcard Certificate"
-      command: kubectl apply -f /tmp/wildcard-cert.yaml
-      register: cert_apply
-      changed_when: "'configured' in cert_apply.stdout or 'created' in cert_apply.stdout"
-      tags: [traefik]
-
-    - name: "traefik | Write default TLSStore manifest"
-      copy:
-        dest: /tmp/tlsstore.yaml
-        content: |
-          apiVersion: traefik.io/v1alpha1
-          kind: TLSStore
-          metadata:
-            name: default
-            namespace: ingress
-          spec:
-            defaultCertificate:
-              secretName: wildcard-kagiso-me-tls
-        mode: '0644'
-      tags: [traefik]
-
-    - name: "traefik | Apply default TLSStore"
-      command: kubectl apply -f /tmp/tlsstore.yaml
-      register: tlsstore_apply
-      changed_when: "'configured' in tlsstore_apply.stdout or 'created' in tlsstore_apply.stdout"
-      tags: [traefik]
-
-    - name: "traefik | Wait for wildcard certificate to be issued"
-      # DNS-01 challenge propagation typically takes 30-120 seconds.
-      # Let's Encrypt rate limits: 5 failed validations per hour, 50 certs per domain per week.
-      shell: |
-        kubectl get certificate wildcard-kagiso-me -n ingress \
+        kubectl get gitrepository flux-system -n flux-system \
           -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-      register: cert_status
+      register: git_ready
       changed_when: false
       failed_when: false
-      retries: 24
-      delay: 15
-      until: cert_status.stdout == "True"
-      tags: [traefik]
+      retries: 18
+      delay: 10
+      until: git_ready.stdout == "True"
+      tags: [flux]
+
+    # ============================================================================
+    # STEP 5 — Wait for platform to converge
+    # Flux reconciles kustomizations in dependency order. We wait for the key
+    # platform layers to become Ready before declaring success.
+    # ============================================================================
+
+    - name: "flux | Wait for platform-networking to be Ready"
+      shell: |
+        kubectl get kustomization platform-networking -n flux-system \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: networking_ready
+      changed_when: false
+      failed_when: false
+      # MetalLB + Traefik installs take time; 5 min total
+      retries: 30
+      delay: 10
+      until: networking_ready.stdout == "True"
+      tags: [flux]
+
+    - name: "flux | Wait for platform-security to be Ready"
+      shell: |
+        kubectl get kustomization platform-security -n flux-system \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: security_ready
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 10
+      until: security_ready.stdout == "True"
+      tags: [flux]
+
+    - name: "flux | Wait for platform-storage to be Ready"
+      shell: |
+        kubectl get kustomization platform-storage -n flux-system \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: storage_ready
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 10
+      until: storage_ready.stdout == "True"
+      tags: [flux]
 
   # ============================================================================
   # POST-INSTALL — summary verification
   # ============================================================================
   post_tasks:
 
-    - name: "verify | Check all platform pods are running"
-      shell: |
-        echo "=== MetalLB ===" && \
-        kubectl get pods -n metallb-system --no-headers && \
-        echo "" && \
-        echo "=== cert-manager ===" && \
-        kubectl get pods -n cert-manager --no-headers && \
-        echo "" && \
-        echo "=== Traefik ===" && \
-        kubectl get pods -n ingress --no-headers
+    - name: "verify | Show all Flux kustomization statuses"
+      command: flux get kustomizations -A
+      register: flux_status
       changed_when: false
-      register: platform_pods
       tags: [always]
 
-    - name: "verify | Print platform pod status"
+    - name: "verify | Print Flux status"
       debug:
-        msg: "{{ platform_pods.stdout_lines }}"
+        msg: "{{ flux_status.stdout_lines }}"
       tags: [always]
 
-    - name: "verify | Print Traefik LoadBalancer IP"
+    - name: "verify | Show HelmRelease statuses"
+      command: flux get helmreleases -A
+      register: helm_status
+      changed_when: false
+      tags: [always]
+
+    - name: "verify | Print HelmRelease status"
       debug:
-        msg: >
-          ✓ Platform installation complete.
-          Traefik is listening on {{ traefik_ip.stdout }} (ports 80, 443).
-          DNS wildcard *.kagiso.me should resolve to this IP.
-          Test with: curl -k https://{{ traefik_ip.stdout }}
-          Expected: 404 page not found (Traefik running, no matching IngressRoute yet).
+        msg: "{{ helm_status.stdout_lines }}"
       tags: [always]
 
     - name: "verify | Clean up temp manifests"
@@ -500,9 +293,6 @@
         path: "{{ item }}"
         state: absent
       loop:
-        - /tmp/metallb-pool.yaml
-        - /tmp/traefik-values.yaml
-        - /tmp/cluster-issuer.yaml
-        - /tmp/wildcard-cert.yaml
-        - /tmp/tlsstore.yaml
+        - /tmp/gotk-components.yaml
+        - /tmp/gotk-sync.yaml
       tags: [always]

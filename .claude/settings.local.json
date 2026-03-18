@@ -40,7 +40,8 @@
       "Bash(mkdir projects/OPS-kagiso-me.github.io)",
       "Bash(ssh bran:*)",
       "Bash(sed -i 's|/mnt/archive/k8s-backups/docker|/mnt/archive/backups/docker-backups|g' docker/docs/05_backups_and_disaster_recovery.md)",
-      "Bash(sed -i 's|/mnt/{media,downloads,archive/k8s-backups/docker}|/mnt/{media,downloads,archive/backups/docker-backups}|g' docker/docs/05_backups_and_disaster_recovery.md)"
+      "Bash(sed -i 's|/mnt/{media,downloads,archive/k8s-backups/docker}|/mnt/{media,downloads,archive/backups/docker-backups}|g' docker/docs/05_backups_and_disaster_recovery.md)",
+      "Bash(find c:UsersktjeaOneDriveDocumentsReposhomelab-infrastructure -name *metallb* -o -name *speaker* -o -name *ip-pool*)"
     ]
   }
 }
