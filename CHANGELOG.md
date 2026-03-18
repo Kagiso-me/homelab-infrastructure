@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** update purge-k3s playbook paths and improve uninstall commands `015454e`
 - **[MAINTENANCE]** configure SOPS encryption rules with age public key `e191383`
 - **[CONFIG]** update SOPS installation to auto-detect latest version and support arm64 architecture `99b858d`
 - **[DEPLOY]** add cloudflare_api_token secret management and update ansible configuration `5c1b261`
