@@ -35,8 +35,8 @@ Together these components transform a raw Kubernetes cluster into a **usable app
 2. [Full Networking Architecture](#full-networking-architecture)
 3. [Component Overview](#component-overview)
 4. [Prerequisites](#prerequisites)
-5. [Installation — Ansible Playbook](#installation--ansible-playbook)
-6. [What the Playbook Does](#what-the-playbook-does)
+5. [Installation — Via Flux GitOps](#installation--via-flux-gitops)
+6. [What Flux Manages](#what-flux-manages)
 7. [DNS Configuration](#dns-configuration)
 8. [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup)
 9. [Pi-hole (Split DNS + Ad Blocking)](#pi-hole-split-dns--ad-blocking)
@@ -163,19 +163,8 @@ Before running the Flux bootstrap:
 MetalLB, cert-manager, and Traefik are **not installed manually**. They are defined as Flux
 HelmReleases in this repository and reconciled automatically after the cluster is bootstrapped.
 
-The full installation process is covered in **[Guide 04 — GitOps Control Plane](./04-Flux-GitOps.md)**.
-In summary:
-
-```bash
-# 1. Install k3s
-ansible-playbook -i inventory/homelab.yml playbooks/lifecycle/install-cluster.yml
-
-# 2. Bootstrap Flux — installs controllers, creates SSH secret, waits for platform to converge
-ansible-playbook -i inventory/homelab.yml playbooks/lifecycle/install-platform.yml
-```
-
-After step 2 completes, Flux has reconciled the full platform layer including MetalLB, Traefik,
-and cert-manager from the manifests committed in `platform/`.
+The full installation process — including the `install-platform.yml` playbook that triggers Flux
+reconciliation — is covered in **[Guide 04 — GitOps Control Plane](./04-Flux-GitOps.md)**.
 
 ---
 

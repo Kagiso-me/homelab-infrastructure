@@ -148,7 +148,8 @@ Cluster installation is executed using the existing playbook.
 From the automation host, run from the repository root:
 
 ```bash
-ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
+cd ~/homelab-infrastructure/ansible
+ansible-playbook playbooks/lifecycle/install-cluster.yml
 ```
 
 The playbook performs the following operations:
