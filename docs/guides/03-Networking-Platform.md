@@ -146,8 +146,8 @@ Before running the platform playbook:
 | k3s cluster running | `kubectl get nodes` — all nodes Ready |
 | Ansible installed on RPi | `ansible --version` |
 | RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
-| DNS wildcard configured | `*.kagiso.me → 10.0.10.110` in your internal DNS server (Pi-hole/router) |
-| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi with your Cloudflare API token — see [Ansible Vault Setup](#pre-install-ansible-vault-setup-one-time) below before running the playbook |
+| DNS wildcard configured | Pi-hole is installed as part of this guide — skip this if you don't have existing internal DNS. The wildcard `*.kagiso.me → 10.0.10.110` will be configured by the Pi-hole playbook. |
+| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi with your Cloudflare API token — see [Ansible Vault Setup](#pre-install-ansible-vault-setup-one-time) below before running the playbook. The Cloudflare token was created in [Guide 00.5](./00.5-Infrastructure-Prerequisites.md). |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for
 > LAN and Tailscale access. MetalLB and Traefik provide the LoadBalancer IP and ingress routing
@@ -667,7 +667,7 @@ The networking platform is complete when all of the following are true:
 MetalLB did not assign an IP. Check:
 
 ```bash
-kubectl describe svc traefik -n traefik          # Look for events
+kubectl describe svc traefik -n ingress          # Look for events
 kubectl get ipaddresspool -n metallb-system      # Pool must exist
 kubectl get pods -n metallb-system               # Speakers must be Running
 ```

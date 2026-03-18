@@ -145,10 +145,10 @@ Worker nodes host:
 
 Cluster installation is executed using the existing playbook.
 
-From the automation host run:
+From the automation host, run from the repository root:
 
-```
-ansible-playbook playbooks/lifecycle/install-cluster.yml
+```bash
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
 ```
 
 The playbook performs the following operations:

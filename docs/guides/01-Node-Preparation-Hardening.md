@@ -67,34 +67,35 @@ All cluster management operations originate from this machine.
 
 ---
 
-# Step 1 — Install Ansible
+# Step 1 — Install Tools on the Automation Host
 
-Ansible must be installed on the automation host.
+Install all tools required across the entire guide series. These only need to be installed once.
 
-Recommended installation:
-
-```
+```bash
 sudo apt update
-sudo apt install -y ansible
+sudo apt install -y ansible git nfs-common
 ```
 
-Verify installation:
+Install `kubectl`:
 
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+rm kubectl
 ```
+
+> **Note:** The automation host is a Raspberry Pi (arm64). Use the `arm64` kubectl binary above.
+> For amd64 hosts, replace `arm64` with `amd64` in the URL.
+
+Verify:
+
+```bash
 ansible --version
+kubectl version --client
+git --version
 ```
 
-Expected output:
-
-```
-ansible [version]
-```
-
-Ansible will be used for:
-
-• node preparation
-• Kubernetes installation
-• cluster maintenance
+`kubectl` will not connect to a cluster yet — that is configured in Guide 02 after the cluster is installed.
 
 ---
 
@@ -125,7 +126,27 @@ The **public key** will be copied to all nodes.
 
 ---
 
-# Step 3 — Copy SSH Keys to Nodes
+# Step 3 — Assign Static IPs to Nodes
+
+Before copying SSH keys, the nodes must have stable IPs that match the inventory.
+
+**Required static assignments:**
+
+| Node | IP |
+|---|---|
+| tywin (control-plane) | `10.0.10.11` |
+| jaime (worker) | `10.0.10.12` |
+| tyrion (worker) | `10.0.10.13` |
+
+Configure these as **DHCP reservations** in your router or UniFi controller
+(match by MAC address), or set them as static IPs in `/etc/netplan/` on each node.
+
+> DHCP reservations are preferred — the nodes will always request the same IP from the
+> router, with no per-node network configuration needed.
+
+---
+
+# Step 4 — Copy SSH Keys to Nodes
 
 The automation host must be able to connect to every node without passwords.
 
@@ -155,7 +176,7 @@ Repeat for every node.
 
 ---
 
-# Step 4 — Create the Ansible Inventory
+# Step 5 — Create the Ansible Inventory
 
 Ansible needs to know which machines it should manage.
 
@@ -182,7 +203,7 @@ This file tells Ansible how to connect to each machine.
 
 ---
 
-# Step 5 — Test Ansible Connectivity
+# Step 6 — Test Ansible Connectivity
 
 Before running any automation, confirm Ansible can reach the nodes.
 
@@ -208,7 +229,7 @@ If this fails, check:
 
 ---
 
-# Step 6 — Baseline Node Preparation
+# Step 7 — Baseline Node Preparation
 
 The automation repository already contains several playbooks for node preparation.
 

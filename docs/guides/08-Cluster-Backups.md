@@ -113,6 +113,10 @@ Losing this database without a backup means losing the runtime state of the clus
 
 # NFS Mount — TrueNAS Backup Storage
 
+> The `archive/k8s-backups` dataset and NFS export were created in
+> [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
+> Confirm the export is active before mounting.
+
 All backup output goes to a TrueNAS NFS share. Mount this on the control-plane node.
 
 Create the mount point:
@@ -237,7 +241,28 @@ graph LR
     Velero -->|"SOPS-encrypted credentials"| Secret["velero-minio-credentials<br/>Kubernetes Secret"]
 ```
 
-## Step 1 — Deploy MinIO on TrueNAS
+## Step 1 — Verify the Storage Datasets Exist
+
+The `archive/k8s-backups` and `archive/k8s-backups/minio` datasets should already exist
+from [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
+
+Confirm on TrueNAS:
+
+```bash
+zfs list | grep k8s-backups
+# Expected:
+# archive/k8s-backups         ...  /mnt/archive/k8s-backups
+# archive/k8s-backups/minio   ...  /mnt/archive/k8s-backups/minio
+```
+
+If the datasets are missing, create them now:
+
+```bash
+zfs create archive/k8s-backups
+zfs create archive/k8s-backups/minio
+```
+
+## Step 2 — Deploy MinIO on TrueNAS
 
 TrueNAS SCALE includes MinIO as a built-in application.
 
@@ -251,28 +276,12 @@ TrueNAS SCALE includes MinIO as a built-in application.
 | MinIO Configuration → Root User | `admin` (or your preferred username) |
 | MinIO Configuration → Root Password | Generate a strong password — store in your password manager |
 | Storage → MinIO Data Storage | Choose **Host Path** |
-| Host Path | `/mnt/archive/k8s-backups/minio` (create this directory first — see Step 2) |
+| Host Path | `/mnt/archive/k8s-backups/minio` |
 | Port | `9000` (API), `9001` (Console) |
 | Network → Host Network | Enable (simpler networking, recommended for homelab) |
 
 4. Click **Install** and wait for the application to start.
 5. Access the MinIO Console at `http://10.0.10.80:9001` and log in with the credentials you set.
-
-## Step 2 — Create the Storage Directory on TrueNAS
-
-Before deploying MinIO, create the dataset it will use. In the TrueNAS web UI:
-
-1. Navigate to **Storage → Create Dataset**.
-2. Parent: `/mnt/archive/k8s-backups`
-3. Name: `minio`
-4. Sync: **Disabled** (MinIO manages its own consistency)
-5. Click **Save**.
-
-Alternatively via SSH on TrueNAS:
-
-```bash
-zfs create archive/k8s-backups/minio
-```
 
 ## Step 3 — Create the Velero Bucket
 
@@ -487,9 +496,10 @@ etcd restore:
   5. Restart worker nodes
 
 Velero restore:
-  1. velero restore create --from-backup <backup-name>
-  2. Monitor restore progress
-  3. Verify PVC data integrity
+  1. velero backup get                                        # list available backups + their status
+  2. velero restore create --from-backup <backup-name>       # use a Completed backup
+  3. velero restore get                                       # monitor restore progress
+  4. Verify PVC data integrity
 ```
 
 > **Important:** The restoration runbook must be tested against a non-production cluster before it can be considered valid. An untested backup procedure is not a backup procedure.

@@ -87,7 +87,7 @@ All of these checks are visible in Grafana when the monitoring stack is healthy.
 The repository contains Ansible playbooks for all node operations.
 
 ```
-ansible/k3s/playbooks/maintenance/
+ansible/playbooks/maintenance/
 ├── reboot-nodes.yml
 └── upgrade-nodes.yml
 ```
@@ -277,7 +277,7 @@ flux get kustomizations
 
 Interpretation:
 
-- Node shows `NotReady` → proceed to [node-replacement.md](../runbooks/node-replacement.md)
+- Node shows `NotReady` → check kubelet on the node: `ssh kagiso@<node-ip>` then `journalctl -u k3s -f`
 - Flux reports `False` reconciliation → check the commit history and Flux logs
 - Pods in `CrashLoopBackOff` → proceed to Step 3
 
@@ -326,21 +326,28 @@ flux logs --follow --level=error
 
 # Common Operational Incidents
 
-| Incident | First Check | Runbook |
-|----------|-------------|---------|
-| Pod in CrashLoopBackOff | `kubectl logs --previous` | [alerts/PodCrashLoop.md](../runbooks/alerts/PodCrashLoop.md) |
-| Node shows NotReady | `kubectl describe node` | [node-replacement.md](../runbooks/node-replacement.md) |
-| Certificate expired / pending | `kubectl describe certificate` | [certificate-failure.md](../runbooks/certificate-failure.md) |
-| Disk pressure on node | `df -h` on node, check PVC usage | [alerts/DiskPressure.md](../runbooks/alerts/DiskPressure.md) |
-| High memory / CPU | Grafana node dashboard | [alerts/NodeMemoryHigh.md](../runbooks/alerts/NodeMemoryHigh.md) |
-| Backup too old | `ls /mnt/backups/etcd/` | [backup-restoration.md](../runbooks/backup-restoration.md) |
-| Flux reconciliation failing | `flux logs --level=error` | Check Git repo and SOPS keys |
+> Runbooks at `docs/operations/runbooks/` are living documents — use the first-check
+> commands below until they are written. See
+> [Guide 07 — Monitoring](./07-Monitoring-Observability.md#13-alert-response-runbooks)
+> for additional inline guidance per alert type.
+
+| Incident | First Check |
+|----------|-------------|
+| Pod in CrashLoopBackOff | `kubectl logs -n <ns> <pod> --previous` |
+| Node shows NotReady | `kubectl describe node <node>` + `journalctl -u k3s` on the node |
+| Certificate expired / pending | `kubectl describe certificate -n ingress` + `kubectl get challenges -A` |
+| Disk pressure on node | `df -h` on the node + `kubectl get pvc -A` |
+| High memory / CPU | Grafana Node Exporter dashboard — identify the process |
+| Backup too old | `ls -lht /mnt/backups/etcd/ \| head -5` |
+| Flux reconciliation failing | `flux logs --level=error` — check SOPS key and Git repo state |
 
 ---
 
 # Disaster Recovery Workflow
 
-If the cluster must be rebuilt entirely, follow the full procedure in [runbooks/cluster-rebuild.md](../runbooks/cluster-rebuild.md).
+If the cluster must be rebuilt entirely, follow the summary below. A detailed runbook at
+`docs/operations/runbooks/cluster-rebuild.md` should be written and tested once the
+platform is stable.
 
 Summary:
 

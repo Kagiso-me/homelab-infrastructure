@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐☆☆☆☆☆☆☆☆☆ (1/10)
-**Guide:** 00 of 13
+**Guide:** 00 of 14
 
 > This handbook documents the design, deployment, and operation of a production‑grade Kubernetes homelab platform.
 >
@@ -248,19 +248,20 @@ This handbook is organized as three parallel sections.
 Each guide introduces a new layer of the platform in dependency order.
 
 ```
-00 — Platform Philosophy            (this document)
-01 — Node Preparation & Hardening
-02 — Kubernetes Installation
-03 — Networking Platform
-04 — GitOps Control Plane (FluxCD)
-05 — Cluster Identity & Scheduling
-06 — Platform Namespaces & Layout
-07 — Monitoring & Observability
-08 — Cluster Backups & Disaster Recovery
-09 — Applications via GitOps
-10 — Platform Operations & Lifecycle
-11 — Secrets Management (SOPS + age)
-12 — Storage Architecture
+00   — Platform Philosophy            (this document)
+00.5 — Infrastructure Prerequisites  (TrueNAS datasets, NFS exports, Cloudflare token)
+01   — Node Preparation & Hardening
+02   — Kubernetes Installation
+03   — Networking Platform
+04   — GitOps Control Plane (FluxCD)
+05   — Cluster Identity & Scheduling
+06   — Platform Namespaces & Layout
+07   — Monitoring & Observability
+08   — Cluster Backups & Disaster Recovery
+09   — Applications via GitOps
+10   — Platform Operations & Lifecycle
+11   — Secrets Management (SOPS + age)
+12   — Storage Architecture
 ```
 
 ## Architecture Reference
@@ -294,4 +295,4 @@ runbooks/alerts/                    → per-alert response procedures
 |---|---|
 | ← Previous | *Start of series* |
 | Current | **00 — Platform Philosophy** |
-| → Next | [01 — Node Preparation & Hardening](./01-Node-Preparation-Hardening.md) |
+| → Next | [00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md) |

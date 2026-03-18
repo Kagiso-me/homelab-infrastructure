@@ -210,9 +210,143 @@ flux --version
 
 ---
 
+# age Key Setup
+
+Flux decrypts SOPS-encrypted secrets using an age private key stored in the cluster.
+This key must exist **before** bootstrap — if Flux reconciles an encrypted secret without
+it, reconciliation fails immediately.
+
+This is a one-time setup. The same key is used for all future secret encryption in this repository.
+
+## Step 1 — Install age and SOPS
+
+Both tools are needed: `age` for key management, `sops` for encrypting/decrypting secret files.
+Installing them here means they are available when the first encrypted secret is created in Guide 08.
+
+```bash
+# Install age
+sudo apt install -y age
+
+# Install SOPS
+SOPS_VERSION=3.8.1
+curl -LO https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64
+chmod +x sops-v${SOPS_VERSION}.linux.amd64
+sudo mv sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+```
+
+Verify:
+
+```bash
+age --version
+sops --version
+```
+
+## Step 2 — Generate the Key Pair
+
+```bash
+age-keygen -o ~/age.key
+```
+
+Output:
+
+```
+Public key: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**Copy the public key from the output above** — you will need it in the next step.
+
+**Back up the private key now.** If this key is lost, every SOPS-encrypted secret in the
+repository becomes unreadable — there is no recovery path.
+
+Print the key content and save it to your password manager immediately:
+
+```bash
+cat ~/age.key
+```
+
+The output looks like this:
+
+```
+# created: 2026-03-18T00:00:00+02:00
+# public key: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+AGE-SECRET-KEY-1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+Save the **entire output** (all three lines) as a secure note in your password manager
+(e.g., Bitwarden, 1Password). The `AGE-SECRET-KEY-1...` line is the private key — treat it
+like a master password.
+
+> The RPi automated backup (when configured) will also protect `~/age.key` as part of the
+> RPi config backup. Until that backup is running, the password manager entry is your only
+> recovery option.
+
+## Step 3 — Update .sops.yaml with the Public Key
+
+The `.sops.yaml` file in the repository root tells SOPS which key to use when encrypting files.
+Replace the placeholder with the public key printed above:
+
+```bash
+# View the current .sops.yaml
+cat .sops.yaml
+```
+
+Edit `.sops.yaml` and replace every occurrence of `age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY`
+with your actual public key:
+
+```yaml
+# .sops.yaml — encryption rules for this repository
+creation_rules:
+  - path_regex: platform/.*secret.*\.yaml$
+    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # ← your actual key
+
+  - path_regex: apps/.*secret.*\.yaml$
+    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  - path_regex: clusters/.*secret.*\.yaml$
+    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  - path_regex: .*/secrets/.*\.yaml$
+    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Commit this change:
+
+```bash
+git add .sops.yaml
+git commit -m "chore: configure SOPS encryption rules with age public key"
+git push
+```
+
+## Step 4 — Store the Key in the Cluster
+
+```bash
+kubectl create namespace flux-system || true
+kubectl create secret generic sops-age \
+  --namespace=flux-system \
+  --from-file=age.agekey=~/age.key
+```
+
+Verify:
+
+```bash
+kubectl get secret sops-age -n flux-system
+```
+
+---
+
 # Bootstrapping the Cluster
 
-Bootstrap **prod** cluster first (your ThinkCentre cluster):
+> **Both prod and staging clusters have already been bootstrapped.**
+> These steps are preserved here for reference when re-bootstrapping after a cluster rebuild.
+
+## Step 1 — Complete age Key Setup
+
+Ensure Steps 1–4 above are complete: age and sops installed, `.sops.yaml` updated and
+committed, `sops-age` Secret present in `flux-system`.
+
+## Step 2 — Bootstrap the Cluster
+
+With the secret in place, bootstrap **prod** first (ThinkCentre cluster):
 
 ```bash
 # On the Raspberry Pi (10.0.10.10)
@@ -223,7 +357,7 @@ flux bootstrap git \
   --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
 
-Bootstrap **staging** cluster when ready (single-node k3s on Docker NUC):
+Bootstrap **staging** (single-node k3s on Docker NUC):
 
 ```bash
 flux bootstrap git \
@@ -238,18 +372,6 @@ Flux will:
 - install controllers into the `flux-system` namespace
 - commit `gotk-components.yaml` into the repository
 - start reconciling from the specified path and branch
-
-> **Before running bootstrap**, ensure the `sops-age` Secret exists in `flux-system` so
-> Flux can decrypt the SOPS-encrypted secrets on its first reconciliation:
->
-> ```bash
-> kubectl create namespace flux-system || true
-> kubectl create secret generic sops-age \
->   --namespace=flux-system \
->   --from-file=age.agekey=age.key
-> ```
->
-> See [Guide 11 — Secrets Management](./11-Secrets-Management.md) for the full SOPS setup.
 
 ---
 

@@ -12,6 +12,22 @@
 
 ---
 
+# TrueNAS Pool Architecture
+
+TrueNAS at `10.0.10.80` uses three ZFS pools with distinct purposes:
+
+| Pool | Mount point | Purpose |
+|---|---|---|
+| `tera` | `/mnt/tera` | Bulk cold storage — large media files, archives |
+| `core` | `/mnt/core` | Hot storage — Kubernetes PVCs, actively accessed by the cluster |
+| `archive` | `/mnt/archive` | Backup storage — etcd snapshots, Velero data via MinIO |
+
+The NFS provisioner uses `core/k8s-volumes`. Backup data lives in `archive/k8s-backups`.
+Both datasets and their NFS exports are created in
+[Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
+
+---
+
 # Storage Design Principles
 
 The platform storage architecture follows two rules:
@@ -44,7 +60,9 @@ The provisioner runs inside the cluster. It watches for PVC creation and automat
 
 # TrueNAS NFS Share Setup
 
-Before deploying the provisioner, configure the NFS share on TrueNAS.
+> The `core/k8s-volumes` dataset and its NFS export were created in
+> [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
+> Verify the share is active before deploying the provisioner.
 
 **Required shares on TrueNAS (10.0.10.80):**
 

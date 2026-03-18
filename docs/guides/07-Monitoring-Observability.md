@@ -930,23 +930,45 @@ If these return empty, the textfile collector on the relevant hosts is not writi
 
 ## 13. Alert Response Runbooks
 
-Detailed response procedures for firing alerts are in:
+> **Runbooks are living documents** — the files listed below are the intended location
+> once written. Until then, use the inline guidance in the alert annotations and the
+> triage procedure in [Guide 10 — Platform Operations](./10-Platform-Operations-Lifecycle.md).
+
+Intended runbook locations:
 
 ```
 docs/operations/runbooks/alerts/
-├── NodeNotReady.md
-├── NodeMemoryHigh.md
-├── DiskPressure.md
-└── PodCrashLoop.md
-```
+├── NodeNotReady.md       — kubelet logs, network check, node replacement
+├── NodeMemoryHigh.md     — OOM analysis, resource limit tuning
+├── DiskPressure.md       — PVC expansion, log rotation, eviction policy
+└── PodCrashLoop.md       — log analysis, OOMKill, image pull debugging
 
-Additional operational runbooks:
-
-```
 docs/operations/runbooks/
 ├── certificate-failure.md    — cert-manager ACME troubleshooting
 ├── backup-restoration.md     — restoring from etcd, Velero, and Docker backups
 └── node-replacement.md       — replacing a failed cluster node
+```
+
+### Immediate Response Guide (until runbooks are written)
+
+**NodeNotReady:**
+```bash
+kubectl describe node <node>       # check conditions and events
+ssh kagiso@<node-ip>               # verify the node is reachable
+journalctl -u k3s -f               # check kubelet logs on the node
+```
+
+**PodCrashLooping:**
+```bash
+kubectl logs -n <ns> <pod> --previous    # logs from the crashed container
+kubectl describe pod -n <ns> <pod>       # check events for OOMKill or image errors
+```
+
+**Certificate failure:**
+```bash
+kubectl describe certificate -n ingress wildcard-kagiso-me
+kubectl get challenges -A
+kubectl logs -n cert-manager deploy/cert-manager | tail -50
 ```
 
 ### Severity Classification
