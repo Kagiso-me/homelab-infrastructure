@@ -35,42 +35,32 @@ core/
 NFS export path: `/mnt/core/k8s-volumes`
 NFS server: `10.0.10.80`
 
-### `archive` — Backups and Personal Data
+### `archive` — Backups
 
 ```
 archive/
-├── k8s-backups/           # Kubernetes cluster backups
-│   ├── etcd/              # k3s etcd snapshots (written by k3s every 6 hours)
-│   │   └── k3s-snapshot-YYYY-MM-DD_HHmmss.db
-│   └── minio/             # MinIO application data
-│       └── velero/        # Velero backup bucket
-│           └── (backup objects)
-├── docker-backups/        # Docker host (10.0.10.20) backups
-│   └── (tar archives of Docker volumes and configs)
-├── rpi-backups/           # Raspberry Pi (10.0.10.10) backups
-│   └── (cron-generated archives: kubeconfig, SSH keys, scripts)
-└── personal/              # Personal photo and video projects
-    └── (organised by project/year)
+└── backups/               # All backup destinations
+    └── k8s/               # Kubernetes cluster backups
+        ├── etcd/          # k3s etcd snapshots (written by k3s every 6 hours)
+        │   └── k3s-snapshot-YYYY-MM-DD_HHmmss.db
+        └── minio/         # MinIO application data
+            └── velero/    # Velero backup bucket
+                └── (backup objects)
 ```
 
-NFS export paths:
-- `/mnt/archive/k8s-backups` — mounted on `tywin` (10.0.10.11) for etcd snapshots
-- `/mnt/archive/docker-backups` — mounted on Docker host (10.0.10.20)
-- `/mnt/archive/rpi-backups` — mounted on RPi (10.0.10.10)
+NFS export path: `/mnt/archive/backups`
+NFS server: `10.0.10.80`
 
 ### `tera` — Media Storage
 
 ```
 tera/
-├── media/                 # Movies and TV series
-├── music/                 # Music library
-└── downloads/             # In-progress downloads (staging area)
+├── downloads/             # In-progress downloads (staging area)
+└── media/                 # Movies and TV series
 ```
 
-NFS export paths:
-- `/mnt/tera/media` — mounted on Docker host as `/mnt/media`
-- `/mnt/tera/music` — mounted on Docker host as `/mnt/music`
-- `/mnt/tera/downloads` — mounted on Docker host as `/mnt/downloads`
+NFS export path: `/mnt/tera/media`
+NFS server: `10.0.10.80`
 
 > **No backup policy for `tera`.** This pool contains media that can be re-downloaded.
 > Running on a single disk — a disk failure results in total data loss. SMART monitoring is critical.
@@ -82,13 +72,11 @@ NFS export paths:
 | Dataset | Compression | Sync | Record Size | Rationale |
 |---------|------------|------|-------------|-----------|
 | `core/k8s-volumes` | lz4 | Standard | 128K | NFS PVCs — general workloads |
-| `archive/k8s-backups` | lz4 | Standard | 128K | Backup staging |
-| `archive/k8s-backups/minio` | off | Disabled | 1M | MinIO manages its own consistency |
-| `archive/docker-backups` | lz4 | Standard | 128K | Compressed backup archives |
-| `archive/rpi-backups` | lz4 | Standard | 128K | Small config archives |
-| `archive/personal` | lz4 | Standard | 1M | Large photo/video files |
-| `tera/media` | off | Standard | 1M | Pre-compressed video; large sequential reads |
+| `archive/backups` | lz4 | Standard | 128K | Backup parent |
+| `archive/backups/k8s` | lz4 | Standard | 128K | k8s backup staging |
+| `archive/backups/k8s/minio` | off | Disabled | 1M | MinIO manages its own consistency |
 | `tera/downloads` | lz4 | Standard | 128K | Staging only |
+| `tera/media` | off | Standard | 1M | Pre-compressed video; large sequential reads |
 
 > MinIO sync is disabled deliberately — MinIO has its own internal consistency mechanisms and
 > TrueNAS sync adds latency without benefit.
@@ -102,7 +90,7 @@ Configured in TrueNAS UI under **Data Protection → Periodic Snapshot Tasks**:
 | Dataset | Schedule | Retention | Purpose |
 |---------|---------|-----------|---------|
 | `core/k8s-volumes` | Daily 01:00 | 7 days | Point-in-time recovery for PVC data |
-| `archive` (recursive) | Daily 01:30 | 30 days | Snapshot all backup and personal data |
+| `archive` (recursive) | Daily 01:30 | 30 days | Snapshot all backup data |
 
 `tera` is **not** included in the snapshot schedule — media is not backed up.
 
@@ -142,17 +130,14 @@ Run once via TrueNAS UI or SSH after pool creation:
 zfs create -o compression=lz4 core/k8s-volumes
 
 # archive — backups (HDD mirror)
-zfs create -o compression=lz4 archive/k8s-backups
-zfs create -o compression=lz4 archive/k8s-backups/etcd
-zfs create -o compression=off -o sync=disabled -o recordsize=1M archive/k8s-backups/minio
-zfs create -o compression=lz4 archive/docker-backups
-zfs create -o compression=lz4 archive/rpi-backups
-zfs create -o compression=lz4 -o recordsize=1M archive/personal
+zfs create -o compression=lz4 archive/backups
+zfs create -o compression=lz4 archive/backups/k8s
+zfs create -o compression=lz4 archive/backups/k8s/etcd
+zfs create -o compression=off -o sync=disabled -o recordsize=1M archive/backups/k8s/minio
 
 # tera — media (single HDD)
-zfs create -o compression=off -o recordsize=1M tera/media
-zfs create -o compression=off -o recordsize=1M tera/music
 zfs create -o compression=lz4 tera/downloads
+zfs create -o compression=off -o recordsize=1M tera/media
 ```
 
 ---

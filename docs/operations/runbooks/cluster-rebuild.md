@@ -12,7 +12,7 @@
 - Access to the Git repository
 - TrueNAS accessible at 10.0.10.80
 - age private key (from offline backup)
-- Most recent etcd snapshot at `/mnt/archive/k8s-backups/etcd/`
+- Most recent etcd snapshot at `/mnt/archive/backups/k8s/etcd/`
 
 ---
 
@@ -77,7 +77,7 @@ If recovering from a failure where the etcd database was lost, restore the snaps
 Mount the NFS share on tywin:
 
 ```bash
-sudo mount 10.0.10.80:/mnt/archive/k8s-backups /mnt/backups
+sudo mount 10.0.10.80:/mnt/archive/backups/k8s /mnt/backups
 ```
 
 Identify the most recent snapshot:
@@ -244,7 +244,7 @@ Confirm in Grafana:
 □ Backup cron job running (crontab -l on tywin)
 □ NFS mount in /etc/fstab on tywin
 □ Test backup: k3s etcd-snapshot save manual-post-rebuild
-□ Confirm snapshot appears in /mnt/archive/k8s-backups/etcd/
+□ Confirm snapshot appears in /mnt/archive/backups/k8s/etcd/
 □ Velero backup status: velero backup get
 □ TLS certificates issued: kubectl get certificates -A
 ```

@@ -8,7 +8,7 @@
 # Usage: sudo bash restore_docker.sh <backup_archive_path>
 # Example:
 #   sudo bash restore_docker.sh \
-#     /mnt/tank/k8s-backups/docker/docker_appdata_2026-03-14_020000.tar.gz
+#     /mnt/archive/backups/docker/docker_appdata_2026-03-14_020000.tar.gz
 # =============================================================================
 
 set -euo pipefail
@@ -43,7 +43,7 @@ if [[ $# -lt 1 ]]; then
   echo ""
   echo "  Example:"
   echo "    sudo bash $(basename "$0") \\"
-  echo "      /mnt/tank/k8s-backups/docker/docker_appdata_2026-03-14_020000.tar.gz"
+  echo "      /mnt/archive/backups/docker/docker_appdata_2026-03-14_020000.tar.gz"
   echo ""
   exit "${E_USAGE}"
 fi
@@ -182,7 +182,7 @@ echo ""
 echo "  1. Verify NFS mounts are active:"
 echo "       mountpoint -q /mnt/media    && echo OK || echo MISSING"
 echo "       mountpoint -q /mnt/downloads && echo OK || echo MISSING"
-echo "       mountpoint -q /mnt/tank      && echo OK || echo MISSING"
+echo "       mountpoint -q /mnt/archive/backups      && echo OK || echo MISSING"
 echo ""
 echo "  2. Create the Docker networks if they do not exist:"
 echo "       docker network create media-net"

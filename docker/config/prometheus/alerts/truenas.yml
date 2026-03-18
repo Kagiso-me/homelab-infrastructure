@@ -81,7 +81,7 @@ groups:
           description: >
             ZFS pool {{ $labels.pool }} has entered a FAULTED state. This means
             the pool has lost so many drives that it can no longer serve data.
-            ALL NFS exports from this pool (k8s-volumes, k8s-backups, media) are
+            ALL NFS exports from this pool (k8s-volumes, backups, media) are
             offline. Kubernetes PVCs will start failing and media services will
             lose access to storage.
 

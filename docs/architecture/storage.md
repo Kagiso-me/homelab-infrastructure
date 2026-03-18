@@ -29,8 +29,8 @@ Kubernetes Cluster
 TrueNAS (10.0.10.80)
 │
 ├── /mnt/core/k8s-volumes/   (PVC backing directories)
-├── /mnt/archive/k8s-backups/etcd/     (etcd snapshots)
-└── /mnt/archive/k8s-backups/velero/   (Velero backup data)
+├── /mnt/archive/backups/k8s/etcd/     (etcd snapshots)
+└── /mnt/archive/backups/k8s/velero/   (Velero backup data)
 ```
 
 ---
@@ -107,12 +107,15 @@ NFS supports all three modes. Most applications use RWO. Media applications (Jel
 Recommended dataset structure on TrueNAS:
 
 ```
-core/  or  archive/  or  tera/
-├── k8s-volumes/           dataset (no compression, quota: 500Gi)
-├── k8s-backups/
-│   ├── etcd/              dataset (compression: lz4, quota: 10Gi)
-│   └── velero/            dataset (compression: lz4, quota: 100Gi)
-└── media/                 dataset (compression: off, no quota)
+core/
+└── k8s-volumes/           dataset (compression: lz4)
+archive/
+└── backups/
+    └── k8s/
+        ├── etcd/          dataset (compression: lz4)
+        └── minio/         dataset (compression: off, sync: disabled)
+tera/
+└── media/                 dataset (compression: off)
 ```
 
 ZFS periodic snapshot schedule (configure in TrueNAS UI):
@@ -120,8 +123,7 @@ ZFS periodic snapshot schedule (configure in TrueNAS UI):
 | Dataset | Schedule | Retention |
 |---------|----------|-----------|
 | k8s-volumes | Daily | 7 days |
-| k8s-backups/etcd | Hourly | 7 days |
-| k8s-backups/velero | Daily | 30 days |
+| archive (recursive) | Daily | 30 days |
 
 ---
 

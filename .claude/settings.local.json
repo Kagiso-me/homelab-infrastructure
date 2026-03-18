@@ -38,7 +38,9 @@
       "Bash(mv projects/claude-phone projects/DEV-beesly)",
       "Bash(mv projects/pulse projects/DEV-pulse)",
       "Bash(mkdir projects/OPS-kagiso-me.github.io)",
-      "Bash(ssh bran:*)"
+      "Bash(ssh bran:*)",
+      "Bash(sed -i 's|/mnt/archive/k8s-backups/docker|/mnt/archive/backups/docker-backups|g' docker/docs/05_backups_and_disaster_recovery.md)",
+      "Bash(sed -i 's|/mnt/{media,downloads,archive/k8s-backups/docker}|/mnt/{media,downloads,archive/backups/docker-backups}|g' docker/docs/05_backups_and_disaster_recovery.md)"
     ]
   }
 }

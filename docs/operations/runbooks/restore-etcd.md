@@ -19,7 +19,7 @@ etcd is the backing store for all Kubernetes cluster state (objects, secrets, co
 - Control-plane pod `etcd-tywin` stuck in `CrashLoopBackOff`
 - API server refusing connections while the OS on tywin is healthy
 
-etcd snapshots are taken every 6 hours via a cron job on tywin and written to TrueNAS NFS at `/mnt/archive/k8s-backups/etcd/`. The restore process replaces the live etcd data directory with the snapshot contents.
+etcd snapshots are taken every 6 hours via a cron job on tywin and written to TrueNAS NFS at `/mnt/archive/backups/k8s/etcd/`. The restore process replaces the live etcd data directory with the snapshot contents.
 
 ---
 
@@ -27,7 +27,7 @@ etcd snapshots are taken every 6 hours via a cron job on tywin and written to Tr
 
 | Item | Value |
 |------|-------|
-| Snapshot location (NFS) | `/mnt/archive/k8s-backups/etcd/` on TrueNAS 10.0.10.80 |
+| Snapshot location (NFS) | `/mnt/archive/backups/k8s/etcd/` on TrueNAS 10.0.10.80 |
 | NFS mount point on tywin | `/mnt/backups` |
 | k3s etcd data dir | `/var/lib/rancher/k3s/server/db/` |
 | Expected snapshot size | 30–60 MB |
@@ -56,7 +56,7 @@ mountpoint /mnt/backups
 If the mount is missing:
 
 ```bash
-sudo mount 10.0.10.80:/mnt/archive/k8s-backups /mnt/backups
+sudo mount 10.0.10.80:/mnt/archive/backups/k8s /mnt/backups
 mountpoint /mnt/backups     # verify again
 ```
 
@@ -232,7 +232,7 @@ Expected: the manual snapshot appears in the listing within 10 seconds.
 
 | Symptom | Action |
 |---------|--------|
-| NFS mount missing, TrueNAS reachable | `sudo mount 10.0.10.80:/mnt/archive/k8s-backups /mnt/backups` |
+| NFS mount missing, TrueNAS reachable | `sudo mount 10.0.10.80:/mnt/archive/backups/k8s /mnt/backups` |
 | NFS mount missing, TrueNAS unreachable | See [restore-truenas-storage](./restore-truenas-storage.md) |
 | Snapshot file is 0 bytes | Choose an older snapshot; investigate backup cron |
 | Restore exits with error | Verify k3s is fully stopped; check disk space on tywin |

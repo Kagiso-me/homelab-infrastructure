@@ -15,8 +15,8 @@ set -euo pipefail
 # Configuration
 # -----------------------------------------------------------------------------
 BACKUP_SOURCE="/srv/docker/appdata"
-BACKUP_DEST="/mnt/tank/k8s-backups/docker"
-NFS_MOUNTPOINT="/mnt/tank"
+BACKUP_DEST="/mnt/archive/backups/docker"
+NFS_MOUNTPOINT="/mnt/archive/backups"
 LOG_FILE="/var/log/docker-backup.log"
 RETENTION_DAYS=7
 TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"

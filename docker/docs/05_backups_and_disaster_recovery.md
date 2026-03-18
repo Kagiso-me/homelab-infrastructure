@@ -25,7 +25,7 @@ graph TD
 
     DockerHost["Docker Host\n10.0.10.20"] --> L1
     DockerHost --> L2
-    L2 -->|"NFS write"| TrueNAS["TrueNAS\n10.0.10.80\n/mnt/archive/k8s-backups/docker"]
+    L2 -->|"NFS write"| TrueNAS["TrueNAS\n10.0.10.80\n/mnt/archive/backups/docker"]
     L3 --> TrueNAS
     TrueNAS --> L4
     L4 --> B2["Backblaze B2\nOffsite storage"]
@@ -91,13 +91,13 @@ sudo nano /srv/scripts/backup_docker.sh
 #!/bin/bash
 # backup_docker.sh — backs up /srv/docker/appdata to TrueNAS NFS
 # Runs daily at 02:00 via cron.
-# Requires: /mnt/archive/k8s-backups/docker mounted from TrueNAS 10.0.10.80
+# Requires: /mnt/archive/backups/docker mounted from TrueNAS 10.0.10.80
 
 set -euo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 APPDATA_DIR="/srv/docker/appdata"
-BACKUP_MOUNT="/mnt/archive/k8s-backups/docker"
+BACKUP_MOUNT="/mnt/archive/backups/docker"
 RETENTION_DAYS=7
 DATE=$(date +%Y-%m-%d_%H%M%S)
 ARCHIVE_NAME="docker_appdata_${DATE}.tar.gz"
@@ -209,7 +209,7 @@ Runs at **02:00 daily**.
 tail -20 /var/log/docker-backup.log
 
 # List archives on TrueNAS — expect 7 files after first week
-ls -lth /mnt/archive/k8s-backups/docker/ | head -10
+ls -lth /mnt/archive/backups/docker/ | head -10
 ```
 
 Expected output:
@@ -269,7 +269,7 @@ Even an `rm -rf /mnt/media/movies/*` can be recovered instantly from the most re
 
 # Layer 4 — Offsite (Backblaze B2)
 
-TrueNAS Cloud Sync replicates `/mnt/archive/k8s-backups/docker/` to Backblaze B2 nightly.
+TrueNAS Cloud Sync replicates `/mnt/archive/backups/docker/` to Backblaze B2 nightly.
 
 This protects against total TrueNAS hardware loss. Configuration is documented in [truenas/docs/backblaze-sync.md](../../truenas/docs/backblaze-sync.md).
 
@@ -325,7 +325,7 @@ Recreate the directory structure:
 ```bash
 sudo mkdir -p /srv/docker/{stacks,appdata,scripts}
 sudo mkdir -p /srv/downloads/{incomplete,complete}
-sudo mkdir -p /mnt/{media,downloads,archive/k8s-backups/docker}
+sudo mkdir -p /mnt/{media,downloads,archive/backups/docker}
 sudo chown -R kagiso:docker /srv/docker /srv/downloads
 ```
 
@@ -340,7 +340,7 @@ Add to `/etc/fstab`:
 ```
 10.0.10.80:/mnt/tera                    /mnt/media                   nfs  defaults,_netdev,nofail  0  0
 10.0.10.80:/mnt/tera                /mnt/downloads               nfs  defaults,_netdev,nofail  0  0
-10.0.10.80:/mnt/archive/k8s-backups/docker       /mnt/archive/k8s-backups/docker nfs  defaults,_netdev,nofail  0  0
+10.0.10.80:/mnt/archive/backups/docker       /mnt/archive/backups/docker nfs  defaults,_netdev,nofail  0  0
 ```
 
 ```bash
@@ -355,13 +355,13 @@ All three mounts must show as active before proceeding.
 Identify the most recent archive:
 
 ```bash
-ls -lht /mnt/archive/k8s-backups/docker/ | head -5
+ls -lht /mnt/archive/backups/docker/ | head -5
 ```
 
 Restore it (archives use absolute paths — extract to `/`):
 
 ```bash
-ARCHIVE=$(ls -t /mnt/archive/k8s-backups/docker/docker_appdata_*.tar.gz | head -1)
+ARCHIVE=$(ls -t /mnt/archive/backups/docker/docker_appdata_*.tar.gz | head -1)
 echo "Restoring: ${ARCHIVE}"
 sudo tar -xzf "${ARCHIVE}" -C /
 sudo chown -R kagiso:docker /srv/docker/appdata
@@ -438,10 +438,10 @@ Run this checklist monthly. Do not wait for a disaster to discover that backups 
     tail -20 /var/log/docker-backup.log
 
 ✓ Archives present on TrueNAS with expected size (> 500 MB):
-    ls -lh /mnt/archive/k8s-backups/docker/
+    ls -lh /mnt/archive/backups/docker/
 
 ✓ Exactly 7 archives present — retention is enforced:
-    ls /mnt/archive/k8s-backups/docker/ | wc -l
+    ls /mnt/archive/backups/docker/ | wc -l
 
 ✓ Prometheus backup metric is recent (timestamp within 25 hours):
     curl -s 'http://10.0.10.20:9090/api/v1/query?query=docker_backup_last_success_timestamp'
@@ -480,7 +480,7 @@ Backups are operational when:
 
 ✓ `/srv/scripts/backup_docker.sh` is deployed and executable
 ✓ Cron job running at 02:00 daily
-✓ At least one backup archive visible at `/mnt/archive/k8s-backups/docker/`
+✓ At least one backup archive visible at `/mnt/archive/backups/docker/`
 ✓ Backup log at `/var/log/docker-backup.log` shows successful run
 ✓ Prometheus metric `docker_backup_last_success_timestamp` visible in Grafana
 ✓ Grafana alert `DockerBackupTooOld` configured and tested

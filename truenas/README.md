@@ -19,7 +19,7 @@ k3s cluster
     │
     ├──► NFS (10.0.10.80:/mnt/core/k8s-volumes)     ← Kubernetes PVCs
     │
-    ├──► NFS (10.0.10.80:/mnt/archive/k8s-backups/etcd) ← etcd snapshots
+    ├──► NFS (10.0.10.80:/mnt/archive/backups/k8s) ← etcd snapshots + host backups
     │
     └──► MinIO (10.0.10.80:9000, bucket: velero)     ← Velero backups
                     │
@@ -48,9 +48,9 @@ k3s cluster
 
 | Pool | Layout | Datasets |
 |------|--------|---------|
-| `tera` | Single disk (see dataset-layout.md) | k8s-volumes, k8s-backups |
-| `core` | Mirror or RAID-Z (see dataset-layout.md) | k8s-volumes, k8s-backups |
-| `archive` | Mirror or RAID-Z (see dataset-layout.md) | k8s-volumes, k8s-backups |
+| `core` | SSD Mirror | `k8s-volumes` |
+| `archive` | HDD Mirror | `backups/k8s`, `backups/docker`, `backups/rpi` |
+| `tera` | Single HDD | `media`, `downloads` |
 
 See [docs/dataset-layout.md](docs/dataset-layout.md) for the full ZFS dataset structure.
 

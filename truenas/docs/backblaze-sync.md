@@ -85,7 +85,7 @@ Click **Verify Credential** — should succeed.
 | Remote Credential | `Backblaze B2` (from above) |
 | Bucket | `homelab-truenas-backup` |
 | Folder | `/` *(root of bucket)* |
-| Directory/Files | `/mnt/archive/k8s-backups` |
+| Directory/Files | `/mnt/archive/backups` |
 | Schedule | Daily at 04:00 *(after Velero at 03:00)* |
 | Enabled | Yes |
 
@@ -127,7 +127,7 @@ In the Backblaze web UI, under **Bucket Settings → Lifecycle Rules**:
 
 **Option B — Manual pruning**
 
-Use TrueNAS Cloud Sync with **Transfer Mode: SYNC** — this mirrors the source. When TrueNAS prunes old snapshots from `k8s-backups/etcd/`, the next sync removes them from B2 as well. The B2 copy is effectively as fresh as the TrueNAS copy.
+Use TrueNAS Cloud Sync with **Transfer Mode: SYNC** — this mirrors the source. When TrueNAS prunes old snapshots from `k8s/etcd/`, the next sync removes them from B2 as well. The B2 copy is effectively as fresh as the TrueNAS copy.
 
 ---
 

@@ -110,11 +110,11 @@ spec:
     - name: external.backups
       rules:
         - alert: EtcdBackupStale
-          expr: (time() - node_directory_size_bytes{job="node-truenas", path="/mnt/archive/k8s-backups/etcd"} > bool 0) == 0 or (time() - 86400) > node_filefd_maximum{job="node-truenas"}
+          expr: (time() - node_directory_size_bytes{job="node-truenas", path="/mnt/archive/backups/k8s/etcd"} > bool 0) == 0 or (time() - 86400) > node_filefd_maximum{job="node-truenas"}
           for: 2h
           labels:
             severity: warning
           annotations:
             summary: "etcd backup on TrueNAS may be stale"
-            description: "No recent etcd snapshot detected in archive/k8s-backups/etcd."
+            description: "No recent etcd snapshot detected in archive/backups/k8s/etcd."
             runbook: "https://wiki.homelab/runbooks/etcd-backup-stale"

@@ -105,7 +105,7 @@ TrueNAS — 10.0.10.80
     └── ZFS pools: core, archive, tera
         ├── media/
         ├── downloads/
-        └── k8s-backups/docker/     ← Docker appdata backups land here
+        └── backups/docker/     ← Docker appdata backups land here
 ```
 
 ---

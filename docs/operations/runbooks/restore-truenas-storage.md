@@ -14,7 +14,7 @@
 ## What This Alert Means
 
 TrueNAS SCALE at 10.0.10.80 hosts three ZFS pools which provide:
-- NFS share for etcd snapshots (`/mnt/archive/k8s-backups/etcd/`)
+- NFS share for etcd snapshots (`/mnt/archive/backups/k8s/etcd/`)
 - MinIO object storage for Velero (`http://10.0.10.80:9000`, bucket: `velero-backups`)
 - NFS share for Kubernetes PV data (`/mnt/archive/appdata/`, `/mnt/tera/`)
 
@@ -32,7 +32,7 @@ ZFS stores all data and metadata on the **drives**, not the OS disk. If only the
 | Data drives | All drives except the OS boot device (128GB 2.5" SSD) |
 | TrueNAS SCALE ISO | https://www.truenas.com/download-truenas-scale/ |
 | OS boot device | Dedicated 128GB 2.5" SSD (not part of any data pool) |
-| NFS exports to restore | `/mnt/archive/k8s-backups`, `/mnt/archive/appdata`, `/mnt/tera` |
+| NFS exports to restore | `/mnt/archive/backups/k8s`, `/mnt/archive/appdata`, `/mnt/tera` |
 | MinIO port | 9000 |
 
 ---
@@ -158,9 +158,9 @@ Verify data is accessible:
 
 ```bash
 ls /mnt/archive/
-# Expected: appdata  k8s-backups  media  (or similar dataset directories)
+# Expected: backups  (or similar dataset directories)  (or similar dataset directories)
 
-ls /mnt/archive/k8s-backups/etcd/ | tail -5
+ls /mnt/archive/backups/k8s/etcd/ | tail -5
 # Expected: recent snapshot .db files
 ```
 
@@ -176,7 +176,7 @@ Navigate to `http://10.0.10.80` → **Shares → NFS → Add**:
 
 | Share path | Allowed hosts | Map root user | Notes |
 |------------|---------------|---------------|-------|
-| `/mnt/archive/k8s-backups` | `10.0.10.0/24` | Root to root | etcd snapshots, Velero MinIO |
+| `/mnt/archive/backups/k8s` | `10.0.10.0/24` | Root to root | etcd snapshots, Velero MinIO |
 | `/mnt/archive/appdata` | `10.0.10.0/24` | Root to root | Kubernetes PV application data |
 | `/mnt/tera` | `10.0.10.0/24` | Root to root | Media library |
 
@@ -193,7 +193,7 @@ systemctl start nfs-kernel-server
 
 # Manually add exports (temporary, until UI re-creates them):
 cat >> /etc/exports <<'EOF'
-/mnt/archive/k8s-backups  10.0.10.0/24(rw,sync,no_subtree_check,no_root_squash)
+/mnt/archive/backups/k8s  10.0.10.0/24(rw,sync,no_subtree_check,no_root_squash)
 /mnt/archive/appdata      10.0.10.0/24(rw,sync,no_subtree_check,no_root_squash)
 /mnt/tera        10.0.10.0/24(rw,sync,no_subtree_check,no_root_squash)
 EOF
@@ -206,7 +206,7 @@ Expected output from `showmount`:
 
 ```
 Export list for 10.0.10.80:
-/mnt/archive/k8s-backups  10.0.10.0/24
+/mnt/archive/backups/k8s  10.0.10.0/24
 /mnt/archive/appdata      10.0.10.0/24
 /mnt/tera        10.0.10.0/24
 ```

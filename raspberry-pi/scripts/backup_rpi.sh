@@ -24,7 +24,7 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 NFS_SERVER="10.0.10.80"
-NFS_SHARE="/mnt/tank/k8s-backups/rpi"
+NFS_SHARE="/mnt/archive/backups/rpi"
 MOUNT_POINT="/mnt/backup_rpi"
 RETENTION_DAYS=30
 TIMESTAMP=$(date +"%Y-%m-%d_%H%M%S")

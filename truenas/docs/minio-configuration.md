@@ -25,7 +25,7 @@ MinIO (TrueNAS App)
     │
     │  Host path
     ▼
-/mnt/archive/k8s-backups/minio  (ZFS dataset)
+/mnt/archive/backups/k8s/minio  (ZFS dataset)
     │
     ├── velero/              (bucket: velero)
     │   └── backups/...
@@ -47,7 +47,7 @@ Navigate to: **Apps → Discover Apps → MinIO → Install**
 | Root User | `admin` |
 | Root Password | *(generate strong password — store in password manager)* |
 | Storage type | Host Path |
-| Host Path | `/mnt/archive/k8s-backups/minio` |
+| Host Path | `/mnt/archive/backups/k8s/minio` |
 | API Port | `9000` |
 | Console Port | `9001` |
 | Host Network | Enabled *(recommended — simpler networking)* |

@@ -100,7 +100,7 @@ rclone ls b2:homelab-truenas/ --max-depth 1
 List a specific dataset path (e.g., etcd backups):
 
 ```bash
-rclone ls b2:homelab-truenas/k8s-backups/etcd/ | sort | tail -10
+rclone ls b2:homelab-truenas/backups/k8s/etcd/ | sort | tail -10
 ```
 
 Check the total size of the data to be downloaded:
@@ -119,8 +119,8 @@ Determine the minimum data set needed based on the failure scenario.
 
 | Priority | Dataset Path in B2 | Kubernetes Impact |
 |----------|--------------------|-------------------|
-| 1 — Critical | `k8s-backups/etcd/` | Cluster state (restore first) |
-| 2 — High | `k8s-backups/velero/` | PVC application data |
+| 1 — Critical | `backups/k8s/etcd/` | Cluster state (restore first) |
+| 2 — High | `backups/k8s/velero/` | PVC application data |
 | 3 — High | `appdata/` | Application config and databases |
 | 4 — Medium | `media/` | Media library (large, restore last) |
 
@@ -136,8 +136,8 @@ sudo mkdir -p /mnt/restore-staging
 sudo mount 10.0.10.80:/mnt/archive /mnt/restore-staging
 
 # Sync from B2 to TrueNAS — start with etcd backups (smallest, highest priority)
-rclone sync b2:homelab-truenas/k8s-backups/etcd/ \
-  /mnt/restore-staging/k8s-backups/etcd/ \
+rclone sync b2:homelab-truenas/backups/k8s/etcd/ \
+  /mnt/restore-staging/backups/k8s/etcd/ \
   --progress \
   --transfers 4 \
   --checkers 8
@@ -146,8 +146,8 @@ rclone sync b2:homelab-truenas/k8s-backups/etcd/ \
 Restore Velero MinIO data:
 
 ```bash
-rclone sync b2:homelab-truenas/k8s-backups/velero/ \
-  /mnt/restore-staging/k8s-backups/velero/ \
+rclone sync b2:homelab-truenas/backups/k8s/velero/ \
+  /mnt/restore-staging/backups/k8s/velero/ \
   --progress \
   --transfers 4 \
   --checkers 8
@@ -183,8 +183,8 @@ rclone sync b2:homelab-truenas/media/ \
 rclone's `check` command compares local files against B2 using checksums:
 
 ```bash
-rclone check b2:homelab-truenas/k8s-backups/etcd/ \
-  /mnt/restore-staging/k8s-backups/etcd/ \
+rclone check b2:homelab-truenas/backups/k8s/etcd/ \
+  /mnt/restore-staging/backups/k8s/etcd/ \
   --one-way
 ```
 
@@ -196,7 +196,7 @@ Any errors mean files did not download correctly — re-run the `rclone sync` fo
 
 ## Step 8 — Restore etcd from the downloaded snapshot
 
-Once `k8s-backups/etcd/` is on the restored TrueNAS NFS share, follow the full etcd restore procedure:
+Once `backups/k8s/etcd/` is on the restored TrueNAS NFS share, follow the full etcd restore procedure:
 
 See [restore-etcd](./restore-etcd.md).
 
@@ -227,12 +227,12 @@ velero restore describe <restore-name>
 
 ```bash
 # Confirm data is present on TrueNAS NFS
-ls -lht /mnt/restore-staging/k8s-backups/etcd/ | head -5
+ls -lht /mnt/restore-staging/backups/k8s/etcd/ | head -5
 ls -lht /mnt/restore-staging/appdata/ | head -5
 
 # Confirm rclone check passes
-rclone check b2:homelab-truenas/k8s-backups/ \
-  /mnt/restore-staging/k8s-backups/ --one-way
+rclone check b2:homelab-truenas/backups/k8s/ \
+  /mnt/restore-staging/backups/k8s/ --one-way
 
 # After k3s is restored — verify cluster is healthy
 kubectl get nodes
@@ -256,4 +256,4 @@ velero backup get
 | B2 download speed is very slow | Reduce `--transfers` to 2; check RPi network link |
 | File checksum errors on rclone check | Re-run `rclone sync` for the affected path |
 | etcd snapshot downloaded but corrupted | Try the next-oldest snapshot from `rclone ls b2:` |
-| Media library too large to fully download | Restore `appdata/` and `k8s-backups/` first; media can be rebuilt from source |
+| Media library too large to fully download | Restore `appdata/` and `backups/k8s/` first; media can be rebuilt from source |

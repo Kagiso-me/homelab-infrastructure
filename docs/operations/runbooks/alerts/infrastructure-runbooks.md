@@ -839,7 +839,7 @@ The ZFS pools (core/archive/tera) on TrueNAS (10.0.10.80) is over 80% full. ZFS 
 
 4. Check backup directories specifically:
    ```bash
-   zfs list archive/k8s-backups 2>/dev/null
+   zfs list archive/backups/k8s 2>/dev/null
    du -sh /mnt/archive/* 2>/dev/null | sort -rh | head -10
    ```
 
@@ -857,7 +857,7 @@ The ZFS pools (core/archive/tera) on TrueNAS (10.0.10.80) is over 80% full. ZFS 
 
 | Condition | Action |
 |-----------|--------|
-| Excessive snapshots | Delete old snapshots: `zfs destroy archive/k8s-backups@<snapshot-name>` |
+| Excessive snapshots | Delete old snapshots: `zfs destroy archive/backups/k8s@<snapshot-name>` |
 | Old backup archives | `find /mnt/archive -mtime +60 -name "*.tar.gz" -delete` |
 | Downloads not cleaned up | Trigger *arr stack to remove completed downloads |
 | Dataset genuinely large | Evaluate adding storage or moving data |

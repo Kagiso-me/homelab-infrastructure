@@ -33,7 +33,7 @@ Three recovery paths are covered here:
 | ZFS pools | `core` (k8s PVCs), `archive` (backups + personal), `tera` (media — no snapshots) |
 | SSH access | `ssh kagiso@10.0.10.80` (or via RPi: `ssh kagiso@10.0.10.10`, then `ssh kagiso@10.0.10.80`) |
 | Snapshot naming convention | `<pool>/<dataset>@auto-YYYY-MM-DD_HH-MM` |
-| NFS exports | `/mnt/core/k8s-volumes`, `/mnt/archive/k8s-backups`, `/mnt/tera` |
+| NFS exports | `/mnt/core/k8s-volumes`, `/mnt/archive/backups/k8s`, `/mnt/tera` |
 
 ---
 
@@ -57,7 +57,7 @@ List all snapshots for the relevant dataset:
 zfs list -t snapshot -o name,creation,used -s creation |
 ```
 
-To filter to a specific dataset (e.g., `core/k8s-volumes` or `archive/k8s-backups`):
+To filter to a specific dataset (e.g., `core/k8s-volumes` or `archive/backups/k8s`):
 
 ```bash
 zfs list -t snapshot -o name,creation,used -s creation core/k8s-volumes
