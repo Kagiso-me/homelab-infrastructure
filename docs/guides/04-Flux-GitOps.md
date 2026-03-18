@@ -227,11 +227,10 @@ Installing them here means they are available when the first encrypted secret is
 # Install age
 sudo apt install -y age
 
-# Install SOPS
-SOPS_VERSION=3.8.1
-curl -LO https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64
-chmod +x sops-v${SOPS_VERSION}.linux.amd64
-sudo mv sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+# Install SOPS (auto-detects latest version; uses arm64 for bran which is aarch64)
+SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d'"' -f4)
+sudo curl -Lo /usr/local/bin/sops "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.arm64"
+sudo chmod +x /usr/local/bin/sops
 ```
 
 Verify:

@@ -37,7 +37,8 @@
       "Bash(grep \"Guide:.*of 1\" docs/guides/*.md)",
       "Bash(mv projects/claude-phone projects/DEV-beesly)",
       "Bash(mv projects/pulse projects/DEV-pulse)",
-      "Bash(mkdir projects/OPS-kagiso-me.github.io)"
+      "Bash(mkdir projects/OPS-kagiso-me.github.io)",
+      "Bash(ssh bran:*)"
     ]
   }
 }
