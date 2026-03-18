@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[MAINTENANCE]** configure SOPS encryption rules with age public key `e191383`
 - **[CONFIG]** update SOPS installation to auto-detect latest version and support arm64 architecture `99b858d`
 - **[DEPLOY]** add cloudflare_api_token secret management and update ansible configuration `5c1b261`
 - **[DEPLOY]** add Pi-hole Ansible playbook and inventory rpi group `613cb4e`
