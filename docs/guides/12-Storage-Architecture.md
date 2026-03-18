@@ -22,7 +22,7 @@ TrueNAS at `10.0.10.80` uses three ZFS pools with distinct purposes:
 | `core` | `/mnt/core` | Hot storage — Kubernetes PVCs, actively accessed by the cluster |
 | `archive` | `/mnt/archive` | Backup storage — etcd snapshots, Velero data via MinIO |
 
-The NFS provisioner uses `core/k8s-volumes`. Backup data lives in `archive/k8s-backups`.
+The NFS provisioner uses `core/k8s-volumes`. Backup data lives in `archive/backups/k8s-backups`.
 Both datasets and their NFS exports are created in
 [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
 
@@ -69,8 +69,8 @@ The provisioner runs inside the cluster. It watches for PVC creation and automat
 | Share path | Purpose |
 |-----------|---------|
 | `/mnt/core/k8s-volumes` | Kubernetes persistent volumes |
-| `/mnt/archive/k8s-backups/etcd` | etcd snapshots |
-| `/mnt/archive/k8s-backups/velero` | Velero backup data |
+| `/mnt/archive/backups/k8s-backups/etcd` | etcd snapshots |
+| `/mnt/archive/backups/k8s-backups/velero` | Velero backup data |
 
 **NFS export settings for each share:**
 
@@ -276,7 +276,7 @@ NFS does not have a block device to resize — the directory on TrueNAS is not s
 
 The NFS provisioner creates directories under `/mnt/core/k8s-volumes/`. Velero backs up PVC data by mounting volumes and copying files.
 
-For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/k8s-backups/etcd/` separately (see guide 08).
+For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s-backups/etcd/` separately (see guide 08).
 
 The ZFS pool on TrueNAS provides:
 

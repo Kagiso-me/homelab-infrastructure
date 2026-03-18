@@ -67,7 +67,7 @@ Cluster
    │      └── GitHub ──────────────────────────────────────────────► Remote (always current)
    │
    ├── Cluster State (etcd)
-   │      └── k3s etcd-snapshot ───────────► TrueNAS /archive/k8s-backups/etcd
+   │      └── k3s etcd-snapshot ───────────► TrueNAS /archive/backups/k8s-backups/etcd
    │                                                  │
    └── Persistent Volumes (PVCs)                      │
           └── Velero ──────────────────────► MinIO on TrueNAS (bucket: velero)
@@ -113,7 +113,7 @@ Losing this database without a backup means losing the runtime state of the clus
 
 # NFS Mount — TrueNAS Backup Storage
 
-> The `archive/k8s-backups` dataset and NFS export were created in
+> The `archive/backups/k8s-backups` dataset and NFS export were created in
 > [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
 > Confirm the export is active before mounting.
 
@@ -128,7 +128,7 @@ sudo mkdir -p /mnt/backups
 Add to `/etc/fstab`:
 
 ```
-10.0.10.80:/mnt/archive/k8s-backups /mnt/backups nfs defaults,_netdev 0 0
+10.0.10.80:/mnt/archive/backups/k8s-backups /mnt/backups nfs defaults,_netdev 0 0
 ```
 
 Mount:
@@ -243,7 +243,7 @@ graph LR
 
 ## Step 1 — Verify the Storage Datasets Exist
 
-The `archive/k8s-backups` and `archive/k8s-backups/minio` datasets should already exist
+The `archive/backups/k8s-backups` and `archive/backups/k8s-backups/minio` datasets should already exist
 from [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
 
 Confirm on TrueNAS:
@@ -251,15 +251,15 @@ Confirm on TrueNAS:
 ```bash
 zfs list | grep k8s-backups
 # Expected:
-# archive/k8s-backups         ...  /mnt/archive/k8s-backups
-# archive/k8s-backups/minio   ...  /mnt/archive/k8s-backups/minio
+# archive/backups/k8s-backups         ...  /mnt/archive/backups/k8s-backups
+# archive/backups/k8s-backups/minio   ...  /mnt/archive/backups/k8s-backups/minio
 ```
 
 If the datasets are missing, create them now:
 
 ```bash
-zfs create archive/k8s-backups
-zfs create archive/k8s-backups/minio
+zfs create archive/backups/k8s-backups
+zfs create archive/backups/k8s-backups/minio
 ```
 
 ## Step 2 — Deploy MinIO on TrueNAS
@@ -276,7 +276,7 @@ TrueNAS SCALE includes MinIO as a built-in application.
 | MinIO Configuration → Root User | `admin` (or your preferred username) |
 | MinIO Configuration → Root Password | Generate a strong password — store in your password manager |
 | Storage → MinIO Data Storage | Choose **Host Path** |
-| Host Path | `/mnt/archive/k8s-backups/minio` |
+| Host Path | `/mnt/archive/backups/k8s-backups/minio` |
 | Port | `9000` (API), `9001` (Console) |
 | Network → Host Network | Enable (simpler networking, recommended for homelab) |
 
