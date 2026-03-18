@@ -171,26 +171,38 @@ This operation performs three actions:
 
 Once complete the cluster continuously monitors Git for changes.
 
+> **This is a one-time operation per repository.** After the first bootstrap, the generated
+> manifests live in `clusters/prod/flux-system/`. On every subsequent cluster rebuild, the
+> `install-platform.yml` Ansible playbook re-applies those committed manifests and recreates
+> the SSH secret from vault — no manual `flux bootstrap` call needed.
+
 ---
 
 # Generate a Deploy Key
 
 Flux authenticates to Git using SSH.
 
-Create a key:
+Create a key **on the Raspberry Pi**:
 
-```
+```bash
 ssh-keygen -t ed25519 -f ~/.ssh/flux_deploy_key -C "flux@cluster"
 ```
 
 This produces:
 
 ```
-~/.ssh/flux_deploy_key
-~/.ssh/flux_deploy_key.pub
+~/.ssh/flux_deploy_key        ← private key — keep this safe
+~/.ssh/flux_deploy_key.pub    ← public key — added to GitHub
 ```
 
-Add the public key to the Git repository as a **Deploy Key** with write access.
+Add the public key to the Git repository as a **Deploy Key** with write access:
+
+```
+GitHub → homelab-infrastructure → Settings → Deploy keys → Add deploy key
+Title: flux@prod-cluster
+Key: <contents of ~/.ssh/flux_deploy_key.pub>
+Allow write access: ✓
+```
 
 ---
 
@@ -198,13 +210,13 @@ Add the public key to the Git repository as a **Deploy Key** with write access.
 
 Install the CLI tool:
 
-```
+```bash
 curl -s https://fluxcd.io/install.sh | sudo bash
 ```
 
 Verify installation:
 
-```
+```bash
 flux --version
 ```
 
@@ -333,10 +345,14 @@ kubectl get secret sops-age -n flux-system
 
 ---
 
-# Bootstrapping the Cluster
+# First-Time Bootstrap (One-Time Per Repository)
 
 > **Both prod and staging clusters have already been bootstrapped.**
-> These steps are preserved here for reference when re-bootstrapping after a cluster rebuild.
+> These steps are preserved here for reference if the repository ever needs to be re-bootstrapped
+> (e.g., changing the branch, path, or rotating the deploy key).
+>
+> For routine cluster rebuilds — reinstalling k3s on the same repo — use the
+> **[Ansible playbook method](#installing-on-a-rebuilt-cluster-ansible)** instead.
 
 ## Step 1 — Complete age Key Setup
 
@@ -380,12 +396,203 @@ After bootstrap the repository will contain:
 
 ```
 clusters/prod/flux-system/
-├── gotk-components.yaml     ← all Flux controller manifests
-├── gotk-sync.yaml           ← GitRepository (prod branch) + Kustomization
-└── kustomization.yaml
+├── gotk-components.yaml     ← all Flux controller manifests (CRDs + controllers)
+├── gotk-sync.yaml           ← GitRepository (prod branch) + root Kustomization
+└── kustomization.yaml       ← ties the above two files together
 ```
 
-These manifests describe how Flux connects the cluster to Git.
+These manifests describe how Flux connects the cluster to Git. They are committed once and
+reused on every future cluster rebuild — Flux does not need to be re-bootstrapped, just
+re-applied with the SSH key.
+
+---
+
+# Saving the Deploy Key to Vault
+
+> **Do this immediately after the first bootstrap.** This is the step that makes all future
+> cluster rebuilds fully automated.
+
+The SSH deploy key (`~/.ssh/flux_deploy_key`) is the credential Flux uses to pull from the
+GitHub repository. On a fresh cluster, this key must be placed into the `flux-system` Secret
+before Flux can sync. The `install-platform.yml` playbook handles this automatically — but
+it reads the key from Ansible Vault.
+
+## Step 1 — Extract the key material
+
+```bash
+# Private key (already on the RPi from when you generated it)
+cat ~/.ssh/flux_deploy_key
+
+# known_hosts entry for GitHub (use the official GitHub fingerprint)
+ssh-keyscan github.com 2>/dev/null | grep ed25519
+```
+
+## Step 2 — Add to Ansible Vault
+
+```bash
+ansible-vault edit ansible/vars/vault.yml
+```
+
+Add the following entries (in addition to the existing `cloudflare_api_token`):
+
+```yaml
+flux_github_ssh_private_key: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  <paste the full contents of ~/.ssh/flux_deploy_key here>
+  -----END OPENSSH PRIVATE KEY-----
+
+flux_github_known_hosts: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C5okci41bzVz6S0k"
+```
+
+> **The private key must preserve its exact indentation.** The `|` block scalar in YAML
+> means every line of the key is indented by two spaces. Ansible Vault encrypts this at rest.
+
+## Step 3 — Verify
+
+```bash
+# Confirm vault decrypts and contains the key
+ansible-vault view ansible/vars/vault.yml | grep flux_github_ssh_private_key
+```
+
+Once saved, `install-platform.yml` can rebuild the entire platform on any future cluster from a
+single command — with no manual key handling required.
+
+---
+
+# Installing on a Rebuilt Cluster (Ansible)
+
+This is the **standard procedure for all cluster rebuilds**. It assumes:
+
+- k3s has been reinstalled via `install-cluster.yml`
+- The Flux bootstrap manifests are committed in the repo (`clusters/prod/flux-system/`)
+- The Flux SSH deploy key is stored in Ansible Vault
+
+## Ansible Vault Setup (one-time per RPi)
+
+The playbook reads secrets from `ansible/vars/vault.yml`, an Ansible Vault encrypted file.
+The vault password lives only on the RPi and is never committed.
+
+**Create the vault password file:**
+
+```bash
+# On the Raspberry Pi (10.0.10.10)
+echo "your-chosen-vault-password" > ~/.vault_pass
+chmod 600 ~/.vault_pass
+```
+
+**Create the encrypted vault file** (if it does not exist yet):
+
+```bash
+cd ~/homelab-infrastructure/ansible
+ansible-vault create ansible/vars/vault.yml
+```
+
+Paste the following into the editor:
+
+```yaml
+cloudflare_api_token: "your-cloudflare-api-token-here"
+
+flux_github_ssh_private_key: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  <contents of ~/.ssh/flux_deploy_key>
+  -----END OPENSSH PRIVATE KEY-----
+
+flux_github_known_hosts: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C5okci41bzVz6S0k"
+```
+
+Save and exit. The file is encrypted immediately. What gets committed to git looks like:
+
+```
+$ANSIBLE_VAULT;1.1;AES256
+66386134653765363934346162623065613138646364646665...
+```
+
+**Edit the vault later** (e.g., to add secrets or rotate the Cloudflare token):
+
+```bash
+ansible-vault edit ansible/vars/vault.yml
+```
+
+## Run the Playbook
+
+```bash
+# From the Raspberry Pi, inside the ansible/ directory
+cd ~/homelab-infrastructure/ansible
+
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-platform.yml
+```
+
+> **Important:** Run from inside `ansible/`. Ansible loads `ansible.cfg` from the current
+> working directory. Running from the repo root will fail to find the vault password file.
+
+## What the Playbook Does
+
+The playbook runs on the k3s control plane node (`tywin`) in five steps:
+
+```mermaid
+sequenceDiagram
+    participant RPi as Raspberry Pi (ansible)
+    participant CP as tywin (control plane)
+    participant K8s as Kubernetes API
+    participant Git as GitHub
+
+    RPi->>CP: SSH connection
+    CP->>K8s: Pre-flight: verify all nodes Ready
+
+    Note over CP,K8s: Step 1 — Install flux2 CLI
+    CP->>CP: curl fluxcd.io/install.sh (if not present)
+
+    Note over CP,K8s: Step 2 — Apply Flux controllers
+    RPi->>CP: Copy clusters/prod/flux-system/gotk-components.yaml
+    CP->>K8s: kubectl apply gotk-components.yaml (CRDs + controllers)
+    CP->>K8s: Wait for source/kustomize/helm/notification controllers Ready
+
+    Note over CP,K8s: Step 3 — Create SSH secret
+    CP->>K8s: Create flux-system namespace
+    CP->>K8s: Create flux-system Secret from vault (SSH private key + known_hosts)
+
+    Note over CP,K8s: Step 4 — Start GitOps sync
+    RPi->>CP: Copy clusters/prod/flux-system/gotk-sync.yaml
+    CP->>K8s: kubectl apply gotk-sync.yaml (GitRepository + Kustomization)
+    K8s->>Git: source-controller pulls prod branch
+    CP->>K8s: Wait for GitRepository Ready
+
+    Note over CP,K8s: Step 5 — Wait for platform convergence
+    K8s->>K8s: Flux reconciles platform-networking (MetalLB + Traefik)
+    K8s->>K8s: Flux reconciles platform-security (cert-manager + ClusterIssuer)
+    K8s->>K8s: Flux reconciles platform-storage (NFS provisioner)
+    CP->>RPi: Print flux get kustomizations + helmreleases
+```
+
+The playbook explicitly waits for `platform-networking`, `platform-security`, and
+`platform-storage` to reach `Ready` before declaring success. The full platform — MetalLB,
+Traefik, cert-manager, wildcard certificate — is operational by the time the playbook exits.
+
+## Expected Output
+
+When complete, `flux get kustomizations` should show:
+
+```
+NAME                     REVISION             READY   MESSAGE
+flux-system              prod@sha1:xxxxxxxx   True    Applied revision: prod@sha1:xxxxxxxx
+platform-namespaces      prod@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking      prod@sha1:xxxxxxxx   True    Applied revision: ...
+platform-security        prod@sha1:xxxxxxxx   True    Applied revision: ...
+platform-storage         prod@sha1:xxxxxxxx   True    Applied revision: ...
+platform-upgrade         prod@sha1:xxxxxxxx   True    Applied revision: ...
+platform-observability   prod@sha1:xxxxxxxx   True    Applied revision: ...
+apps                     prod@sha1:xxxxxxxx   True    Applied revision: ...
+```
+
+And `flux get helmreleases -A`:
+
+```
+NAMESPACE       NAME        REVISION   READY   MESSAGE
+metallb-system  metallb     0.14.9     True    Helm install succeeded
+ingress         traefik     28.3.0     True    Helm upgrade succeeded
+cert-manager    cert-manager v1.14.4   True    Helm install succeeded
+```
 
 ---
 
@@ -476,16 +683,31 @@ This approach provides:
 
 GitOps makes cluster recovery significantly easier.
 
-If a cluster must be rebuilt:
+If a cluster must be rebuilt, the full recovery sequence is:
 
+```bash
+# Step 1 — Reinstall k3s
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-cluster.yml
+
+# Step 2 — Bootstrap Flux and wait for platform convergence
+cd ~/homelab-infrastructure/ansible
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-platform.yml
 ```
-reinstall Kubernetes
-bootstrap Flux
-```
 
-Flux automatically reconstructs the platform from Git.
+That is the complete platform rebuild. Two commands. No manual `kubectl apply`, no `helm install`,
+no manually recreating secrets. Everything is either in Git or in Ansible Vault.
 
-This is one of the most powerful advantages of GitOps.
+Flux automatically reconstructs the full platform from Git:
+- MetalLB → Traefik → cert-manager (in dependency order)
+- All kustomizations and HelmReleases
+- The wildcard TLS certificate (re-issued by cert-manager from Let's Encrypt)
+
+Application data (PVC contents) is restored separately via Velero — see [Guide 08](./08-Cluster-Backups.md).
+
+This is one of the most powerful advantages of GitOps: **the cluster is entirely disposable
+and recoverable from a single vault + git repository.**
 
 ---
 

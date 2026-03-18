@@ -345,22 +345,57 @@ flux logs --follow --level=error
 
 # Disaster Recovery Workflow
 
-If the cluster must be rebuilt entirely, follow the summary below. A detailed runbook at
-`docs/operations/runbooks/cluster-rebuild.md` should be written and tested once the
-platform is stable.
+If the cluster must be rebuilt entirely, follow this sequence.
 
-Summary:
+## Prerequisites — verify before starting
+
+| Item | Location | How to verify |
+|------|----------|---------------|
+| Ansible Vault password | `~/.vault_pass` on RPi | `ansible-vault view ansible/vars/vault.yml` |
+| Flux SSH deploy key | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep flux_github_ssh_private_key` |
+| Cloudflare API token | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep cloudflare` |
+| etcd snapshot | TrueNAS NFS at `/mnt/tera/k3s-backups/` | `ls -lht /mnt/backups/etcd/` |
+| age key (SOPS) | `~/age.key` on RPi | `ls -la ~/age.key` |
+
+If the Flux SSH key is missing from vault, see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).
+
+## Rebuild Steps
 
 ```
-1. Reinstall OS on affected nodes
+1. Reinstall OS on affected nodes (if hardware failure)
 2. Run Ansible security + preparation playbooks
-3. Run Ansible install-cluster.yml
-4. Restore etcd from snapshot (if rebuilding control-plane)
-5. Bootstrap Flux
-6. Flux reconciles platform services from Git
-7. Velero restores PVC data
+3. Run Ansible install-cluster.yml   → fresh k3s cluster
+4. Restore etcd from snapshot (only if control-plane data must be recovered)
+5. Run Ansible install-platform.yml  → bootstraps Flux from vault + Git
+6. Flux reconciles all platform services from Git automatically
+7. Velero restores PVC data (application state)
 8. Verify all services
 ```
+
+## Commands
+
+```bash
+# On the Raspberry Pi (10.0.10.10), from ~/homelab-infrastructure/ansible
+
+# Step 3 — reinstall k3s
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-cluster.yml
+
+# Step 5 — bootstrap Flux (reads SSH key from vault, applies gotk manifests, waits for Ready)
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/lifecycle/install-platform.yml
+
+# Step 7 — restore application data
+velero restore create --from-backup <latest-backup-name>
+
+# Step 8 — verify
+flux get kustomizations
+flux get helmreleases -A
+kubectl get pods -A | grep -Ev 'Running|Completed'
+```
+
+> **No manual `flux bootstrap` or `helm install` commands are needed.** The deploy key is in
+> vault, the platform manifests are in Git, and `install-platform.yml` wires them together.
 
 Target: full platform operational **within 90–120 minutes** of starting the rebuild.
 
