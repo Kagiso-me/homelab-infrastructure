@@ -159,8 +159,14 @@ git push origin main:prod
 This fast-forwards the `prod` branch to the current `main` HEAD. The prod cluster's
 source-controller detects the new commit on `prod` within one minute and begins reconciliation.
 
-Staging is never bypassed. Configuration drift between environments is impossible — both
-clusters pull from the same `platform/` and `apps/` paths; only the branch differs.
+Staging is never bypassed. Unintentional configuration drift between environments is
+prevented — both clusters pull from the same `platform/` and `apps/` paths; only the
+branch differs. Intentional differences (e.g. production-specific resource limits) are
+expressed through the `apps/prod/` Kustomize overlay.
+
+> **Note:** Once the automated pipeline is active, do not run this command manually.
+> It bypasses all staging health gates. The pipeline performs the same push as part of
+> Stage 3, gated behind the full staging validation.
 
 ## Automated Gated Pipeline
 
