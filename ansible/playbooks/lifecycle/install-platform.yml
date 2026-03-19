@@ -219,7 +219,32 @@
       tags: [flux]
 
     # ============================================================================
-    # STEP 5 — Wait for platform to converge
+    # STEP 5 — Pre-create cert-manager Cloudflare API token Secret
+    # The cloudflare-api-token Secret must exist in the cert-manager namespace
+    # before Flux reconciles the letsencrypt-prod ClusterIssuer. Without it,
+    # the ClusterIssuer fails and the wildcard *.kagiso.me cert is never issued.
+    # We create the namespace + secret proactively so cert-manager finds the
+    # token the moment its controllers come up and attempt DNS-01 validation.
+    # ============================================================================
+
+    - name: "cert-manager | Pre-create cert-manager namespace"
+      shell: |
+        kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+      tags: [cert-manager]
+
+    - name: "cert-manager | Pre-create cloudflare-api-token secret"
+      shell: >
+        kubectl create secret generic cloudflare-api-token
+        --namespace cert-manager
+        --from-literal=api-token={{ cloudflare_api_token }}
+        --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+      no_log: true
+      tags: [cert-manager]
+
+    # ============================================================================
+    # STEP 6 — Wait for platform to converge
     # Flux reconciles kustomizations in dependency order. We wait for the key
     # platform layers to become Ready before declaring success.
     # ============================================================================
