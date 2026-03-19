@@ -163,10 +163,21 @@ systemctl restart pveproxy
 
 ### Automated VM Backups (vzdump)
 
-In the Proxmox web UI:
+Backups are stored on a TrueNAS NFS share, not local NVMe.
+
+**TrueNAS NFS share setup:**
+- Dataset owned by `kagiso` — set **Mapall User: kagiso** on the NFS share
+- Enable **NFSv3** (System Settings → Services → NFS → Configure) — required for Proxmox to enumerate exports via `showmount`
+- Add Proxmox host IP to Authorized Hosts on the share
+
+**Add NFS storage in Proxmox:**
+- Datacenter → Storage → Add → NFS
+- Server: TrueNAS IP, export path, Content: `VZDump backup file`
+
+**Backup job:**
 - Datacenter → Backup → Add
-- Schedule: Sunday 02:00, all VMs, storage: `local`, mode: snapshot, compress: zstd
-- This gives weekly rollback points on the NVMe before any risky change
+- Schedule: Sunday 02:00, all VMs, storage: `truenas-backup`, mode: snapshot, compress: zstd
+- This gives weekly rollback points before any risky change
 
 ---
 
@@ -187,6 +198,7 @@ qm create 9000 \
   --name ubuntu-2204-cloud \
   --memory 2048 \
   --cores 2 \
+  --cpu host \
   --net0 virtio,bridge=vmbr0 \
   --ostype l26 \
   --agent enabled=1 \
