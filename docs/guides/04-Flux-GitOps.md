@@ -429,6 +429,12 @@ git push
 
 ## Step 4 — Store the Key in the Cluster
 
+> **If bootstrapping a new cluster:** run `kubectl create namespace flux-system || true`
+> first so the secret can be created before Flux reconciles anything. If you ran
+> `flux bootstrap` first (which also creates the namespace), skip the `|| true` line
+> and create the secret immediately after bootstrap completes — before Flux attempts
+> to reconcile any SOPS-encrypted resources.
+
 ```bash
 kubectl create namespace flux-system || true
 kubectl create secret generic sops-age \
@@ -461,17 +467,41 @@ committed, `sops-age` Secret present in `flux-system`.
 With the secret in place, bootstrap each cluster. Both clusters use the same repository
 and deploy key; only the branch and path differ.
 
-**Bootstrap staging** (single-node VM, Proxmox/NUC at 10.0.10.31). Run with the staging
-cluster's kubeconfig active:
+**Bootstrap staging** (single-node VM at 10.0.10.31). First set up the kubeconfig on bran:
 
 ```bash
-# On the Raspberry Pi (10.0.10.10), with KUBECONFIG pointing at staging
+# Copy kubeconfig from staging VM and patch the address
+scp kagiso@10.0.10.31:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
+sed -i 's/127.0.0.1/10.0.10.31/' ~/.kube/staging-config
+
+# Activate for this session
+export KUBECONFIG=~/.kube/staging-config
+
+# Persist so future sessions don't need the export
+echo 'export KUBECONFIG=~/.kube/staging-config' >> ~/.bashrc
+```
+
+Then bootstrap:
+
+```bash
+# SSH deploy key method (matches the automated rebuild playbook)
 flux bootstrap git \
   --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
   --branch=main \
   --path=clusters/staging \
   --private-key-file=$HOME/.ssh/flux_deploy_key
+
+# Alternative: GitHub PAT method (simpler for first-time setup)
+flux bootstrap github \
+  --owner=Kagiso-me \
+  --repository=homelab-infrastructure \
+  --branch=main \
+  --path=clusters/staging \
+  --personal
 ```
+
+> After bootstrap completes, immediately create the `sops-age` secret (Step 4 above)
+> before Flux begins reconciling encrypted resources.
 
 **Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). Run with the prod
 cluster's kubeconfig active:
