@@ -271,14 +271,14 @@ Create `/etc/cloudflared/config.yml`:
 tunnel: <tunnel-id>
 credentials-file: /root/.cloudflared/<tunnel-id>.json
 ingress:
-  - hostname: nextcloud.kagiso.me
+  - hostname: cloud.kagiso.me
     service: http://10.0.10.110
     originRequest:
-      httpHostHeader: nextcloud.kagiso.me
-  - hostname: immich.kagiso.me
+      httpHostHeader: cloud.kagiso.me
+  - hostname: photos.kagiso.me
     service: http://10.0.10.110
     originRequest:
-      httpHostHeader: immich.kagiso.me
+      httpHostHeader: photos.kagiso.me
   - service: http_status:404
 ```
 
@@ -287,8 +287,8 @@ The `httpHostHeader` ensures Traefik receives the original hostname and routes t
 ### Route DNS and Install as Service
 
 ```bash
-cloudflared tunnel route dns homelab nextcloud.kagiso.me
-cloudflared tunnel route dns homelab immich.kagiso.me
+cloudflared tunnel route dns homelab cloud.kagiso.me
+cloudflared tunnel route dns homelab photos.kagiso.me
 sudo cloudflared service install
 sudo systemctl enable --now cloudflared
 ```
@@ -516,7 +516,9 @@ spec:
 
 ## Verifying the Platform
 
-After the playbook completes, run these checks from the RPi:
+> **Note:** None of these components exist yet at this point in the guide sequence. MetalLB,
+> Traefik, and cert-manager are all deployed by Flux when Guide 04 runs. Run these checks
+> **after completing Guide 04**.
 
 ```bash
 # MetalLB — controller and speakers running
@@ -526,6 +528,10 @@ kubectl get pods -n metallb-system
 # MetalLB — IP pool configured
 kubectl get ipaddresspool -n metallb-system
 # Expected: homelab-pool with 10.0.10.110-10.0.10.125
+
+# Traefik — running and assigned LoadBalancer IP
+kubectl get svc traefik -n ingress
+# Expected: traefik TYPE=LoadBalancer EXTERNAL-IP=10.0.10.110
 
 # cert-manager — all pods running
 kubectl get pods -n cert-manager
@@ -539,10 +545,6 @@ kubectl get clusterissuer
 kubectl get certificate -n ingress
 # Expected: wildcard-kagiso-me READY=True
 
-# Traefik — running and assigned LoadBalancer IP
-kubectl get svc traefik -n ingress
-# Expected: traefik TYPE=LoadBalancer EXTERNAL-IP=10.0.10.110
-
 # End-to-end — Traefik is responding (expect 404, not connection refused)
 curl -k https://10.0.10.110
 # Expected: 404 page not found
@@ -555,14 +557,16 @@ handling requests, but no IngressRoute has been defined yet to route them anywhe
 
 ## Exit Criteria
 
+> Verify these after Guide 04 — Flux deploys everything in this guide.
+
 The networking platform is complete when all of the following are true:
 
 - ✓ `flux get kustomization platform-networking` — `READY=True`
 - ✓ `flux get helmrelease -A` — metallb and traefik both `READY=True`
 - ✓ `kubectl get pods -n metallb-system` — metallb-controller and metallb-speaker Running on all nodes
-- ✓ `kubectl get pods -n cert-manager` — all pods Running
 - ✓ `kubectl get pods -n ingress` — Traefik pod Running
 - ✓ Traefik service shows `EXTERNAL-IP: 10.0.10.110`
+- ✓ `kubectl get pods -n cert-manager` — all cert-manager pods Running
 - ✓ `kubectl get clusterissuer` — `letsencrypt-prod` `READY=True`
 - ✓ `kubectl get certificate -n ingress` — `wildcard-kagiso-me` `READY=True`
 - ✓ `curl https://10.0.10.110` returns `404 page not found` with a valid `*.kagiso.me` cert
@@ -584,26 +588,8 @@ kubectl get pods -n metallb-system               # Speakers must be Running
 
 Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.125`).
 
-**cert-manager ClusterIssuer not Ready**
-
-```bash
-kubectl describe clusterissuer letsencrypt-prod  # Check Status.Conditions
-kubectl logs -n cert-manager deploy/cert-manager # Look for errors
-```
-
-Common causes:
-- cert-manager webhook not yet ready — wait for all cert-manager pods to be Running
-- `cloudflare-api-token` Secret missing from `cert-manager` namespace — ensure `ansible/vars/vault.yml` exists and `~/.vault_pass` is on the RPi (see [Ansible Vault Setup](#pre-install-ansible-vault-setup-one-time))
-
-**Wildcard certificate stuck in `Pending`**
-
-```bash
-kubectl describe certificate wildcard-kagiso-me -n ingress   # Check events
-kubectl describe certificaterequest -n ingress               # Check issuer + challenge status
-kubectl get challenges -A                                    # DNS-01 challenge in progress?
-```
-
-The DNS-01 challenge creates a TXT record in Cloudflare DNS and waits for propagation (typically 30–120 seconds). If the challenge stays pending beyond 5 minutes, check that the `cloudflare-api-token` Secret exists in the `cert-manager` namespace and has the correct permissions (`Zone → Zone → Read`, `Zone → DNS → Edit`).
+> **cert-manager and wildcard certificate issues** are covered in the Guide 04 troubleshooting
+> section, since Flux deploys cert-manager during that phase.
 
 **Traefik returning 404 for a deployed service**
 
