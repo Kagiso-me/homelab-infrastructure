@@ -51,6 +51,7 @@ NUC (bare Ubuntu 22.04) — 10.0.10.20
 
 ```
 NUC (Proxmox VE) — 10.0.10.30
+├── ubuntu-2204-cloud (VM 9000) — template, never runs
 ├── docker-vm       — 10.0.10.32 (2 vCPU, 8GB RAM, 80GB)
 │   └── Docker Compose
 │       └── Sonarr, Radarr, Plex (+ arr stack)
@@ -135,48 +136,131 @@ ls -lah "$BACKUP_DIR"
    - Gateway: `10.0.10.1`
    - DNS: `10.0.10.1`
 4. First login — Proxmox web UI at `https://10.0.10.30:8006`
-5. Disable enterprise repo (no subscription):
+
+### Post-Install Host Config
 
 ```bash
 ssh root@10.0.10.30
 
+# Switch to community (no-subscription) repo
 echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
   > /etc/apt/sources.list.d/pve-community.list
 sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/pve-enterprise.list
 apt update && apt dist-upgrade -y
+
+# Install useful tools
+apt install -y vim htop iotop ncdu curl wget
+
+# Add SSH key (replace with your actual public key)
+mkdir -p ~/.ssh
+echo "ssh-rsa AAAA..." >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+
+# Disable the enterprise subscription nag popup in the web UI
+sed -i.bak "s/res === null/false/" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+systemctl restart pveproxy
 ```
+
+### Automated VM Backups (vzdump)
+
+In the Proxmox web UI:
+- Datacenter → Backup → Add
+- Schedule: Sunday 02:00, all VMs, storage: `local`, mode: snapshot, compress: zstd
+- This gives weekly rollback points on the NVMe before any risky change
 
 ---
 
-## Step 3 — Create docker-vm
+## Step 3 — Create Cloud-Init Template
+
+VMs are provisioned from a cloud-init template rather than the Ubuntu installer.
+This makes new VMs take ~30 seconds instead of 10+ minutes and eliminates manual
+installer interaction.
 
 ```bash
-# From Proxmox host (after uploading Ubuntu 22.04 ISO to Proxmox storage)
-qm create 100 \
-  --name docker-vm \
-  --memory 8192 \
+ssh root@10.0.10.30
+
+# Download Ubuntu 22.04 cloud image (no GUI, cloud-ready, ~600MB)
+wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+
+# Create base VM — ID 9000 is the template convention
+qm create 9000 \
+  --name ubuntu-2204-cloud \
+  --memory 2048 \
   --cores 2 \
   --net0 virtio,bridge=vmbr0 \
-  --ide2 local:iso/ubuntu-22.04-live-server.iso,media=cdrom \
-  --scsi0 local-lvm:80 \
-  --boot order=ide2 \
-  --ostype l26
+  --ostype l26 \
+  --agent enabled=1 \
+  --serial0 socket \
+  --vga serial0
+
+# Import the cloud image as the disk
+qm importdisk 9000 jammy-server-cloudimg-amd64.img local-lvm
+
+# Attach disk, add cloud-init drive, set boot order
+qm set 9000 \
+  --scsi0 local-lvm:vm-9000-disk-0,discard=on,ssd=1 \
+  --ide2 local-lvm:cloudinit \
+  --boot order=scsi0 \
+  --scsihw virtio-scsi-pci
+
+# Set cloud-init defaults — SSH key is injected at clone time
+qm set 9000 \
+  --ciuser kagiso \
+  --sshkeys ~/.ssh/authorized_keys \
+  --ipconfig0 ip=dhcp
+
+# Convert to template (one-way — clones inherit all settings)
+qm template 9000
+
+# Clean up the downloaded image
+rm jammy-server-cloudimg-amd64.img
+```
+
+> **Note:** Template VM 9000 never runs. It is only cloned.
+
+---
+
+## Step 4 — Create docker-vm
+
+```bash
+ssh root@10.0.10.30
+
+# Clone template and configure
+qm clone 9000 100 --name docker-vm --full
+qm set 100 \
+  --memory 8192 \
+  --cores 2 \
+  --cpu host \
+  --ipconfig0 ip=10.0.10.32/24,gw=10.0.10.1 \
+  --nameserver 10.0.10.10
+
+# Expand disk to 80GB before first boot
+qm resize 100 scsi0 80G
 
 qm start 100
 ```
 
-During Ubuntu install: hostname `docker-vm`, IP `10.0.10.32` (static), user `kagiso`, enable SSH.
+Cloud-init configures hostname, injects SSH key, sets static IP, and expands the
+root filesystem — all on first boot. No installer interaction needed.
+
+### First Boot — docker-vm
 
 ```bash
-# After install — install Docker
+# SSH available immediately after boot (key injected by cloud-init)
 ssh kagiso@10.0.10.32
+
+# Install QEMU guest agent — enables graceful shutdown and IP visibility in Proxmox UI
+sudo apt install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent
+
+# Install Docker
 curl -fsSL https://get.docker.com | sudo bash
 sudo usermod -aG docker kagiso
 ```
 
 ---
 
-## Step 4 — Restore Docker Stack
+## Step 5 — Restore Docker Stack
 
 ```bash
 ssh kagiso@10.0.10.32
@@ -202,28 +286,36 @@ docker ps
 
 ---
 
-## Step 5 — Create staging-k3s VM
+## Step 6 — Create staging-k3s VM
 
 ```bash
-# From Proxmox host
-qm create 101 \
-  --name staging-k3s \
+ssh root@10.0.10.30
+
+# Clone template and configure
+qm clone 9000 101 --name staging-k3s --full
+qm set 101 \
   --memory 6144 \
   --cores 2 \
-  --net0 virtio,bridge=vmbr0 \
-  --ide2 local:iso/ubuntu-22.04-live-server.iso,media=cdrom \
-  --scsi0 local-lvm:60 \
-  --boot order=ide2 \
-  --ostype l26
+  --cpu host \
+  --ipconfig0 ip=10.0.10.31/24,gw=10.0.10.1 \
+  --nameserver 10.0.10.10
+
+# Expand disk to 60GB before first boot
+qm resize 101 scsi0 60G
 
 qm start 101
 ```
 
-During Ubuntu install: hostname `staging`, IP `10.0.10.31` (static), user `kagiso`, enable SSH.
+### First Boot — staging-k3s
 
 ```bash
-# Install k3s (single-node)
 ssh kagiso@10.0.10.31
+
+# Install QEMU guest agent
+sudo apt install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent
+
+# Install k3s (single-node)
 curl -sfL https://get.k3s.io | sh -s - \
   --disable traefik \
   --write-kubeconfig-mode 644
@@ -233,7 +325,7 @@ kubectl get nodes
 
 ---
 
-## Step 6 — Bootstrap Flux on Staging
+## Step 7 — Bootstrap Flux on Staging
 
 From the RPi (`ssh kagiso@10.0.10.10`):
 
@@ -258,7 +350,7 @@ flux get helmreleases -A
 
 ---
 
-## Step 7 — Enable Staging Promotion Gate
+## Step 8 — Enable Staging Promotion Gate
 
 Once staging is healthy, add the `STAGING_KUBECONFIG` GitHub Actions secret:
 
