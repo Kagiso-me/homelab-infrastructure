@@ -1,6 +1,6 @@
 # Staging platform — mirrors prod with reduced resource limits.
 # Staging uses the letsencrypt-staging ClusterIssuer (already defined in platform/security).
-# MetalLB IP pool for staging: 10.0.10.120-10.0.10.125 (subset of prod pool).
+# MetalLB IP pool for staging: 10.0.10.190-10.0.10.199 (patched via platform-networking-config).
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -21,6 +21,33 @@ spec:
     provider: sops
     secretRef:
       name: sops-age
+---
+# Separate kustomization for MetalLB CRs (IPAddressPool, L2Advertisement).
+# Must depend on platform-networking so MetalLB CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-networking-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/networking/metallb-config
+  prune: true
+  dependsOn:
+    - name: platform-networking
+  patches:
+    - patch: |
+        - op: replace
+          path: /spec/addresses/0
+          value: 10.0.10.190-10.0.10.199
+      target:
+        kind: IPAddressPool
+        name: homelab-pool
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
