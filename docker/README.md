@@ -8,7 +8,7 @@
 > and the [ops-log entry](../docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md) for context.
 
 **Hostname:** `docked`
-**IP:** `10.0.10.20`
+**IP:** `10.0.10.32`
 
 **OS:** Ubuntu Server 22.04 LTS
 **Role:** Self-hosted media stack running as Docker containers
@@ -20,12 +20,12 @@
 This host is **not accessed directly** from your laptop. All SSH sessions go through the Raspberry Pi:
 
 ```
-Laptop → Raspberry Pi (10.0.10.80) → Docker host (10.0.10.20)
+Laptop → Raspberry Pi (10.0.10.10) → Docker VM (10.0.10.32)
 ```
 
 ```bash
 # From the RPi
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 ```
 
 This keeps the media server off the direct-access list and centralises management through the control hub.
@@ -36,13 +36,13 @@ This keeps the media server off the direct-access list and centralises managemen
 
 | Service | Purpose | Port / URL |
 |---------|---------|-----------|
-| Jellyfin | Media server (movies, TV, music) | http://10.0.10.20:8096 |
-| Sonarr | TV show automation | http://10.0.10.20:8989 |
-| Radarr | Movie automation | http://10.0.10.20:7878 |
-| Prowlarr | Indexer management | http://10.0.10.20:9696 |
-| qBittorrent | Download client | http://10.0.10.20:8080 |
-| Nginx Proxy Manager | Reverse proxy + SSL | http://10.0.10.20:81 |
-| Portainer | Docker management UI | http://10.0.10.20:9000 |
+| Jellyfin | Media server (movies, TV, music) | http://10.0.10.32:8096 |
+| Sonarr | TV show automation | http://10.0.10.32:8989 |
+| Radarr | Movie automation | http://10.0.10.32:7878 |
+| Prowlarr | Indexer management | http://10.0.10.32:9696 |
+| qBittorrent | Download client | http://10.0.10.32:8080 |
+| Nginx Proxy Manager | Reverse proxy + SSL | http://10.0.10.32:81 |
+| Portainer | Docker management UI | http://10.0.10.32:9000 |
 | Watchtower | Automatic container updates | *(runs on schedule)* |
 
 > Update this table to match your actual running services.

@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 09 of 13
+**Guide:** 09 of 14
 
 > The final step in building the platform is enabling **application delivery**.
 >
@@ -232,36 +232,47 @@ Grafana pod
 
 ---
 
-# TLS with cert-manager
+# TLS with cert-manager and Traefik
 
-TLS certificates are issued automatically using **cert-manager**.
+TLS certificates are issued automatically by **cert-manager** using a single wildcard
+certificate (`*.kagiso.me`) stored in the `ingress` namespace as `wildcard-kagiso-me-tls`.
+Traefik's `TLSStore` is configured to use this as the default certificate for all
+`[websecure]` entry points.
 
-Example IngressRoute with TLS:
+**No per-service Certificate resource is needed.** Applications use TLS by adding `tls: {}`
+to their IngressRoute — Traefik serves the wildcard cert automatically:
 
 ```yaml
-tls:
-  certResolver: letsencrypt
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`myapp.kagiso.me`)
+      kind: Rule
+      services:
+        - name: myapp
+          port: 8080
+  tls: {}    # ← uses wildcard-kagiso-me-tls from Traefik default TLSStore
 ```
 
-Certificate lifecycle:
+Certificate lifecycle (one-time, managed by cert-manager):
 
 ```
-Ingress created
+cert-manager requests *.kagiso.me from Let's Encrypt
       │
       ▼
-cert-manager requests certificate
+DNS-01 challenge: cert-manager writes TXT record to Cloudflare
       │
       ▼
-Let's Encrypt validates domain
+Let's Encrypt validates record (~30–120 seconds)
       │
       ▼
-TLS secret created
+wildcard-kagiso-me-tls Secret created in ingress namespace
       │
       ▼
-Traefik serves HTTPS
+Traefik TLSStore serves it to all [websecure] IngressRoutes
 ```
 
-Certificates renew automatically before expiration.
+cert-manager renews the wildcard cert automatically before expiration (typically 60 days before).
 
 ---
 

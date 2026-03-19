@@ -8,7 +8,7 @@
 
 **Quick Reference — Host Access:**
 - RPi Control Hub: `ssh kagiso@10.0.10.10`
-- Docker Media Server: `ssh kagiso@10.0.10.20`
+- Docker Media Server: `ssh kagiso@10.0.10.32`
 - TrueNAS: `ssh admin@10.0.10.80` or UI at http://10.0.10.80
 - k3s Control Plane (tywin): `ssh kagiso@10.0.10.11`
 - NFS mounts on Docker host: `/mnt/media`, `/mnt/downloads`, `/mnt/archive`
@@ -37,29 +37,29 @@
 | Field | Value |
 |-------|-------|
 | Severity | Critical |
-| Threshold | Host `10.0.10.20` unreachable for > 2 minutes (Prometheus up == 0) |
+| Threshold | Host `10.0.10.32` unreachable for > 2 minutes (Prometheus up == 0) |
 | First Response | 10 minutes |
 
 ### What This Alert Means
 
-The Docker media server at `10.0.10.20` is not responding to Prometheus scrapes. The host may be powered off, crashed, or has lost network connectivity. All media services (Plex, *arr stack, etc.) are down.
+The Docker media server at `10.0.10.32` is not responding to Prometheus scrapes. The host may be powered off, crashed, or has lost network connectivity. All media services (Plex, *arr stack, etc.) are down.
 
 ### Diagnostic Steps
 
 1. First, verify from the RPi that the host is truly unreachable:
    ```bash
    ssh kagiso@10.0.10.10
-   ping -c 4 10.0.10.20
+   ping -c 4 10.0.10.32
    ```
 
 2. Attempt SSH:
    ```bash
-   ssh -o ConnectTimeout=10 kagiso@10.0.10.20
+   ssh -o ConnectTimeout=10 kagiso@10.0.10.32
    ```
 
 3. Check if the host is visible on the network (ARP):
    ```bash
-   arp -n | grep 10.0.10.20
+   arp -n | grep 10.0.10.32
    # No entry = host is not broadcasting (powered off or network issue)
    ```
 
@@ -80,14 +80,14 @@ The Docker media server at `10.0.10.20` is not responding to Prometheus scrapes.
 
 7. Once the host is back online, verify Docker is running:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    systemctl status docker
    docker ps
    ```
 
 8. Check system logs for crash cause:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    journalctl -b -1 | tail -50  # logs from previous boot
    dmesg | tail -30
    ```
@@ -106,8 +106,8 @@ The Docker media server at `10.0.10.20` is not responding to Prometheus scrapes.
 
 ```bash
 ssh kagiso@10.0.10.10
-ping -c 2 10.0.10.20
-ssh kagiso@10.0.10.20 "docker ps && df -h /mnt/media"
+ping -c 2 10.0.10.32
+ssh kagiso@10.0.10.32 "docker ps && df -h /mnt/media"
 # All containers running, NFS mounts present
 ```
 
@@ -123,13 +123,13 @@ ssh kagiso@10.0.10.20 "docker ps && df -h /mnt/media"
 
 ### What This Alert Means
 
-A Docker container on the media server (10.0.10.20) has exited and is not being restarted automatically. The container may have crashed, been stopped manually, or its restart policy may be `no` or `on-failure` with exceeded retries.
+A Docker container on the media server (10.0.10.32) has exited and is not being restarted automatically. The container may have crashed, been stopped manually, or its restart policy may be `no` or `on-failure` with exceeded retries.
 
 ### Diagnostic Steps
 
 1. SSH to the Docker host and identify the stopped container:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep -v "Up"
    ```
 
@@ -188,7 +188,7 @@ A Docker container on the media server (10.0.10.20) has exited and is not being 
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 docker ps | grep <container-name>
 # Container should show "Up X minutes"
 ```
@@ -211,7 +211,7 @@ A Docker container on the media server is in a restart loop. Unlike Kubernetes C
 
 1. Check restart count and current state:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    docker inspect <container-name> --format='Restarts: {{.RestartCount}} Status: {{.State.Status}}'
    ```
 
@@ -257,7 +257,7 @@ A Docker container on the media server is in a restart loop. Unlike Kubernetes C
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 docker stats --no-stream <container-name>
 docker inspect <container-name> --format='Restarts: {{.RestartCount}}'
 # Restart count should stop increasing
@@ -270,18 +270,18 @@ docker inspect <container-name> --format='Restarts: {{.RestartCount}}'
 | Field | Value |
 |-------|-------|
 | Severity | Critical |
-| Threshold | Disk usage on local filesystem of 10.0.10.20 > 90% |
+| Threshold | Disk usage on local filesystem of 10.0.10.32 > 90% |
 | First Response | 15 minutes |
 
 ### What This Alert Means
 
-The local disk on the Docker media server (`10.0.10.20`) is over 90% full. Note: `/mnt/media`, `/mnt/downloads`, and `/mnt/archive` are NFS mounts and have their own alerts. This alert refers to the root or Docker data partition.
+The local disk on the Docker media server (`10.0.10.32`) is over 90% full. Note: `/mnt/media`, `/mnt/downloads`, and `/mnt/archive` are NFS mounts and have their own alerts. This alert refers to the root or Docker data partition.
 
 ### Diagnostic Steps
 
 1. SSH to Docker host and check all filesystems:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    df -h
    # Identify which partition is full (usually / or /var)
    ```
@@ -347,7 +347,7 @@ The local disk on the Docker media server (`10.0.10.20`) is over 90% full. Note:
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 df -h /
 # Should be below 85%
 docker system df
@@ -371,7 +371,7 @@ The Docker media server's RAM is consistently over 85% utilized. This risks trig
 
 1. Check overall memory usage:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    free -h
    cat /proc/meminfo | grep -E "MemTotal|MemFree|MemAvailable|Cached|Buffers"
    ```
@@ -418,7 +418,7 @@ The Docker media server's RAM is consistently over 85% utilized. This risks trig
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 free -h
 docker stats --no-stream | sort -k4 -rn | head -5
 # Available memory should be >15%
@@ -436,13 +436,13 @@ docker stats --no-stream | sort -k4 -rn | head -5
 
 ### What This Alert Means
 
-One or more NFS mounts from TrueNAS (10.0.10.80) are missing on the Docker host (10.0.10.20). All media containers that depend on these mounts will fail to read/write files. This typically causes immediate container failures or silent data issues.
+One or more NFS mounts from TrueNAS (10.0.10.80) are missing on the Docker host (10.0.10.32). All media containers that depend on these mounts will fail to read/write files. This typically causes immediate container failures or silent data issues.
 
 ### Diagnostic Steps
 
 1. SSH to Docker host and check current mounts:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    mount | grep nfs
    ls -la /mnt/media /mnt/downloads /mnt/archive
    ```
@@ -480,7 +480,7 @@ One or more NFS mounts from TrueNAS (10.0.10.80) are missing on the Docker host 
 
 7. Check dmesg for NFS errors:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    dmesg | grep -i "nfs\|mount" | tail -20
    ```
 
@@ -495,14 +495,14 @@ One or more NFS mounts from TrueNAS (10.0.10.80) are missing on the Docker host 
 |-----------|--------|
 | TrueNAS unreachable | See [TrueNASDown](#truenasdown) |
 | TrueNAS up, NFS not exporting | Restart NFS service in TrueNAS UI; check shares config |
-| Mount fails with "access denied" | Check NFS export permissions on TrueNAS for 10.0.10.20 |
+| Mount fails with "access denied" | Check NFS export permissions on TrueNAS for 10.0.10.32 |
 | Mount succeeds but containers broken | Restart affected containers |
 | Stale NFS handle errors | `sudo umount -l /mnt/media && sudo mount /mnt/media` |
 
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 mount | grep nfs
 ls /mnt/media/ | head -5  # Should show media files
 docker ps | grep -v "Up"  # All containers should be running
@@ -534,7 +534,7 @@ The Raspberry Pi control hub at `10.0.10.10` is not responding. This host runs k
 2. Check if other hosts on the same subnet are up:
    ```bash
    ping -c 2 10.0.10.11  # tywin
-   ping -c 2 10.0.10.20  # docker host
+   ping -c 2 10.0.10.32  # docker host
    ```
 
 3. If only RPi is unreachable:
@@ -775,7 +775,7 @@ TrueNAS SCALE at `10.0.10.80` is not responding to Prometheus scrapes. This is t
 
 8. After TrueNAS recovers, force remount on Docker host:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    sudo umount -l /mnt/media /mnt/downloads /mnt/archive 2>/dev/null
    sudo mount -a
    mount | grep nfs
@@ -800,7 +800,7 @@ ssh admin@10.0.10.80 "zpool status | grep state"
 # state: ONLINE
 
 # Verify Docker host can access NFS again:
-ssh kagiso@10.0.10.20 "ls /mnt/media | head -3"
+ssh kagiso@10.0.10.32 "ls /mnt/media | head -3"
 ```
 
 ---

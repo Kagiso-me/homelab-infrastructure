@@ -107,7 +107,7 @@ Complete the installation and reboot into the new system.
 
 The Docker host must have a **predictable IP address**. NFS mounts, monitoring targets, and reverse proxy configurations all depend on it.
 
-**Target IP: `10.0.10.20`**
+**Target IP: `10.0.10.32`**
 
 Ubuntu Server uses Netplan for network configuration. Locate the active config file:
 
@@ -130,7 +130,7 @@ network:
     enp3s0:                  # ← replace with your interface name (check: ip link show)
       dhcp4: no
       addresses:
-        - 10.0.10.20/24
+        - 10.0.10.32/24
       routes:
         - to: default
           via: 10.0.10.1
@@ -210,7 +210,7 @@ ED25519 is preferred over RSA. It produces shorter keys with stronger security p
 ### Step 2 — Copy the Public Key to the Server
 
 ```bash
-ssh-copy-id kagiso@10.0.10.20
+ssh-copy-id kagiso@10.0.10.32
 ```
 
 Enter the password **once**. The public key is appended to:
@@ -224,7 +224,7 @@ Enter the password **once**. The public key is appended to:
 Open a **new terminal window** and test:
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 ```
 
 You must log in **without being prompted for a password**.
@@ -271,7 +271,7 @@ sudo systemctl restart ssh
 Verify from a **new terminal window** that SSH still works before closing the existing session:
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 ```
 
 ---
@@ -470,7 +470,7 @@ The `passwordauthentication` line must read `no`.
 This guide is complete when all of the following are true:
 
 - [ ] Ubuntu Server is installed and booted
-- [ ] Static IP `10.0.10.20` is assigned and persistent across reboots
+- [ ] Static IP `10.0.10.32` is assigned and persistent across reboots
 - [ ] SSH key login works for user `kagiso` from your workstation
 - [ ] Password authentication is disabled — `PasswordAuthentication no` is confirmed
 - [ ] Root login is disabled — `PermitRootLogin no` is confirmed

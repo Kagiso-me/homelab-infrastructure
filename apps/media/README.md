@@ -2,7 +2,7 @@
 
 Flux Kustomizations for media applications (Jellyfin, Sonarr, Radarr, etc.).
 
-> **Status: Placeholder** — Media applications currently run on the Docker host (`10.0.10.20`), not on the Kubernetes cluster. See [docker/](../../docker/) for the Docker-based media stack.
+> **Status: Placeholder** — Media applications currently run on the Docker VM (`10.0.10.32`), not on the Kubernetes cluster. See [docker/](../../docker/) for the Docker-based media stack.
 >
 > This directory is reserved for future migration of media workloads to Kubernetes if desired.
 

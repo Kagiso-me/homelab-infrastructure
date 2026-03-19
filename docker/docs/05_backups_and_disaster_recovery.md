@@ -23,7 +23,7 @@ graph TD
     L3["Layer 3 - Media library\nTrueNAS ZFS snapshots\nHourly/daily/weekly"]
     L4["Layer 4 - Offsite\nTrueNAS to Backblaze B2\nNightly - 30-day retention"]
 
-    DockerHost["Docker Host\n10.0.10.20"] --> L1
+    DockerHost["Docker Host\n10.0.10.32"] --> L1
     DockerHost --> L2
     L2 -->|"NFS write"| TrueNAS["TrueNAS\n10.0.10.80\n/mnt/archive/backups/docker"]
     L3 --> TrueNAS
@@ -314,7 +314,7 @@ sequenceDiagram
 
 Follow [Guide 01 — Host Installation & Hardening](./01_host_installation_and_hardening.md).
 
-Configure the same static IP: `10.0.10.20`. During Ubuntu installation, enable OpenSSH Server.
+Configure the same static IP: `10.0.10.32`. During Ubuntu installation, enable OpenSSH Server.
 
 **Step 2 — Install Docker and create directories** (~10 min)
 
@@ -402,10 +402,10 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 docker ps --filter "status=restarting"
 
 # API health checks
-curl -s http://10.0.10.20:8989/ping   # Sonarr → "OK"
-curl -s http://10.0.10.20:7878/ping   # Radarr → "OK"
-curl -s http://10.0.10.20:8096/health # Jellyfin → health JSON
-curl -s http://10.0.10.20:9090/-/healthy  # Prometheus → "Prometheus Server is Healthy."
+curl -s http://10.0.10.32:8989/ping   # Sonarr → "OK"
+curl -s http://10.0.10.32:7878/ping   # Radarr → "OK"
+curl -s http://10.0.10.32:8096/health # Jellyfin → health JSON
+curl -s http://10.0.10.32:9090/-/healthy  # Prometheus → "Prometheus Server is Healthy."
 ```
 
 **Step 7 — Reconfigure Nginx Proxy Manager**
@@ -444,7 +444,7 @@ Run this checklist monthly. Do not wait for a disaster to discover that backups 
     ls /mnt/archive/backups/docker/ | wc -l
 
 ✓ Prometheus backup metric is recent (timestamp within 25 hours):
-    curl -s 'http://10.0.10.20:9090/api/v1/query?query=docker_backup_last_success_timestamp'
+    curl -s 'http://10.0.10.32:9090/api/v1/query?query=docker_backup_last_success_timestamp'
 
 ✓ Grafana alert DockerBackupTooOld is configured and NOT firing
 

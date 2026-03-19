@@ -3,7 +3,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 07 of 13
+**Guide:** 07 of 14
 
 > A system that cannot be observed cannot be operated. You don't know it's
 > broken until a user tells you — and by then the data that would explain
@@ -89,7 +89,7 @@ graph TD
         prom_stack["kube-prometheus-stack\n(Prometheus + Grafana + AM)"]
     end
 
-    subgraph docker["Docker Media Server (10.0.10.20)"]
+    subgraph docker["Docker Media Server (10.0.10.32)"]
         ne_docker["node-exporter :9100"]
         cadvisor["cAdvisor :8080"]
         backup_txt["textfile collector\n(backup timestamps)"]
@@ -148,7 +148,7 @@ graph TD
 | **Loki + Promtail** | Kubernetes `monitoring` namespace | Log aggregation from all k8s pods |
 | **node-exporter** | All 6 hosts (DaemonSet on k8s, binary on others) | Host-level metrics: CPU, memory, disk, network, textfile |
 | **smartctl-exporter** | TrueNAS (10.0.10.80) | Per-disk SMART attribute metrics |
-| **cAdvisor** | Docker host (10.0.10.20) | Per-container resource metrics |
+| **cAdvisor** | Docker host (10.0.10.32) | Per-container resource metrics |
 | **Alertmanager** | Kubernetes `monitoring` namespace | Alert routing, deduplication, grouping, inhibition |
 
 ---
@@ -334,7 +334,7 @@ The Docker-hosted Prometheus at `docker/config/prometheus/prometheus.yml` handle
 additionalScrapeConfigs:
   - job_name: node-docker-host
     static_configs:
-      - targets: ['10.0.10.20:9100']
+      - targets: ['10.0.10.32:9100']
         labels:
           instance: docker-host
 
@@ -360,7 +360,7 @@ additionalScrapeConfigs:
 
   - job_name: cadvisor-docker
     static_configs:
-      - targets: ['10.0.10.20:8080']
+      - targets: ['10.0.10.32:8080']
         labels:
           instance: docker-host
     metric_relabel_configs:
@@ -382,8 +382,8 @@ For Prometheus to scrape these targets, ensure the following ports are reachable
 
 | Host | Port | Service |
 |------|------|---------|
-| `10.0.10.20` | `9100` | node-exporter (Docker host) |
-| `10.0.10.20` | `8080` | cAdvisor (Docker host) |
+| `10.0.10.32` | `9100` | node-exporter (Docker host) |
+| `10.0.10.32` | `8080` | cAdvisor (Docker host) |
 | `10.0.10.80` | `9100` | node-exporter (TrueNAS) |
 | `10.0.10.80` | `9633` | smartctl-exporter (TrueNAS) |
 | `10.0.10.10`  | `9100` | node-exporter (RPi) |

@@ -148,10 +148,10 @@ The platform is structured as layered infrastructure. Traffic enters at the netw
 ```mermaid
 graph TD
     User["User / Browser"] --> Router["Home Router\n10.0.10.1"]
-    Router --> NPM["Nginx Proxy Manager\n10.0.10.20:80/443\nTLS Termination + Routing"]
+    Router --> NPM["Nginx Proxy Manager\n10.0.10.32:80/443\nTLS Termination + Routing"]
     NPM --> MediaStack["Media Stack\nJellyfin - Sonarr - Radarr\nProwlarr - SABnzbd - Overseerr"]
     NPM --> MonStack["Monitoring Stack\nGrafana - Prometheus - Loki"]
-    MediaStack --> DockerHost["Docker Host\n10.0.10.20\nUbuntu Server"]
+    MediaStack --> DockerHost["Docker Host\n10.0.10.32\nUbuntu Server"]
     MonStack --> DockerHost
     DockerHost -->|NFS| TrueNAS["TrueNAS\n/mnt/tera\n/mnt/tera"]
 

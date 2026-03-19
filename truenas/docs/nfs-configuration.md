@@ -10,8 +10,8 @@ and backup targets for the control plane and Docker host.
 | Share path | Purpose | Clients |
 |-----------|---------|---------|
 | `/mnt/core/k8s-volumes` | Kubernetes persistent volume claims | `10.0.10.0/24` |
-| `/mnt/archive/backups` | etcd snapshots + Docker appdata backups | `10.0.10.11`, `10.0.10.20` |
-| `/mnt/tera/media` | Media library | `10.0.10.20` |
+| `/mnt/archive/backups` | etcd snapshots + Docker appdata backups | `10.0.10.11`, `10.0.10.31`, `10.0.10.32` |
+| `/mnt/tera/media` | Media library | `10.0.10.32` |
 
 ---
 
@@ -39,7 +39,7 @@ Navigate to: **Shares → Unix (NFS) Shares → Add**
 | Description | k8s etcd snapshots + Docker appdata backups |
 | Maproot User | `root` |
 | Maproot Group | `wheel` |
-| Allowed Hosts | `10.0.10.11` (tywin, control plane), `10.0.10.20` (Docker host) |
+| Allowed Hosts | `10.0.10.11` (tywin, control plane), `10.0.10.31` (staging-k3s VM), `10.0.10.32` (Docker VM) |
 | Enable NFSv4 | Yes |
 
 ### Share: media
@@ -50,7 +50,7 @@ Navigate to: **Shares → Unix (NFS) Shares → Add**
 | Description | Media library (movies and TV series) |
 | Maproot User | `root` |
 | Maproot Group | `wheel` |
-| Allowed Hosts | `10.0.10.20` |
+| Allowed Hosts | `10.0.10.32` (Docker VM) |
 | Enable NFSv4 | Yes |
 
 ---
@@ -80,9 +80,9 @@ Expected output:
 
 ```
 Export list for 10.0.10.80:
-/mnt/archive/backups   10.0.10.11 10.0.10.20
+/mnt/archive/backups   10.0.10.11 10.0.10.31 10.0.10.32
 /mnt/core/k8s-volumes  10.0.10.0/24
-/mnt/tera/media        10.0.10.20
+/mnt/tera/media        10.0.10.32
 ```
 
 Test mounting manually:

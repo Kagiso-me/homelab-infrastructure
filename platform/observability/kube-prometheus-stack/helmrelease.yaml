@@ -63,7 +63,6 @@ spec:
         podMonitorSelectorNilUsesHelmValues: false
         ruleSelectorNilUsesHelmValues: false
         # External scrape targets — hosts outside the k3s cluster.
-        # docker-vm uses post-Proxmox IP (10.0.10.21) — will show as down until migration completes.
         additionalScrapeConfigs:
           - job_name: node-rpi
             static_configs:
@@ -72,16 +71,23 @@ spec:
                   instance: rpi
                   role: control-hub
 
+          - job_name: node-proxmox
+            static_configs:
+              - targets: ["10.0.10.30:9100"]
+                labels:
+                  instance: proxmox
+                  role: hypervisor
+
           - job_name: node-docker-vm
             static_configs:
-              - targets: ["10.0.10.21:9100"]
+              - targets: ["10.0.10.32:9100"]
                 labels:
                   instance: docker-vm
                   role: docker-host
 
           - job_name: cadvisor-docker-vm
             static_configs:
-              - targets: ["10.0.10.21:8080"]
+              - targets: ["10.0.10.32:8080"]
                 labels:
                   instance: docker-vm
 

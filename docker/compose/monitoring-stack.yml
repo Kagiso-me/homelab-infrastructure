@@ -1,6 +1,6 @@
 # =============================================================================
 # Monitoring Exporters — Docker Compose
-# Host: docker-vm (10.0.10.21) | TZ: Africa/Johannesburg
+# Host: docker-vm (10.0.10.32) | TZ: Africa/Johannesburg
 #
 # Prometheus, Grafana, Loki, and Alertmanager have been decommissioned from
 # this host. Monitoring is now consolidated into the k3s kube-prometheus-stack.
@@ -20,7 +20,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Node Exporter — host hardware and OS metrics
-  # Scraped by k3s Prometheus at 10.0.10.21:9100
+  # Scraped by k3s Prometheus at 10.0.10.32:9100
   # ---------------------------------------------------------------------------
   node-exporter:
     image: prom/node-exporter:latest
@@ -48,7 +48,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # cAdvisor — Docker container resource and performance metrics
-  # Scraped by k3s Prometheus at 10.0.10.21:8080
+  # Scraped by k3s Prometheus at 10.0.10.32:8080
   # ---------------------------------------------------------------------------
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest

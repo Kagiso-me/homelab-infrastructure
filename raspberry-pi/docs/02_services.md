@@ -14,7 +14,7 @@ Before adding a service, apply this test:
 
 > Does this service provide genuine homelab-wide value, and is it lightweight enough that it won't impair the RPi's control-plane role?
 
-If the answer is yes to both, it belongs here. If not, it belongs on the Docker host (`10.0.10.20`) or the k3s cluster.
+If the answer is yes to both, it belongs here. If not, it belongs on the Docker VM (`10.0.10.32`) or the k3s cluster.
 
 ---
 
@@ -32,7 +32,7 @@ graph TD
 
     subgraph homelab ["Homelab Nodes"]
         TrueNAS["TrueNAS 10.0.10.80"]
-        Docker["Docker Host 10.0.10.20"]
+        Docker["Docker VM 10.0.10.32"]
         tywin["tywin 10.0.10.11"]
         jaime["jaime 10.0.10.12"]
         tyrion["tyrion 10.0.10.13"]
@@ -172,7 +172,7 @@ docker compose up -d
 | Name | Type | URL / Host |
 |------|------|------------|
 | TrueNAS UI | HTTP(s) | `http://10.0.10.80` |
-| Docker Host | TCP Port | `10.0.10.20:22` |
+| Docker VM | TCP Port | `10.0.10.32:22` |
 | k3s API | TCP Port | `10.0.10.11:6443` |
 | tywin SSH | TCP Port | `10.0.10.11:22` |
 | jaime SSH | TCP Port | `10.0.10.12:22` |

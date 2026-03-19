@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐☆☆☆ (7/10)
-**Guide:** 03 of 13
+**Guide:** 03 of 14
 
 > Kubernetes clusters running on bare-metal do not provide built‑in load balancers or ingress gateways.
 >

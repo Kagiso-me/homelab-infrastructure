@@ -40,7 +40,7 @@ Observability turns reactive firefighting into proactive operations.
 ## Monitoring Architecture
 
 ```
-Docker Host (10.0.10.20)
+Docker Host (10.0.10.32)
 ├── Node Exporter :9100 ──────────────────────► Prometheus :9090
 ├── cAdvisor :8080 ───────────────────────────► Prometheus
 ├── /var/lib/node_exporter/textfile_collector/ ► Prometheus (backup metrics)
@@ -155,7 +155,7 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
-        replacement: 'docker-host (10.0.10.20)'
+        replacement: 'docker-host (10.0.10.32)'
 
   # Per-container resource metrics from cAdvisor
   - job_name: cadvisor
@@ -164,7 +164,7 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
-        replacement: 'docker-host (10.0.10.20)'
+        replacement: 'docker-host (10.0.10.32)'
 
   # Prometheus self-monitoring
   - job_name: prometheus
@@ -555,7 +555,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=changeme    # Change immediately after first login
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://10.0.10.20:3000
+      - GF_SERVER_ROOT_URL=http://10.0.10.32:3000
       - GF_LOG_LEVEL=warn
     volumes:
       - /srv/docker/appdata/grafana:/var/lib/grafana
@@ -668,10 +668,10 @@ services:
 > view. This means it cannot use the `monitoring-net` Docker network to reach Prometheus.
 > Instead, Prometheus scrapes `node-exporter:9100` by using the container name only when
 > node-exporter is on the same bridge network. Because node-exporter uses host networking,
-> Prometheus must use the host IP `10.0.10.20:9100` or `host-gateway:9100` in its scrape
+> Prometheus must use the host IP `10.0.10.32:9100` or `host-gateway:9100` in its scrape
 > config, or both must share the host network. The config above uses `node-exporter:9100`
 > which works when Prometheus has a `host-gateway` alias or both containers are on the same
-> machine. If Prometheus shows the node target as DOWN, change the target to `10.0.10.20:9100`.
+> machine. If Prometheus shows the node target as DOWN, change the target to `10.0.10.32:9100`.
 
 ---
 
@@ -679,7 +679,7 @@ services:
 
 ### First Login
 
-Open `http://10.0.10.20:3000`
+Open `http://10.0.10.32:3000`
 
 Default credentials: `admin` / `admin` (or whatever was set in `GF_SECURITY_ADMIN_PASSWORD`).
 
@@ -762,7 +762,7 @@ Node Exporter reads them and exposes the metrics to Prometheus automatically.
 
 ## Step 11 — Key Prometheus Queries to Bookmark
 
-Open Prometheus at `http://10.0.10.20:9090` and use the **Graph** tab to run these queries.
+Open Prometheus at `http://10.0.10.32:9090` and use the **Graph** tab to run these queries.
 They are also useful as the basis for Grafana panels.
 
 ```promql
@@ -920,7 +920,7 @@ docker_backup_duration_seconds 142
 Verify the metric is visible in Prometheus:
 
 ```
-http://10.0.10.20:9090/graph?g0.expr=docker_backup_last_success_timestamp
+http://10.0.10.32:9090/graph?g0.expr=docker_backup_last_success_timestamp
 ```
 
 If the metric does not appear, check that the node-exporter compose command includes
@@ -944,7 +944,7 @@ All seven lines must show `Up` (with `healthy` for those that have a healthcheck
 
 ### 2. Prometheus targets all UP
 
-Open `http://10.0.10.20:9090/targets`
+Open `http://10.0.10.32:9090/targets`
 
 All four jobs must show state `UP`:
 - `node` (1/1 up)
@@ -1023,12 +1023,12 @@ Delete the test rule after confirming delivery.
 
 | Service | URL | Credentials |
 |---------|-----|------------|
-| Grafana | `http://10.0.10.20:3000` | admin / (set in compose env) |
-| Prometheus | `http://10.0.10.20:9090` | None |
-| Alertmanager | `http://10.0.10.20:9093` | None |
-| cAdvisor | `http://10.0.10.20:8080` | None |
-| Loki API | `http://10.0.10.20:3100` | None |
-| Node Exporter metrics | `http://10.0.10.20:9100/metrics` | None (LAN only) |
+| Grafana | `http://10.0.10.32:3000` | admin / (set in compose env) |
+| Prometheus | `http://10.0.10.32:9090` | None |
+| Alertmanager | `http://10.0.10.32:9093` | None |
+| cAdvisor | `http://10.0.10.32:8080` | None |
+| Loki API | `http://10.0.10.32:3100` | None |
+| Node Exporter metrics | `http://10.0.10.32:9100/metrics` | None (LAN only) |
 
 > **Security:** Prometheus, cAdvisor, Node Exporter, Loki, and Alertmanager expose
 > sensitive system information with no authentication. Never proxy them externally.
@@ -1048,7 +1048,7 @@ Delete the test rule after confirming delivery.
 | Grafana shows "No data" | Data source URL uses localhost | Use container names in data source URLs, not `localhost` |
 | cAdvisor shows no container metrics | Privilege or cgroup mount issue | Ensure `privileged: true` and all cgroup volumes are present |
 | Backup metric stale in Prometheus | Textfile directory not mounted | Check node-exporter container volume: `docker inspect node-exporter \| grep textfile` |
-| Alertmanager not receiving alerts | Prometheus alerting config wrong | Check `http://10.0.10.20:9090/config` for alertmanager URL |
+| Alertmanager not receiving alerts | Prometheus alerting config wrong | Check `http://10.0.10.32:9090/config` for alertmanager URL |
 | Slack not receiving alerts | Wrong webhook URL | Test with: `curl -X POST -H 'Content-type: application/json' --data '{"text":"test"}' <webhook_url>` |
 
 ---

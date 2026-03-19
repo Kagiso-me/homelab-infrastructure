@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 05 of 13
+**Guide:** 05 of 14
 
 > A Kubernetes cluster can technically run workloads anywhere.
 > That flexibility is powerful — but without structure it quickly becomes chaos.

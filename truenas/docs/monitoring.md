@@ -141,7 +141,7 @@ On FreeBSD (TrueNAS CORE), smartctl-exporter must be compiled from source or run
 
 ## Verify the Endpoints
 
-From any host that can reach TrueNAS (e.g., the Prometheus Docker host at `10.0.10.20`):
+From any host that can reach TrueNAS (e.g., the Prometheus Docker VM at `10.0.10.32`):
 
 ```bash
 curl http://10.0.10.80:9100/metrics | head -20

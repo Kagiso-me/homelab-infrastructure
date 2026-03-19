@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 04 of 13
+**Guide:** 04 of 14
 
 > Up to this point the cluster has been built using traditional infrastructure automation.
 > Nodes were prepared with Ansible, Kubernetes was installed, and the networking platform
@@ -110,8 +110,10 @@ notification-controller | handles alerts and events |
 
 # Repository Structure
 
-This repository uses a two-environment layout. Every change lands in `staging` first and
-is automatically promoted to `production` after validation.
+This repository uses a two-environment GitOps model:
+
+- **Staging** (`clusters/staging/`) — a single-node k3s VM on Proxmox. Watches the `main` branch. Every commit to `main` lands here first.
+- **Production** (`clusters/prod/`) — the three-node ThinkCentre cluster (tywin, jaime, tyrion). Watches the `prod` branch. Changes reach here only after staging validation.
 
 ```
 homelab-infrastructure/
@@ -123,8 +125,7 @@ homelab-infrastructure/
 ├── platform/                ← shared platform services (MetalLB, Traefik, cert-manager)
 └── apps/
     ├── base/                ← shared app manifests
-    ├── prod/                ← prod overlay (full resources, production certs)
-    └── staging/             ← staging overlay (reduced resources, staging certs)
+    └── prod/                ← production Kustomize overlay
 ```
 
 | Directory | Purpose |
@@ -134,28 +135,119 @@ homelab-infrastructure/
 `platform/` | Shared platform services — same manifests for both environments |
 `apps/base/` | Shared application manifests |
 `apps/prod/` | Production Kustomize overlay |
-`apps/staging/` | Staging Kustomize overlay |
 
 ## Promotion Model
 
-```
-git push → main
-    ↓
-GitHub Actions: kubeconform + kustomize build
-    ↓
-Flux staging reconciles (watches main)
-    ↓
-GitHub Actions: staging health checks
-    ↓
-GitHub Actions: auto-merge main → prod branch
-    ↓
-Flux prod reconciles (watches prod branch)
+Every change starts in `main` and is validated on staging before reaching production.
+
+```mermaid
+graph LR
+    Dev["git push → main"] --> Staging["Staging cluster<br/>reconciles immediately"]
+    Staging -->|"staging healthy"| Promote["git push origin main:prod"]
+    Promote --> Prod["Prod cluster<br/>reconciles prod branch"]
+    style Staging fill:#276749,color:#fff
+    style Prod fill:#2b6cb0,color:#fff
 ```
 
-Changes never reach production without passing through staging first.
-The promotion is fully automated — no manual merge required.
+**Promotion is a single git command:**
 
-Flux continuously reconciles the manifests stored here.
+```bash
+# After verifying staging is healthy:
+git push origin main:prod
+```
+
+This fast-forwards the `prod` branch to the current `main` HEAD. The prod cluster's
+source-controller detects the new commit on `prod` within one minute and begins reconciliation.
+
+Staging is never bypassed. Configuration drift between environments is impossible — both
+clusters pull from the same `platform/` and `apps/` paths; only the branch differs.
+
+## Automated Gated Pipeline
+
+Promotion is handled automatically by GitHub Actions (`.github/workflows/promote-to-prod.yml`).
+Pushing to `main` triggers a fully gated 4-stage pipeline — **production is never touched unless
+staging passes all health checks.**
+
+```mermaid
+flowchart TD
+    Push["git push → main"] --> S1
+
+    subgraph S1["Stage 1 — Validate"]
+        V1["kubeconform schema validation"]
+        V2["kustomize build apps/prod"]
+        V3["kustomize build apps/staging"]
+        V1 --> V2 --> V3
+    end
+
+    S1 -->|pass| S2
+
+    subgraph S2["Stage 2 — Staging Health Check"]
+        H1["Connect runner to homelab via Tailscale"]
+        H2["Wait for staging GitRepository to sync this commit"]
+        H3["kubectl wait kustomizations Ready"]
+        H4["Check: no unhealthy pods"]
+        H5["Smoke test: Traefik responds"]
+        H1 --> H2 --> H3 --> H4 --> H5
+    end
+
+    S2 -->|"staging healthy"| S3
+
+    subgraph S3["Stage 3 — Promote"]
+        P1["git merge main → prod branch"]
+        P2["git push origin prod"]
+        P1 --> P2
+    end
+
+    S3 --> S4
+
+    subgraph S4["Stage 4 — Production Health Check"]
+        PH1["Connect runner to homelab via Tailscale"]
+        PH2["Wait for prod GitRepository to sync promoted commit"]
+        PH3["kubectl wait kustomizations Ready"]
+        PH4["Check: no unhealthy pods"]
+        PH5["Smoke test: Traefik at 10.0.10.110 responds"]
+        PH1 --> PH2 --> PH3 --> PH4 --> PH5
+    end
+
+    S4 -->|pass| Done["Production reconciled ✓"]
+    S1 -->|fail| Abort1["Pipeline blocked — no staging touch"]
+    S2 -->|fail| Abort2["Pipeline blocked — no prod promotion"]
+    S4 -->|fail| Alert["Run marked failed — investigate prod"]
+
+    style S1 fill:#2d3748,color:#fff,stroke:#4a5568
+    style S2 fill:#276749,color:#fff,stroke:#2f855a
+    style S3 fill:#2b4c7e,color:#fff,stroke:#2c5282
+    style S4 fill:#2b6cb0,color:#fff,stroke:#2c5282
+    style Done fill:#276749,color:#fff
+    style Abort1 fill:#742a2a,color:#fff
+    style Abort2 fill:#742a2a,color:#fff
+    style Alert fill:#744210,color:#fff
+```
+
+Health check jobs run on a **self-hosted runner installed on `bran` (10.0.10.10)**, which has
+direct LAN access to both cluster API servers. No VPN or third-party tunnelling is required.
+See [ADR-005](../adr/ADR-005-self-hosted-runners.md) for the full rationale and runner setup instructions.
+
+The pipeline requires two GitHub repository secrets. Add these under
+**Settings → Secrets and variables → Actions** in the GitHub repository.
+
+| Secret | How to get it |
+|--------|--------------|
+| `STAGING_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on the staging VM (server = `10.0.10.31:6443`) |
+| `PROD_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on `tywin` (server = `10.0.10.11:6443`) |
+
+The `127.0.0.1` address in each kubeconfig must be replaced with the node's LAN IP so the
+runner can reach it:
+
+```bash
+# On the staging VM:
+sed 's/127.0.0.1/10.0.10.31/' /etc/rancher/k3s/k3s.yaml
+
+# On tywin:
+sed 's/127.0.0.1/10.0.10.11/' /etc/rancher/k3s/k3s.yaml
+```
+
+Paste the full output as the secret value.
 
 ---
 
@@ -171,10 +263,11 @@ This operation performs three actions:
 
 Once complete the cluster continuously monitors Git for changes.
 
-> **This is a one-time operation per repository.** After the first bootstrap, the generated
-> manifests live in `clusters/prod/flux-system/`. On every subsequent cluster rebuild, the
-> `install-platform.yml` Ansible playbook re-applies those committed manifests and recreates
-> the SSH secret from vault — no manual `flux bootstrap` call needed.
+> **This is a one-time operation per repository.** After the first bootstrap, the
+> `gotk-sync.yaml` manifest (which tells Flux where to pull from and what path to reconcile)
+> lives in `clusters/prod/flux-system/` and is committed to Git. On every subsequent cluster
+> rebuild, the `install-platform.yml` Ansible playbook re-installs the Flux controllers via
+> `flux install` and recreates the SSH secret from vault — no manual `flux bootstrap` call needed.
 
 ---
 
@@ -347,34 +440,26 @@ kubectl get secret sops-age -n flux-system
 
 # First-Time Bootstrap (One-Time Per Repository)
 
-> **Both prod and staging clusters have already been bootstrapped.**
-> These steps are preserved here for reference if the repository ever needs to be re-bootstrapped
-> (e.g., changing the branch, path, or rotating the deploy key).
->
-> For routine cluster rebuilds — reinstalling k3s on the same repo — use the
-> **[Ansible playbook method](#installing-on-a-rebuilt-cluster-ansible)** instead.
+> **This section is mandatory the first time this repository is used with a new cluster.**
+> Once complete, all future cluster rebuilds use the
+> **[Ansible playbook method](#installing-on-a-rebuilt-cluster-ansible)** instead — no manual
+> `flux bootstrap` call is needed again.
 
 ## Step 1 — Complete age Key Setup
 
 Ensure Steps 1–4 above are complete: age and sops installed, `.sops.yaml` updated and
 committed, `sops-age` Secret present in `flux-system`.
 
-## Step 2 — Bootstrap the Cluster
+## Step 2 — Bootstrap Both Clusters
 
-With the secret in place, bootstrap **prod** first (ThinkCentre cluster):
+With the secret in place, bootstrap each cluster. Both clusters use the same repository
+and deploy key; only the branch and path differ.
 
-```bash
-# On the Raspberry Pi (10.0.10.10)
-flux bootstrap git \
-  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
-  --branch=prod \
-  --path=clusters/prod \
-  --private-key-file=$HOME/.ssh/flux_deploy_key
-```
-
-Bootstrap **staging** (single-node k3s on Docker NUC):
+**Bootstrap staging** (single-node VM, Proxmox/NUC at 10.0.10.31). Run with the staging
+cluster's kubeconfig active:
 
 ```bash
+# On the Raspberry Pi (10.0.10.10), with KUBECONFIG pointing at staging
 flux bootstrap git \
   --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
   --branch=main \
@@ -382,28 +467,49 @@ flux bootstrap git \
   --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
 
-Flux will:
+**Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). Run with the prod
+cluster's kubeconfig active:
+
+```bash
+# On the Raspberry Pi (10.0.10.10), with KUBECONFIG pointing at prod
+flux bootstrap git \
+  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
+  --branch=prod \
+  --path=clusters/prod \
+  --private-key-file=$HOME/.ssh/flux_deploy_key
+```
+
+> **Note:** The `prod` branch must exist before bootstrapping prod. Create it if it
+> doesn't exist yet: `git push origin main:prod`
+
+Flux will for each cluster:
 
 - install controllers into the `flux-system` namespace
-- commit `gotk-components.yaml` into the repository
+- commit/update `gotk-sync.yaml` and `kustomization.yaml` into the repository
 - start reconciling from the specified path and branch
 
 ---
 
 # What Bootstrap Creates
 
-After bootstrap the repository will contain:
+After bootstrapping both clusters, the repository will contain:
 
 ```
-clusters/prod/flux-system/
-├── gotk-components.yaml     ← all Flux controller manifests (CRDs + controllers)
-├── gotk-sync.yaml           ← GitRepository (prod branch) + root Kustomization
-└── kustomization.yaml       ← ties the above two files together
+clusters/
+├── prod/flux-system/
+│   ├── gotk-sync.yaml       ← GitRepository (prod branch) + root Kustomization
+│   └── kustomization.yaml   ← ties gotk-sync.yaml into the Kustomize build
+└── staging/flux-system/
+    ├── gotk-sync.yaml       ← GitRepository (main branch) + root Kustomization
+    └── kustomization.yaml
 ```
 
-These manifests describe how Flux connects the cluster to Git. They are committed once and
-reused on every future cluster rebuild — Flux does not need to be re-bootstrapped, just
-re-applied with the SSH key.
+`gotk-sync.yaml` for each cluster defines which branch and path Flux reconciles. These files
+are committed once and reused on every future cluster rebuild.
+
+On rebuilds, `install-platform.yml` uses `flux install` to reinstall the controllers from
+scratch, then applies the committed `gotk-sync.yaml` to reconnect Flux to the repo — no
+re-bootstrap required.
 
 ---
 
@@ -464,7 +570,7 @@ single command — with no manual key handling required.
 This is the **standard procedure for all cluster rebuilds**. It assumes:
 
 - k3s has been reinstalled via `install-cluster.yml`
-- The Flux bootstrap manifests are committed in the repo (`clusters/prod/flux-system/`)
+- `clusters/prod/flux-system/gotk-sync.yaml` is committed in the repo (created during first-time bootstrap)
 - The Flux SSH deploy key is stored in Ansible Vault
 
 ## Ansible Vault Setup (one-time per RPi)
@@ -484,7 +590,7 @@ chmod 600 ~/.vault_pass
 
 ```bash
 cd ~/homelab-infrastructure/ansible
-ansible-vault create ansible/vars/vault.yml
+ansible-vault create vars/vault.yml
 ```
 
 Paste the following into the editor:
@@ -543,9 +649,9 @@ sequenceDiagram
     Note over CP,K8s: Step 1 — Install flux2 CLI
     CP->>CP: curl fluxcd.io/install.sh (if not present)
 
-    Note over CP,K8s: Step 2 — Apply Flux controllers
-    RPi->>CP: Copy clusters/prod/flux-system/gotk-components.yaml
-    CP->>K8s: kubectl apply gotk-components.yaml (CRDs + controllers)
+    Note over CP,K8s: Step 2 — Install Flux controllers
+    CP->>CP: flux install --export (generates CRD + controller manifests)
+    CP->>K8s: kubectl apply (CRDs + controllers)
     CP->>K8s: Wait for source/kustomize/helm/notification controllers Ready
 
     Note over CP,K8s: Step 3 — Create SSH secret
@@ -573,6 +679,8 @@ Traefik, cert-manager, wildcard certificate — is operational by the time the p
 
 When complete, `flux get kustomizations` should show:
 
+On the **prod cluster** (after promoting to the `prod` branch):
+
 ```
 NAME                     REVISION             READY   MESSAGE
 flux-system              prod@sha1:xxxxxxxx   True    Applied revision: prod@sha1:xxxxxxxx
@@ -583,6 +691,16 @@ platform-storage         prod@sha1:xxxxxxxx   True    Applied revision: ...
 platform-upgrade         prod@sha1:xxxxxxxx   True    Applied revision: ...
 platform-observability   prod@sha1:xxxxxxxx   True    Applied revision: ...
 apps                     prod@sha1:xxxxxxxx   True    Applied revision: ...
+```
+
+On the **staging cluster** (after a `git push` to `main`):
+
+```
+NAME                     REVISION             READY   MESSAGE
+flux-system              main@sha1:xxxxxxxx   True    Applied revision: main@sha1:xxxxxxxx
+platform-namespaces      main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking      main@sha1:xxxxxxxx   True    Applied revision: ...
+...
 ```
 
 And `flux get helmreleases -A`:
@@ -703,6 +821,10 @@ Flux automatically reconstructs the full platform from Git:
 - MetalLB → Traefik → cert-manager (in dependency order)
 - All kustomizations and HelmReleases
 - The wildcard TLS certificate (re-issued by cert-manager from Let's Encrypt)
+
+> **Production cluster** pulls from the `prod` branch. Ensure the `prod` branch is up to
+> date before running `install-platform.yml` — if it was destroyed with the cluster, push
+> the current `main`: `git push origin main:prod`
 
 Application data (PVC contents) is restored separately via Velero — see [Guide 08](./08-Cluster-Backups.md).
 

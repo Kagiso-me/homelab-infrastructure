@@ -6,7 +6,8 @@
 #
 # What this does (in order):
 #   1. Installs the flux2 CLI on the control plane node
-#   2. Applies the Flux controllers from the committed gotk-components.yaml
+#   2. Installs the Flux controllers via 'flux install --export | kubectl apply'
+#      (generates current controller manifests on-the-fly; no pre-committed file needed)
 #   3. Creates the flux-system SSH deploy key secret (from vault)
 #   4. Applies the GitRepository + Kustomization sync from gotk-sync.yaml
 #   5. Waits for all platform kustomizations to reach Ready state
@@ -21,30 +22,32 @@
 # Those components are fully managed by Flux via GitOps. Installing them here
 # creates duplicate resources that conflict with Flux-managed deployments.
 #
+# TARGET: prod cluster (k3s_controller group — tywin, 10.0.10.11)
+# This playbook is for the PRODUCTION cluster only. The prod cluster watches the
+# `prod` branch of the repository. Before running, ensure `prod` branch is up to date:
+#   git push origin main:prod
+#
+# For the STAGING cluster (single-node VM on Proxmox), bootstrap is done manually
+# via flux bootstrap (see Guide 04). The staging cluster reconciles itself once
+# flux-system is running and gotk-sync.yaml (watching main) is applied.
+#
 # Prerequisites:
 #   - k3s cluster running (install-cluster.yml completed successfully)
-#   - GitHub SSH deploy key added to the homelab-infrastructure repo
-#     (one-time: flux bootstrap github --owner=Kagiso-me --repository=homelab-infrastructure)
+#   - GitHub SSH deploy key added to the homelab-infrastructure repo as a Deploy Key
+#     with write access (GitHub → Settings → Deploy keys → Add deploy key)
 #   - ansible/vars/vault.yml contains:
-#       cloudflare_api_token       — Cloudflare API token (used by cert-manager)
+#       cloudflare_api_token        — Cloudflare API token (used by cert-manager)
 #       flux_github_ssh_private_key — SSH private key for the Flux deploy key
-#       flux_github_known_hosts    — github.com SSH known_hosts entry
+#       flux_github_known_hosts     — github.com SSH known_hosts entry
+#   - clusters/prod/flux-system/gotk-sync.yaml committed in the repo
+#     (defines the GitRepository pointing at the prod branch)
 #
-# Usage:
-#   ansible-playbook -i ansible/inventory/homelab.yml \
-#     ansible/playbooks/lifecycle/install-platform.yml
+# Usage (run from inside ansible/ directory):
+#   cd ~/homelab-infrastructure/ansible
+#   ansible-playbook -i inventory/homelab.yml \
+#     playbooks/lifecycle/install-platform.yml
 #
-# To re-run after a cluster rebuild, the same command applies — idempotent.
-#
-# First-time GitHub deploy key setup (one-time, not automated here):
-#   flux bootstrap github \
-#     --owner=Kagiso-me \
-#     --repository=homelab-infrastructure \
-#     --branch=prod \
-#     --path=clusters/prod \
-#     --personal
-#   # Then add the generated private key to vault:
-#   ansible-vault edit ansible/vars/vault.yml
+# To re-run after a cluster rebuild, the same command applies — fully idempotent.
 
 - name: Bootstrap Flux GitOps and wait for platform convergence
   hosts: k3s_controller
@@ -103,20 +106,17 @@
       tags: [flux]
 
     # ============================================================================
-    # STEP 2 — Apply Flux controllers
-    # gotk-components.yaml was committed by 'flux bootstrap' and contains all
-    # Flux CRDs and controllers. Applying it is idempotent.
+    # STEP 2 — Install Flux controllers
+    # 'flux install --export' generates the current controller manifests
+    # (CRDs + deployments) for the pinned flux_version and pipes them directly
+    # into kubectl apply. This is idempotent and requires no pre-committed file.
     # ============================================================================
 
-    - name: "flux | Copy gotk-components.yaml to control plane"
-      copy:
-        src: "../../../clusters/prod/flux-system/gotk-components.yaml"
-        dest: /tmp/gotk-components.yaml
-        mode: '0644'
-      tags: [flux]
-
-    - name: "flux | Apply Flux controllers (CRDs + deployments)"
-      command: kubectl apply -f /tmp/gotk-components.yaml
+    - name: "flux | Install Flux controllers (CRDs + deployments)"
+      shell: |
+        flux install \
+          --version={{ flux_version }} \
+          --export | kubectl apply -f -
       register: gotk_apply
       changed_when: "'configured' in gotk_apply.stdout or 'created' in gotk_apply.stdout"
       tags: [flux]
@@ -293,6 +293,5 @@
         path: "{{ item }}"
         state: absent
       loop:
-        - /tmp/gotk-components.yaml
         - /tmp/gotk-sync.yaml
       tags: [always]

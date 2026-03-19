@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 06 of 13
+**Guide:** 06 of 14
 
 > Kubernetes does not enforce how workloads are organised.
 > Without structure, clusters quickly become difficult to manage.
@@ -123,13 +123,11 @@ are created automatically during installation.
 
 # Creating Namespaces
 
-Create a manifest called:
+Namespaces in this platform are **managed by Flux** — they are defined as manifests under
+`platform/namespaces/` and reconciled automatically by the `platform-namespaces` Kustomization
+after `install-platform.yml` completes. No manual `kubectl apply` is required or expected.
 
-```
-namespaces.yaml
-```
-
-Example:
+The namespace manifests follow this pattern:
 
 ```yaml
 apiVersion: v1
@@ -158,19 +156,18 @@ metadata:
   name: apps
 ```
 
-Apply the manifest:
+To add a new namespace, add a manifest to `platform/namespaces/`, commit, and push. Flux
+reconciles it into the cluster automatically. **Do not run `kubectl apply` directly** — Flux
+owns these resources and a manual apply will be overwritten on the next reconciliation.
 
-```
-kubectl apply -f namespaces.yaml
-```
+Verify Flux has reconciled them:
 
-Verify:
-
-```
+```bash
+flux get kustomization platform-namespaces
 kubectl get namespaces
 ```
 
-Expected:
+Expected namespaces:
 
 ```
 ingress

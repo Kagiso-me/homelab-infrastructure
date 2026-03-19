@@ -77,9 +77,9 @@ Because the cloud is great — until it isn't.
               ┌──────────────────┼──────────────────┐
               │                  │                  │
    ┌──────────▼──────┐  ┌───────▼──────┐  ┌────────▼────────┐
-   │  k3s Cluster     │  │ Docker Host  │  │  TrueNAS        │
-   │  3 nodes         │  │ Media server │  │  HP MicroServer │
-   │  10.0.10.11–13   │  │  10.0.10.20  │  │  10.0.10.80     │
+   │  k3s Prod        │  │ k3s Staging  │  │  TrueNAS        │
+   │  3 nodes         │  │ Proxmox VM   │  │  HP MicroServer │
+   │  10.0.10.11–13   │  │  10.0.10.31  │  │  10.0.10.80     │
    └──────────────────┘  └──────────────┘  └─────────────────┘
               ▲
               │ kubectl / flux / ansible
@@ -98,8 +98,10 @@ Because the cloud is great — until it isn't.
 | **k3s control plane** | tywin | `10.0.10.11` | Kubernetes API server, etcd, scheduler |
 | **k3s worker** | jaime | `10.0.10.12` | Application workloads |
 | **k3s worker** | tyrion | `10.0.10.13` | Application workloads |
+| **Proxmox host** | nuc | `10.0.10.30` | Intel NUC hypervisor (Proxmox VE) |
+| **k3s staging** | staging-vm | `10.0.10.31` | Single-node staging cluster on Proxmox — watches `main` branch |
+| **Docker VM** | docker-vm | `10.0.10.32` | Docker media stack VM on Proxmox |
 | **Raspberry Pi** | rpi | `10.0.10.10` | Control hub — kubectl, flux, ansible, cron backups |
-| **Docker media server** | media | `10.0.10.20` | Jellyfin, Sonarr, Radarr, Prowlarr, SABnzbd |
 | **TrueNAS** | truenas | `10.0.10.80` | HP MicroServer Gen8 — NFS, MinIO S3, Backblaze B2 sync |
 
 ---
@@ -201,7 +203,7 @@ The Docker host runs the full media acquisition and streaming stack, accessible 
 
 ```bash
 # SSH to the Docker host via RPi
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 
 # Deploy stacks in order
 cd /srv/docker
@@ -233,21 +235,33 @@ With the cluster running and TrueNAS providing storage, bootstrap FluxCD to hand
 age-keygen -o age.key
 # Back up age.key to your password manager — never commit it to Git
 
-# Create the sops-age Secret in the cluster
+# Create the sops-age Secret in each cluster before bootstrapping
 kubectl create namespace flux-system
 kubectl create secret generic sops-age \
   --namespace=flux-system \
   --from-file=age.agekey=age.key
 
-# Bootstrap Flux against this repository
+# Bootstrap staging (single-node VM — watches main branch)
 flux bootstrap git \
   --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
   --branch=main \
+  --path=clusters/staging \
+  --private-key-file=$HOME/.ssh/flux_deploy_key
+
+# Bootstrap prod (ThinkCentre cluster — watches prod branch)
+# Ensure prod branch exists first: git push origin main:prod
+flux bootstrap git \
+  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
+  --branch=prod \
   --path=clusters/prod \
   --private-key-file=$HOME/.ssh/flux_deploy_key
+
+# Promote staging → prod at any time:
+git push origin main:prod
 ```
 
-Flux will reconcile all platform components and application workloads from Git automatically.
+Flux reconciles all platform components and application workloads from Git automatically.
+Staging validates every change before it reaches production.
 
 ---
 
@@ -284,21 +298,22 @@ Custom applications, operational tooling, and platform initiatives built on top 
 
 ## Deployment Guides
 
-A 13-guide series that walks through building and operating the full platform from bare metal.
+A 14-guide series that walks through building and operating the full platform from bare metal.
 
 | Guide | Topic |
 |-------|-------|
 | [00 — Platform Philosophy](docs/guides/00-Platform-Philosophy.md) | Design principles and architectural decisions |
+| [00.5 — Infrastructure Prerequisites](docs/guides/00.5-Infrastructure-Prerequisites.md) | TrueNAS datasets, NFS exports, Cloudflare API token |
 | [01 — Node Preparation & Hardening](docs/guides/01-Node-Preparation-Hardening.md) | OS prep, SSH hardening, firewall, time sync |
 | [02 — Kubernetes Installation](docs/guides/02-Kubernetes-Installation.md) | k3s install via Ansible across 3 nodes |
-| [03 — Networking Platform](docs/guides/03-Networking-Platform.md) | MetalLB + Traefik + cert-manager (Ansible) |
-| [04 — GitOps Control Plane](docs/guides/04-Flux-GitOps.md) | FluxCD v2 bootstrap and repository structure |
+| [03 — Networking Platform](docs/guides/03-Networking-Platform.md) | MetalLB + Traefik + cert-manager via Flux |
+| [04 — GitOps Control Plane](docs/guides/04-Flux-GitOps.md) | FluxCD v2 bootstrap, two-environment promotion model |
 | [05 — Cluster Identity & Scheduling](docs/guides/05-Cluster-Identity-Scheduling.md) | Node labels, taints, affinity rules |
-| [06 — Platform Namespaces](docs/guides/06-Platform-Namespaces.md) | Namespace layout and RBAC |
+| [06 — Platform Namespaces](docs/guides/06-Platform-Namespaces.md) | Namespace layout and GitOps ownership |
 | [07 — Monitoring & Observability](docs/guides/07-Monitoring-Observability.md) | Prometheus + Grafana + Loki + SMART alerting |
 | [08 — Cluster Backups](docs/guides/08-Cluster-Backups.md) | etcd snapshots + Velero + MinIO |
 | [09 — Applications via GitOps](docs/guides/09-Applications-GitOps.md) | Deploying apps with Flux HelmReleases |
-| [10 — Platform Operations & Lifecycle](docs/guides/10-Platform-Operations-Lifecycle.md) | Node upgrades, drain, maintenance |
+| [10 — Platform Operations & Lifecycle](docs/guides/10-Platform-Operations-Lifecycle.md) | Node upgrades, drain, maintenance, disaster recovery |
 | [11 — Secrets Management](docs/guides/11-Secrets-Management.md) | SOPS + age — encrypt secrets for Git |
 | [12 — Storage Architecture](docs/guides/12-Storage-Architecture.md) | NFS provisioner, PVC lifecycle, TrueNAS datasets |
 
@@ -309,7 +324,9 @@ A 13-guide series that walks through building and operating the full platform fr
 ```
 homelab-infrastructure/
 │
-├── clusters/prod/       # Flux entry points (infrastructure.yaml, apps.yaml)
+├── clusters/
+│   ├── prod/            # Prod Flux entry points — watches prod branch
+│   └── staging/         # Staging Flux entry points — watches main branch
 ├── platform/               # Cluster-wide platform components (HelmReleases)
 │   ├── networking/         # MetalLB, Traefik
 │   ├── security/           # cert-manager, ClusterIssuers
@@ -333,7 +350,7 @@ homelab-infrastructure/
 │   ├── scripts/            # backup_rpi.sh
 │   └── docs/               # 01_setup, 02_services, 03_backup
 │
-├── docker/                 # Docker media server (10.0.10.20)
+├── docker/                 # Docker media server (10.0.10.32)
 │   ├── README.md
 │   ├── compose/            # media-stack.yml, monitoring-stack.yml, proxy-stack.yml
 │   ├── config/             # prometheus.yml, loki, promtail, grafana provisioning
@@ -361,6 +378,9 @@ homelab-infrastructure/
 |---------|---------|---------|
 | [validate.yml](.github/workflows/validate.yml) | Push / PR | kubeconform schema validation of all manifests |
 | [flux-local.yml](.github/workflows/flux-local.yml) | PR | flux-local diff posted as PR comment |
+| [promote-to-prod.yml](.github/workflows/promote-to-prod.yml) | Push to `main` | 4-stage gated pipeline: validate → staging health → promote → prod health |
+
+Health check jobs run on a **self-hosted runner on `bran` (10.0.10.10)**, giving the CI pipeline direct LAN access to both clusters with no third-party VPN dependency. See [ADR-005](docs/adr/ADR-005-self-hosted-runners.md).
 
 ---
 

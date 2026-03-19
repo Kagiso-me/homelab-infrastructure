@@ -178,7 +178,7 @@ The affected ZFS pool is FAULTED. This is more severe than DEGRADED — the pool
 7. If data is accessible (pool recovers after import), immediately back up critical data:
    ```bash
    # From RPi, trigger all backup jobs:
-   ssh kagiso@10.0.10.20 "sudo /usr/local/bin/docker-backup.sh" &
+   ssh kagiso@10.0.10.32 "sudo /usr/local/bin/docker-backup.sh" &
    ssh kagiso@10.0.10.11 "sudo /usr/local/bin/etcd-backup.sh" &
    ```
 
@@ -200,7 +200,7 @@ ssh admin@10.0.10.80
 zpool status | grep "state:"
 # state must be ONLINE or DEGRADED (not FAULTED)
 # Then verify NFS is accessible:
-ssh kagiso@10.0.10.20 "ls /mnt/archive/ | head -3"
+ssh kagiso@10.0.10.32 "ls /mnt/archive/ | head -3"
 ```
 
 ---

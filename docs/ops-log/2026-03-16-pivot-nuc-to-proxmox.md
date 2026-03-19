@@ -50,11 +50,11 @@ NUC (bare Ubuntu 22.04) — 10.0.10.20
 ### After
 
 ```
-NUC (Proxmox VE) — 10.0.10.20
-├── docker-vm       — 10.0.10.21 (2 vCPU, 8GB RAM, 80GB)
+NUC (Proxmox VE) — 10.0.10.30
+├── docker-vm       — 10.0.10.32 (2 vCPU, 8GB RAM, 80GB)
 │   └── Docker Compose
 │       └── Sonarr, Radarr, Plex (+ arr stack)
-└── staging-k3s     — 10.0.10.22 (2 vCPU, 6GB RAM, 60GB)
+└── staging-k3s     — 10.0.10.31 (2 vCPU, 6GB RAM, 60GB)
     └── k3s single-node
         └── Flux → clusters/staging/ → apps/staging/
 ```
@@ -131,14 +131,14 @@ ls -lah "$BACKUP_DIR"
 3. Installer settings:
    - Target disk: 256GB NVMe
    - Hostname: `nuc.homelab`
-   - IP: `10.0.10.20` (same as before — keeps DNS/NFS exports working)
+   - IP: `10.0.10.30` (new dedicated Proxmox host IP)
    - Gateway: `10.0.10.1`
    - DNS: `10.0.10.1`
-4. First login — Proxmox web UI at `https://10.0.10.20:8006`
+4. First login — Proxmox web UI at `https://10.0.10.30:8006`
 5. Disable enterprise repo (no subscription):
 
 ```bash
-ssh root@10.0.10.20
+ssh root@10.0.10.30
 
 echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
   > /etc/apt/sources.list.d/pve-community.list
@@ -165,11 +165,11 @@ qm create 100 \
 qm start 100
 ```
 
-During Ubuntu install: hostname `docker-vm`, IP `10.0.10.21` (static), user `kagiso`, enable SSH.
+During Ubuntu install: hostname `docker-vm`, IP `10.0.10.32` (static), user `kagiso`, enable SSH.
 
 ```bash
 # After install — install Docker
-ssh kagiso@10.0.10.21
+ssh kagiso@10.0.10.32
 curl -fsSL https://get.docker.com | sudo bash
 sudo usermod -aG docker kagiso
 ```
@@ -179,7 +179,7 @@ sudo usermod -aG docker kagiso
 ## Step 4 — Restore Docker Stack
 
 ```bash
-ssh kagiso@10.0.10.21
+ssh kagiso@10.0.10.32
 
 # Mount TrueNAS NFS shares
 sudo mkdir -p /mnt/media /mnt/downloads /mnt/archive
@@ -219,11 +219,11 @@ qm create 101 \
 qm start 101
 ```
 
-During Ubuntu install: hostname `staging`, IP `10.0.10.22` (static), user `kagiso`, enable SSH.
+During Ubuntu install: hostname `staging`, IP `10.0.10.31` (static), user `kagiso`, enable SSH.
 
 ```bash
 # Install k3s (single-node)
-ssh kagiso@10.0.10.22
+ssh kagiso@10.0.10.31
 curl -sfL https://get.k3s.io | sh -s - \
   --disable traefik \
   --write-kubeconfig-mode 644
@@ -239,8 +239,8 @@ From the RPi (`ssh kagiso@10.0.10.10`):
 
 ```bash
 # Copy and fix kubeconfig
-scp kagiso@10.0.10.22:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
-sed -i 's/127.0.0.1/10.0.10.22/' ~/.kube/staging-config
+scp kagiso@10.0.10.31:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
+sed -i 's/127.0.0.1/10.0.10.31/' ~/.kube/staging-config
 export KUBECONFIG=~/.kube/staging-config
 
 # Bootstrap Flux against the staging path
@@ -277,8 +277,8 @@ Add as a GitHub Actions secret named `STAGING_KUBECONFIG`, then uncomment the
 Extend kube-prometheus-stack to scrape all external targets, then decommission the
 Docker monitoring stack:
 
-- Proxmox host node exporter: `10.0.10.20:9100`
-- docker-vm node exporter: `10.0.10.21:9100`
+- Proxmox host node exporter: `10.0.10.30:9100`
+- docker-vm node exporter: `10.0.10.32:9100`
 - TrueNAS SNMP / node exporter: `10.0.10.80`
 - RPi node exporter: `10.0.10.10:9100`
 

@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homelab Infrastructure — Roadmap</title>
+<style>
+  :root {
+    --bg:        #070d1a;
+    --surface:   #0d1629;
+    --glass:     rgba(255,255,255,0.04);
+    --border:    rgba(255,255,255,0.08);
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --now:       #f59e0b;
+    --now-dim:   rgba(245,158,11,0.12);
+    --next:      #10b981;
+    --next-dim:  rgba(16,185,129,0.12);
+    --later:     #3b82f6;
+    --later-dim: rgba(59,130,246,0.12);
+    --someday:   #8b5cf6;
+    --someday-dim:rgba(139,92,246,0.12);
+    --shipped:   #94a3b8;
+    --shipped-dim:rgba(148,163,184,0.10);
+    --radius:    14px;
+    --gap:       20px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Ambient background ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(59,130,246,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(139,92,246,0.07) 0%, transparent 55%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+
+  .header-left h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #e2e8f0 30%, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .header-left p {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  /* ── Stats strip ── */
+  .stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    min-width: 80px;
+    backdrop-filter: blur(8px);
+  }
+
+  .stat-n {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .stat-l {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  /* ── View toggle ── */
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .toggle-group {
+    display: flex;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
+  }
+
+  .toggle-btn {
+    padding: 8px 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .toggle-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+  }
+
+  .toggle-btn:hover:not(.active) {
+    color: var(--text);
+    background: rgba(255,255,255,0.05);
+  }
+
+  /* ── Legend pills ── */
+  .legend {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ════════════════════════════════════════
+     KANBAN VIEW
+  ════════════════════════════════════════ */
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--gap);
+    align-items: start;
+  }
+
+  .column {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+  }
+
+  .col-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .col-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .col-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .col-subtitle {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .col-count {
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .col-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    cursor: default;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.7;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border-color: rgba(255,255,255,0.14);
+  }
+
+  .card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+
+  .card-why {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .card-tag {
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    letter-spacing: 0.03em;
+    background: rgba(255,255,255,0.07);
+    color: var(--muted);
+  }
+
+  .card-link {
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: rgba(59,130,246,0.15);
+    color: #93c5fd;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+
+  .card-link:hover { background: rgba(59,130,246,0.28); }
+
+  .card-date {
+    font-size: 0.66rem;
+    color: var(--muted);
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card-dep {
+    width: 100%;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .dep-label {
+    color: rgba(255,255,255,0.3);
+    margin-right: 4px;
+  }
+
+  /* ── Phase colors ── */
+  .now-col   { --accent: var(--now);     }
+  .next-col  { --accent: var(--next);    }
+  .later-col { --accent: var(--later);   }
+  .some-col  { --accent: var(--someday); }
+  .ship-col  { --accent: var(--shipped); }
+
+  .now-pill   { background: var(--now-dim);     color: var(--now);     }
+  .next-pill  { background: var(--next-dim);    color: var(--next);    }
+  .later-pill { background: var(--later-dim);   color: var(--later);   }
+  .some-pill  { background: var(--someday-dim); color: var(--someday); }
+  .ship-pill  { background: var(--shipped-dim); color: var(--shipped); }
+
+  /* ════════════════════════════════════════
+     TIMELINE VIEW
+  ════════════════════════════════════════ */
+  #timeline-view { display: none; }
+
+  .timeline-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .tl-row {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 0;
+    align-items: stretch;
+    min-height: 56px;
+  }
+
+  .tl-row:not(:last-child) .tl-bar-wrap::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 100%;
+    width: 1px;
+    height: 100%;
+    background: var(--border);
+    z-index: 0;
+  }
+
+  .tl-label {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 20px 10px 0;
+    border-right: 1px solid var(--border);
+    gap: 3px;
+  }
+
+  .tl-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tl-phase-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .tl-track {
+    position: relative;
+    padding: 10px 0 10px 24px;
+    display: flex;
+    align-items: center;
+  }
+
+  .tl-bar-wrap {
+    position: relative;
+    width: 100%;
+    height: 28px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .tl-bar {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    min-width: 80px;
+    transition: opacity 0.2s;
+  }
+
+  .tl-bar:hover { opacity: 0.85; }
+
+  /* Phase bar colours */
+  .now-bar  { background: linear-gradient(90deg, rgba(245,158,11,0.7), rgba(245,158,11,0.4)); }
+  .next-bar { background: linear-gradient(90deg, rgba(16,185,129,0.7), rgba(16,185,129,0.4)); }
+  .later-bar{ background: linear-gradient(90deg, rgba(59,130,246,0.7),  rgba(59,130,246,0.4));  }
+  .some-bar { background: linear-gradient(90deg, rgba(139,92,246,0.7), rgba(139,92,246,0.4)); }
+  .ship-bar { background: linear-gradient(90deg, rgba(148,163,184,0.6),rgba(148,163,184,0.3)); }
+
+  /* timeline scale header */
+  .tl-header {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    margin-bottom: 12px;
+  }
+
+  .tl-scale {
+    padding-left: 24px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ── Divider ── */
+  .section-divider {
+    margin: 36px 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .section-divider h2 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .section-divider hr {
+    flex: 1;
+    border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Shipped table ── */
+  .shipped-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .shipped-row {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    backdrop-filter: blur(8px);
+    transition: border-color 0.2s;
+  }
+
+  .shipped-row:hover { border-color: rgba(255,255,255,0.14); }
+
+  .shipped-date {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shipped-what {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .shipped-link {
+    font-size: 0.7rem;
+    color: #60a5fa;
+    text-decoration: none;
+    white-space: nowrap;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+
+  .shipped-link:hover { opacity: 1; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ─── HEADER ─────────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-left">
+      <h1>Homelab Roadmap</h1>
+      <p>kagiso-me / homelab-infrastructure · living document</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <!-- ─── CONTROLS ───────────────────────────────────────────────────── -->
+  <div class="controls">
+    <div class="toggle-group">
+      <button class="toggle-btn active" onclick="switchView('kanban', this)">⠿ Kanban</button>
+      <button class="toggle-btn" onclick="switchView('timeline', this)">▬ Timeline</button>
+    </div>
+    <div class="legend">
+      <span class="pill now-pill">Now</span>
+      <span class="pill next-pill">Next</span>
+      <span class="pill later-pill">Later</span>
+      <span class="pill some-pill">Someday</span>
+    </div>
+  </div>
+
+  <!-- ─── KANBAN VIEW ─────────────────────────────────────────────────── -->
+  <div id="kanban-view">
+    <div class="kanban" id="kanban-board"></div>
+  </div>
+
+  <!-- ─── TIMELINE VIEW ──────────────────────────────────────────────── -->
+  <div id="timeline-view">
+    <div class="tl-header">
+      <div></div>
+      <div class="tl-scale" id="tl-scale"></div>
+    </div>
+    <div class="timeline-wrap" id="timeline-board"></div>
+  </div>
+
+  <!-- ─── RECENTLY SHIPPED ────────────────────────────────────────────── -->
+  <div class="section-divider">
+    <h2>Recently Shipped</h2>
+    <hr>
+  </div>
+  <div class="shipped-grid" id="shipped-list"></div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA  (sourced from ROADMAP.md)
+// ─────────────────────────────────────────────────────────────────────────────
+const items = [
+  // ── NOW ──
+  {
+    phase: 'now', title: 'Proxmox Migration',
+    why: 'Converting the Intel NUC from bare Docker to Proxmox — gives a proper hypervisor with docker-vm for media and staging-k3s VM for the GitOps promotion pipeline.',
+    deps: 'None',
+    tags: ['infrastructure', 'hypervisor'],
+    links: [{ label: 'ADR-006', href: 'docs/architecture/decisions/ADR-006-proxmox-pivot.md' }, { label: 'ops-log', href: 'docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md' }],
+    start: '2026-03-16', end: '2026-03-22',
+  },
+  {
+    phase: 'now', title: 'Cloudflare Tunnel',
+    why: 'Eliminates all inbound port exposure on the router. Cloudflare proxies traffic to the cluster with zero performance trade-off — no open ports.',
+    deps: 'Pi-hole (split DNS needed first)',
+    tags: ['networking', 'security'],
+    links: [{ label: 'Guide 03', href: 'docs/guides/03-Networking-Platform.md' }],
+    start: '2026-03-18', end: '2026-03-24',
+  },
+  {
+    phase: 'now', title: 'Pi-hole (Split DNS)',
+    why: 'Internal services resolve *.kagiso.me → 10.0.10.110 on LAN without public exposure. Doubles as network-wide ad blocking.',
+    deps: 'None — runs on RPi',
+    tags: ['networking', 'dns'],
+    links: [{ label: 'networking.md', href: 'docs/architecture/networking.md' }],
+    start: '2026-03-18', end: '2026-03-21',
+  },
+  {
+    phase: 'now', title: 'Wildcard TLS Certificate',
+    why: 'DNS-01 via Cloudflare API issues *.kagiso.me wildcard. Valid browser-trusted certs for all internal services — no port exposure required.',
+    deps: 'Cloudflare API token, cert-manager deployed',
+    tags: ['tls', 'security'],
+    start: '2026-03-18', end: '2026-03-22',
+  },
+  {
+    phase: 'now', title: 'Consolidate Monitoring to k3s',
+    why: 'Retire the duplicate Prometheus + Grafana + Loki stack on Docker host. kube-prometheus-stack scrapes all external targets via additionalScrapeConfigs.',
+    deps: 'Proxmox migration (natural cutover point)',
+    tags: ['observability'],
+    start: '2026-03-20', end: '2026-03-25',
+  },
+
+  // ── NEXT ──
+  {
+    phase: 'next', title: 'Gatus on bran',
+    why: 'Out-of-band uptime monitor that survives k3s outages. Lightweight Go binary on bran — monitors public and internal services, exposed at status.kagiso.me.',
+    deps: 'Cloudflare Tunnel',
+    target: '2026-03-21',
+    tags: ['monitoring', 'reliability'],
+    start: '2026-03-21', end: '2026-03-24',
+  },
+  {
+    phase: 'next', title: 'Tailscale + Headscale',
+    why: 'Private remote access for Plex, SSH, and kubectl — services that should never touch Cloudflare. Headscale on bran as the self-hosted coordination server.',
+    deps: 'None (Headscale on bran)',
+    tags: ['networking', 'vpn'],
+    start: '2026-03-22', end: '2026-03-28',
+  },
+  {
+    phase: 'next', title: 'NUC RAM Upgrade (16GB → 32GB)',
+    why: '16GB leaves zero headroom (Proxmox 2GB + docker-vm 6GB + staging-k3s 8GB). 32GB unlocks 14GB for LXC containers and future VMs. ~$50.',
+    deps: 'None',
+    tags: ['hardware'],
+    target: '2026-03-23',
+    start: '2026-03-23', end: '2026-03-23',
+  },
+  {
+    phase: 'next', title: 'Flux Bootstrap — Staging',
+    why: 'clusters/staging/ and the GitOps promotion pipeline are ready. The staging cluster needs bootstrapping once staging-k3s VM is provisioned.',
+    deps: 'Proxmox migration (staging-k3s VM)',
+    tags: ['gitops', 'ci-cd'],
+    links: [{ label: 'Guide 04', href: 'docs/guides/04-Flux-GitOps.md' }],
+    start: '2026-03-22', end: '2026-03-25',
+  },
+  {
+    phase: 'next', title: 'Claude Phone (Phil Voice Interface)',
+    why: 'Voice interface for the homelab via SIP/3CX. Query cluster status, manage containers, check NAS health, run playbooks — Phil can also call you when things break.',
+    deps: 'Proxmox migration + NUC RAM upgrade',
+    target: '2026-03-22 → 2026-03-28',
+    tags: ['ai', 'automation'],
+    links: [{ label: 'projects/claude-phone', href: 'projects/claude-phone/README.md' }],
+    start: '2026-03-22', end: '2026-03-29',
+  },
+  {
+    phase: 'next', title: 'Cloudflare Zero Trust',
+    why: 'Identity-based access (Google/GitHub OAuth) in front of any Cloudflare Tunnel service — no code changes, 2-minute config per service.',
+    deps: 'Cloudflare Tunnel',
+    tags: ['security', 'access-control'],
+    start: '2026-03-26', end: '2026-04-01',
+  },
+  {
+    phase: 'next', title: 'Personal Website (kagiso.me)',
+    why: 'Live window into the homelab — changelog, roadmap, real-time service status. Rebuilds automatically on every push. Stack: Astro, GitHub Pages.',
+    deps: 'Proxmox, Cloudflare Tunnel, Pi-hole settled',
+    tags: ['web', 'astro'],
+    start: '2026-03-28', end: '2026-04-07',
+  },
+
+  // ── LATER ──
+  {
+    phase: 'later', title: 'Nextcloud',
+    why: 'Self-hosted file sync — replaces commercial cloud storage for personal documents. Runs in k3s, exposed via Cloudflare Tunnel.',
+    tags: ['storage', 'self-hosted'],
+    start: '2026-04-10', end: '2026-04-20',
+  },
+  {
+    phase: 'later', title: 'Immich (Photo Library)',
+    why: 'Self-hosted Google Photos replacement. Media stored on TrueNAS archive. Bulk import via Tailscale, daily access via Cloudflare Tunnel.',
+    tags: ['media', 'self-hosted'],
+    start: '2026-04-14', end: '2026-04-24',
+  },
+  {
+    phase: 'later', title: 'Media Conversion App',
+    why: 'ffprobe scans the library for files requiring transcoding, queues ffmpeg conversion. Eliminates transcoding overhead on the NUC entirely.',
+    target: 'Reminder 2026-03-23',
+    tags: ['media', 'automation'],
+    start: '2026-04-20', end: '2026-04-28',
+  },
+  {
+    phase: 'later', title: '4th k3s Worker Node',
+    why: 'Spare ThinkCentre M93p added as 4th worker — simple ansible-playbook addition, no cluster disruption. Add when capacity is needed.',
+    deps: 'Deploy applications first',
+    tags: ['hardware', 'k3s'],
+    start: '2026-05-01', end: '2026-05-03',
+  },
+  {
+    phase: 'later', title: 'Custom Grafana Dashboards',
+    why: 'TrueNAS pool health, ZFS scrub status, Plex sessions, Sonarr/Radarr queue, backup success/failure — a real ops view of the entire homelab at a glance.',
+    tags: ['observability', 'grafana'],
+    start: '2026-04-25', end: '2026-05-05',
+  },
+
+  // ── SOMEDAY ──
+  {
+    phase: 'someday', title: 'Pulse (Uptime Platform)',
+    why: 'Homelab-native monitoring platform: GitOps YAML config, WebSocket dashboard, dependency graph with root-cause suppression, SLA tracking, Claude Phone integration.',
+    tags: ['dev', 'monitoring'],
+    links: [{ label: 'projects/pulse', href: 'projects/pulse/README.md' }],
+    start: '2026-06-01', end: '2026-07-01',
+  },
+  {
+    phase: 'someday', title: 'RPi 4 Upgrade',
+    why: 'RPi 3B+ (armv7l) cannot run Claude Code or arm64-only tooling. RPi 4 (aarch64, 4GB+) makes the control hub significantly more capable.',
+    tags: ['hardware'],
+    start: '2026-06-15', end: '2026-06-16',
+  },
+  {
+    phase: 'someday', title: 'Gatus on Contabo (External)',
+    why: 'Second Gatus vantage point completely outside the homelab. If the entire homelab or Cloudflare Tunnel goes down, this still fires.',
+    tags: ['monitoring', 'reliability'],
+    start: '2026-06-20', end: '2026-06-22',
+  },
+  {
+    phase: 'someday', title: 'Internal Wiki (Outline)',
+    why: 'Self-hosted wiki at wiki.homelab. Prometheus alert runbook URLs already point here — they resolve once the wiki is running. Runbooks in docs/operations/ as source.',
+    tags: ['documentation'],
+    start: '2026-07-01', end: '2026-07-10',
+  },
+  {
+    phase: 'someday', title: 'Home Assistant',
+    why: 'Smart home integration as LXC on Proxmox once 32GB RAM upgrade is in and headroom exists. Low priority until other fundamentals are solid.',
+    deps: '32GB RAM upgrade',
+    tags: ['smart-home'],
+    start: '2026-07-15', end: '2026-07-20',
+  },
+  {
+    phase: 'someday', title: 'Additional LXC Workloads',
+    why: 'With 32GB RAM: Headscale server, Vaultwarden (self-hosted Bitwarden), additional monitoring nodes — ~14GB of headroom beyond docker-vm and staging-k3s.',
+    deps: '32GB RAM upgrade',
+    tags: ['proxmox', 'infrastructure'],
+    start: '2026-07-20', end: '2026-08-01',
+  },
+];
+
+const shipped = [
+  { date: '2026-03-16', what: 'Initial infrastructure — 3-node k3s, FluxCD v2, SOPS/age, Prometheus + Grafana + Loki', link: 'docs/ops-log/2026-03-16-initial-infrastructure-setup.md' },
+  { date: '2026-03-16', what: 'Platform stack — MetalLB + cert-manager + Traefik v3', link: 'docs/ops-log/2026-03-16-deploy-platform-stack.md' },
+  { date: '2026-03-16', what: 'Architecture pivot — Intel NUC to Proxmox hypervisor', link: 'docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md' },
+  { date: '2026-03-16', what: 'GitOps promotion pipeline — main → staging → prod automation', link: 'docs/guides/04-Flux-GitOps.md' },
+  { date: '2026-03-16', what: 'Ops-log system and CHANGELOG automation', link: 'docs/ops-log/README.md' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KANBAN
+// ─────────────────────────────────────────────────────────────────────────────
+const phases = [
+  { key: 'now',     label: 'Now',     sub: 'Active — in flight',       cls: 'now-col',   dot: '#f59e0b' },
+  { key: 'next',    label: 'Next',    sub: 'Committed — queued',        cls: 'next-col',  dot: '#10b981' },
+  { key: 'later',   label: 'Later',   sub: 'Planned — not scheduled',   cls: 'later-col', dot: '#3b82f6' },
+  { key: 'someday', label: 'Someday', sub: 'Ideas — no commitment',     cls: 'some-col',  dot: '#8b5cf6' },
+];
+
+function buildKanban() {
+  const board = document.getElementById('kanban-board');
+  board.innerHTML = '';
+  phases.forEach(ph => {
+    const cards = items.filter(i => i.phase === ph.key);
+    const col = document.createElement('div');
+    col.className = `column ${ph.cls}`;
+    col.innerHTML = `
+      <div class="col-header">
+        <span class="col-dot" style="background:${ph.dot}"></span>
+        <span class="col-title" style="color:${ph.dot}">${ph.label}</span>
+        <span class="col-count">${cards.length}</span>
+        <span class="col-subtitle">${ph.sub}</span>
+      </div>
+      <div class="col-body">
+        ${cards.map(card => renderCard(card)).join('')}
+      </div>`;
+    board.appendChild(col);
+  });
+}
+
+function renderCard(item) {
+  const linksHtml = (item.links || []).map(l =>
+    `<a class="card-link" href="${l.href}">${l.label}</a>`).join('');
+  const tagsHtml = (item.tags || []).map(t =>
+    `<span class="card-tag">${t}</span>`).join('');
+  const dateHtml = item.target
+    ? `<span class="card-date">🗓 ${item.target}</span>` : '';
+  const depHtml = item.deps
+    ? `<div class="card-dep"><span class="dep-label">→ depends:</span>${item.deps}</div>` : '';
+
+  return `
+    <div class="card">
+      <div class="card-title">${item.title}</div>
+      <div class="card-why">${item.why}</div>
+      <div class="card-footer">${tagsHtml}${linksHtml}${dateHtml}</div>
+      ${depHtml}
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TIMELINE
+// ─────────────────────────────────────────────────────────────────────────────
+function buildTimeline() {
+  const allDates = items.map(i => [new Date(i.start), new Date(i.end)]).flat();
+  const minDate = new Date(Math.min(...allDates));
+  const maxDate = new Date(Math.max(...allDates));
+  minDate.setDate(minDate.getDate() - 2);
+  maxDate.setDate(maxDate.getDate() + 5);
+
+  const totalMs = maxDate - minDate;
+
+  // Scale header
+  const scale = document.getElementById('tl-scale');
+  const marks = 6;
+  scale.innerHTML = Array.from({ length: marks + 1 }, (_, i) => {
+    const d = new Date(minDate.getTime() + (totalMs / marks) * i);
+    return `<span>${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>`;
+  }).join('');
+
+  // Rows
+  const phaseMap = {
+    now: { bar: 'now-bar', color: '#f59e0b', label: 'NOW' },
+    next: { bar: 'next-bar', color: '#10b981', label: 'NEXT' },
+    later: { bar: 'later-bar', color: '#3b82f6', label: 'LATER' },
+    someday: { bar: 'some-bar', color: '#8b5cf6', label: 'SOMEDAY' },
+  };
+
+  const board = document.getElementById('timeline-board');
+  board.innerHTML = '';
+
+  items.forEach(item => {
+    const ph = phaseMap[item.phase];
+    const s = new Date(item.start);
+    const e = new Date(item.end);
+    const left  = ((s - minDate) / totalMs * 100).toFixed(2);
+    const width = Math.max(((e - s) / totalMs * 100), 3).toFixed(2);
+
+    const row = document.createElement('div');
+    row.className = 'tl-row';
+    row.innerHTML = `
+      <div class="tl-label">
+        <span class="tl-name" title="${item.title}">${item.title}</span>
+        <span class="tl-phase-badge" style="color:${ph.color}">${ph.label}</span>
+      </div>
+      <div class="tl-track">
+        <div class="tl-bar-wrap">
+          <div class="tl-bar ${ph.bar}" style="left:${left}%;width:${width}%"
+            title="${item.title}: ${item.start} → ${item.end}">
+            ${parseFloat(width) > 8 ? item.title : ''}
+          </div>
+        </div>
+      </div>`;
+    board.appendChild(row);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHIPPED
+// ─────────────────────────────────────────────────────────────────────────────
+function buildShipped() {
+  document.getElementById('shipped-list').innerHTML = shipped.map(s => `
+    <div class="shipped-row">
+      <span class="shipped-date">${s.date}</span>
+      <span class="shipped-what">${s.what}</span>
+      <a class="shipped-link" href="${s.link}">→ log</a>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATS
+// ─────────────────────────────────────────────────────────────────────────────
+function buildStats() {
+  const counts = { now: 0, next: 0, later: 0, someday: 0 };
+  items.forEach(i => counts[i.phase]++);
+  const colors = { now: '#f59e0b', next: '#10b981', later: '#3b82f6', someday: '#8b5cf6' };
+  const labels = { now: 'Now', next: 'Next', later: 'Later', someday: 'Someday' };
+
+  document.getElementById('stats').innerHTML =
+    Object.entries(counts).map(([k, v]) => `
+      <div class="stat">
+        <span class="stat-n" style="color:${colors[k]}">${v}</span>
+        <span class="stat-l">${labels[k]}</span>
+      </div>`).join('') +
+    `<div class="stat">
+      <span class="stat-n" style="color:#94a3b8">${shipped.length}</span>
+      <span class="stat-l">Shipped</span>
+    </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VIEW SWITCH
+// ─────────────────────────────────────────────────────────────────────────────
+function switchView(view, btn) {
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('kanban-view').style.display  = view === 'kanban'   ? '' : 'none';
+  document.getElementById('timeline-view').style.display = view === 'timeline' ? '' : 'none';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+buildStats();
+buildKanban();
+buildTimeline();
+buildShipped();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # =============================================================================
 # Media Stack — Docker Compose
-# Host: 10.0.10.20 | TrueNAS: 10.0.10.80
+# Host: 10.0.10.32 | TrueNAS: 10.0.10.80
 # User: kagiso (PUID=1000, PGID=1000) | TZ: Africa/Johannesburg
 #
 # .env.example — copy to .env and fill in values before deploying
@@ -8,7 +8,7 @@
 # PUID=1000
 # PGID=1000
 # TZ=Africa/Johannesburg
-# JELLYFIN_PublishedServerUrl=http://10.0.10.20:8096
+# JELLYFIN_PublishedServerUrl=http://10.0.10.32:8096
 # SONARR_API_KEY=changeme
 # RADARR_API_KEY=changeme
 # LIDARR_API_KEY=changeme
@@ -45,7 +45,7 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-Africa/Johannesburg}
-      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://10.0.10.20:8096}
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://10.0.10.32:8096}
     volumes:
       - /srv/docker/appdata/jellyfin:/config
       - /mnt/media:/media:ro

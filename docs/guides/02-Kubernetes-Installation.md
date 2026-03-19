@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 02 of 13
+**Guide:** 02 of 14
 
 > In this phase we install Kubernetes using **k3s** and the existing Ansible automation.
 

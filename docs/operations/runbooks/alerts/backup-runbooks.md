@@ -246,13 +246,13 @@ sudo k3s etcd-snapshot ls
 
 ### What This Alert Means
 
-The Docker media server backup script on `10.0.10.20` has never reported a successful backup or the textfile metric is missing entirely from node_exporter's textfile collector.
+The Docker media server backup script on `10.0.10.32` has never reported a successful backup or the textfile metric is missing entirely from node_exporter's textfile collector.
 
 ### Diagnostic Steps
 
 1. SSH to the Docker host via the RPi control hub:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    ```
 
 2. Check the textfile metric:
@@ -300,7 +300,7 @@ The Docker media server backup script on `10.0.10.20` has never reported a succe
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
 ls -lah /mnt/archive/docker/ | tail -5
 ```
@@ -323,7 +323,7 @@ The Docker host backup has not completed successfully in over 24 hours. The back
 
 1. SSH to Docker host and check timestamp:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
    date +%s  # compare to timestamp in file
    ```
@@ -366,7 +366,7 @@ The Docker host backup has not completed successfully in over 24 hours. The back
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
 # Timestamp should be recent
 ```
@@ -389,7 +389,7 @@ The Docker backup completed but the archive is significantly smaller than expect
 
 1. Check recent backup sizes:
    ```bash
-   ssh kagiso@10.0.10.20
+   ssh kagiso@10.0.10.32
    ls -lah /mnt/archive/docker/ | tail -10
    ```
 
@@ -427,7 +427,7 @@ The Docker backup completed but the archive is significantly smaller than expect
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 LATEST=$(ls -t /mnt/archive/docker/*.tar.gz | head -1)
 tar -tzf "$LATEST" | wc -l
 # Verify file count is reasonable compared to previous backups

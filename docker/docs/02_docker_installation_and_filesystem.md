@@ -15,7 +15,7 @@
 
 At this point the host is:
 
-- running Ubuntu Server `10.0.10.20`
+- running Ubuntu Server `10.0.10.32`
 - hardened with SSH keys, UFW, and Fail2Ban
 - receiving automatic security patches
 
@@ -35,7 +35,7 @@ By the end of this guide the host will have:
 
 ```mermaid
 graph TD
-    subgraph DockerHost ["Docker Host — 10.0.10.20"]
+    subgraph DockerHost ["Docker Host — 10.0.10.32"]
         Stacks["/srv/docker/stacks/\nCompose files"]
         AppData["/srv/docker/appdata/\nContainer config + DBs"]
         Incomplete["/srv/downloads/incomplete/\nIn-progress downloads\n(local NVMe)"]
@@ -137,7 +137,7 @@ sudo usermod -aG docker kagiso
 ```bash
 # Log out completely, then log back in via SSH
 exit
-ssh kagiso@10.0.10.20
+ssh kagiso@10.0.10.32
 ```
 
 After logging back in, verify the group membership and Docker access:
@@ -290,7 +290,7 @@ graph LR
         T2["tera/downloads\nexports /mnt/tera"]
     end
 
-    subgraph DockerHost ["Docker Host — 10.0.10.20"]
+    subgraph DockerHost ["Docker Host — 10.0.10.32"]
         M1["/mnt/tera"]
         M2["/mnt/tera"]
         Jellyfin["Jellyfin container"]

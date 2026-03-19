@@ -52,7 +52,7 @@ ssh pi@10.0.10.10
 ssh kagiso@10.0.10.11   # tywin
 
 # From RPi → Docker media server
-ssh kagiso@10.0.10.20    # docker host (update with actual IP)
+ssh kagiso@10.0.10.32    # docker VM
 
 # All kubectl commands run locally on the RPi
 kubectl get nodes

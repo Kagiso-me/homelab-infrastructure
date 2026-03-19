@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐☆☆☆☆☆☆ (4/10)
-**Guide:** 01 of 13
+**Guide:** 01 of 14
 
 > This phase prepares both **the cluster nodes** and the **automation host** that will manage them.
 >
@@ -380,6 +380,6 @@ The next guide explains how the Kubernetes cluster itself is installed using the
 
 | | Guide |
 |---|---|
-| ← Previous | [00 — Platform Philosophy](./00-Platform-Philosophy.md) |
+| ← Previous | [00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md) |
 | Current | **01 — Node Preparation & Hardening** |
 | → Next | [02 — Kubernetes Installation](./02-Kubernetes-Installation.md) |

@@ -31,13 +31,13 @@ These principles exist because homelab systems tend to accumulate undocumented c
 ```mermaid
 graph TD
     Internet["Internet"] --> Router["Home Router\n10.0.0.1"]
-    Router --> NPM["Nginx Proxy Manager\n10.0.10.20:80/443\nReverse proxy + TLS"]
+    Router --> NPM["Nginx Proxy Manager\n10.0.10.32:80/443\nReverse proxy + TLS"]
     NPM --> Jellyfin["Jellyfin\n:8096\nMedia streaming"]
     NPM --> Overseerr["Overseerr\n:5055\nMedia requests"]
     NPM --> Grafana["Grafana\n:3000\nMonitoring"]
     NPM --> Other["Other services\nSonarr, Radarr,\nNavidrome..."]
 
-    subgraph DockerHost["Docker Host — 10.0.10.20"]
+    subgraph DockerHost["Docker Host — 10.0.10.32"]
         NPM
         Jellyfin
         Overseerr
@@ -95,7 +95,7 @@ Your Laptop
 Raspberry Pi — 10.0.10.10 (control hub)
     │
     ▼ SSH
-Docker Host — 10.0.10.20
+Docker Host — 10.0.10.32
     │
     ├── /mnt/media         ← NFS from TrueNAS /mnt/tera
     ├── /mnt/downloads     ← NFS from TrueNAS /mnt/tera

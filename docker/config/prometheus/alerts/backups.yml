@@ -146,7 +146,7 @@ groups:
           runbook: "https://wiki.homelab/runbooks/velero-storage-unavailable"
 
   # ---------------------------------------------------------------------------
-  # Docker appdata backups — Docker media server (10.0.10.20)
+  # Docker appdata backups — Docker media server (10.0.10.32)
   #
   # A daily backup script archives Docker container volumes/appdata and writes
   # textfile metrics. Scraped via the node-docker-host job.
@@ -165,11 +165,11 @@ groups:
           description: >
             The metric docker_backup_last_success_timestamp is not present in
             Prometheus. The Docker appdata backup script on the media server
-            (10.0.10.20) may have never run, or its textfile metric has been
+            (10.0.10.32) may have never run, or its textfile metric has been
             deleted. Media container configuration and databases are not being
             backed up.
             Check: /etc/cron.d/docker-backup and the node-exporter textfile
-            collector directory on 10.0.10.20.
+            collector directory on 10.0.10.32.
           runbook: "https://wiki.homelab/runbooks/docker-backup-missing"
 
       - alert: DockerBackupTooOld
@@ -184,7 +184,7 @@ groups:
             {{ $value | humanizeDuration }} ago, exceeding the 25-hour threshold.
             Media application data (Jellyfin library metadata, Sonarr/Radarr
             databases, etc.) is not being protected. Investigate the backup
-            cron job on 10.0.10.20.
+            cron job on 10.0.10.32.
           runbook: "https://wiki.homelab/runbooks/docker-backup-too-old"
 
       - alert: DockerBackupSizeSuspicious

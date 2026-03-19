@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 10 of 13
+**Guide:** 10 of 14
 
 > Building a Kubernetes platform is only half the work.
 > Operating it reliably over time is where real platform engineering begins.
@@ -354,7 +354,7 @@ If the cluster must be rebuilt entirely, follow this sequence.
 | Ansible Vault password | `~/.vault_pass` on RPi | `ansible-vault view ansible/vars/vault.yml` |
 | Flux SSH deploy key | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep flux_github_ssh_private_key` |
 | Cloudflare API token | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep cloudflare` |
-| etcd snapshot | TrueNAS NFS at `/mnt/tera/k3s-backups/` | `ls -lht /mnt/backups/etcd/` |
+| etcd snapshot | TrueNAS NFS at `/mnt/backups/etcd/` | `ls -lht /mnt/backups/etcd/` |
 | age key (SOPS) | `~/age.key` on RPi | `ls -la ~/age.key` |
 
 If the Flux SSH key is missing from vault, see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).

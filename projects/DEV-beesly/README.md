@@ -59,10 +59,10 @@ Proactive alerts:
 
 ## Deployment Target
 
-All containers run on **docker-vm** (`10.0.10.21`) inside Proxmox on the NUC.
+All containers run on **docker-vm** (`10.0.10.32`) inside Proxmox on the NUC.
 
 ```
-docker-vm  10.0.10.21
+docker-vm  10.0.10.32
 ├── 3CX container         (SIP PBX)
 ├── voice-app container   (STT/TTS/SIP bridge)
 └── beesly-server         (HTTP :3333 — Claude API)
@@ -74,7 +74,7 @@ docker-vm  10.0.10.21
 
 ## Prerequisites
 
-- [ ] docker-vm running and accessible at `10.0.10.21`
+- [ ] docker-vm running and accessible at `10.0.10.32`
 - [ ] Claude API key configured
 - [ ] OpenAI API key (Whisper STT)
 - [ ] ElevenLabs API key (TTS)
@@ -94,7 +94,7 @@ docker-vm  10.0.10.21
 bash <(curl -s https://downloads.3cx.com/downloads/3cxpbx/install-debian-12.sh)
 ```
 
-Access web console at `http://10.0.10.21:5001` after install.
+Access web console at `http://10.0.10.32:5001` after install.
 
 ### Option B: Dedicated Proxmox VM
 
@@ -111,7 +111,7 @@ Create a Debian 12 VM (1 vCPU, 2 GB RAM) on the NUC solely for 3CX. Useful if 3C
 ## Step 2 — Deploy voice-app + beesly-server
 
 ```bash
-ssh kagiso@10.0.10.21
+ssh kagiso@10.0.10.32
 
 # Clone and configure
 git clone https://github.com/Kagiso-me/beesly ~/.beesly
@@ -136,8 +136,8 @@ You are Beesly, an intelligent personal assistant.
 
 Infrastructure access — you can query and manage:
 - k3s Kubernetes cluster (nodes: tywin 10.0.10.11, jaime .12, tyrion .13)
-- Docker containers on docker-vm (10.0.10.21)
-- Proxmox hypervisor on the NUC (10.0.10.20) — VMs: docker-vm, staging-k3s
+- Docker containers on docker-vm (10.0.10.32)
+- Proxmox hypervisor on the NUC (10.0.10.30) — VMs: docker-vm (10.0.10.32), staging-k3s (10.0.10.31)
 - TrueNAS NAS (10.0.10.80) — pools: core (SSD mirror), archive (HDD mirror), tera (media)
 - Prometheus metrics via kube-prometheus-stack
 - Pulse uptime monitoring at status.kagiso.me
@@ -163,7 +163,7 @@ Shell scripts in `tools/` that Beesly can invoke:
 kubectl get nodes && kubectl get pods -A --field-selector=status.phase!=Running
 
 # tools/proxmox-vms.sh
-ssh root@10.0.10.20 "pvesh get /nodes/pve/qemu --output-format=json" \
+ssh root@10.0.10.30 "pvesh get /nodes/pve/qemu --output-format=json" \
   | jq '.[] | {name:.name, status:.status}'
 
 # tools/nas-health.sh
@@ -187,7 +187,7 @@ Configure Pulse and Alertmanager to POST to the beesly-server webhook:
 # In Pulse config
 alerting:
   custom:
-    url: http://10.0.10.21:3333/webhook/alert
+    url: http://10.0.10.32:3333/webhook/alert
     method: POST
     body: |
       {"service":"[ENDPOINT_NAME]","condition":"[CONDITION_RESULTS]","success":"[ALERT_TRIGGERED]"}
@@ -198,7 +198,7 @@ alerting:
 receivers:
   - name: beesly
     webhook_configs:
-      - url: http://10.0.10.21:3333/webhook/alert
+      - url: http://10.0.10.32:3333/webhook/alert
 ```
 
 Beesly receives the webhook, assesses severity, and either:
@@ -222,7 +222,7 @@ docker compose ps
 # "Beesly, remind me to cancel my gym membership on Friday"
 
 # Test proactive webhook
-curl -X POST http://10.0.10.21:3333/webhook/alert \
+curl -X POST http://10.0.10.32:3333/webhook/alert \
   -H 'Content-Type: application/json' \
   -d '{"service":"test-svc","condition":"[STATUS] == 503","success":"false"}'
 ```

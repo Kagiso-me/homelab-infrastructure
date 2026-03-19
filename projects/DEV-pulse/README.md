@@ -87,7 +87,7 @@ The most important feature missing from both Uptime Kuma and Gatus.
 monitors:
   - name: postgresql
     type: tcp
-    host: 10.0.10.21
+    host: 10.0.10.32
     port: 5432
 
   - name: nextcloud

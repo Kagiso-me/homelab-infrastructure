@@ -1,7 +1,7 @@
 # =============================================================================
 # Proxy Stack — Docker Compose
 # Nginx Proxy Manager — reverse proxy with automatic SSL (Let's Encrypt)
-# Host: 10.0.10.20
+# Host: 10.0.10.32
 #
 # .env.example — copy to .env and fill in values before deploying
 # -----------------------------------------------------------------------------

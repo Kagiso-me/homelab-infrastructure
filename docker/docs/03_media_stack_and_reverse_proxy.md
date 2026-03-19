@@ -345,7 +345,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Africa/Johannesburg
-      - JELLYFIN_PublishedServerUrl=http://10.0.10.20:8096
+      - JELLYFIN_PublishedServerUrl=http://10.0.10.32:8096
     volumes:
       - /srv/docker/appdata/jellyfin:/config
       - /mnt/media:/media
@@ -439,7 +439,7 @@ Deploy:
 docker compose -f /srv/docker/stacks/proxy.yml up -d
 ```
 
-Access the admin UI at `http://10.0.10.20:81`
+Access the admin UI at `http://10.0.10.32:81`
 
 Default credentials (change immediately):
 
@@ -480,7 +480,7 @@ Navigate to **Proxy Hosts → Add Proxy Host**.
 
 Prowlarr is the hub that feeds indexers to all other *Arr applications.
 
-1. Open `http://10.0.10.20:9696`
+1. Open `http://10.0.10.32:9696`
 2. Add indexers under **Indexers → Add Indexer**
 3. Under **Settings → Apps**, add each application:
 
@@ -494,7 +494,7 @@ Prowlarr will automatically sync indexers to all connected applications.
 
 ## SABnzbd
 
-1. Open `http://10.0.10.20:8080`
+1. Open `http://10.0.10.32:8080`
 2. Complete the initial wizard — add your Usenet provider (server, port, SSL, credentials)
 3. Set **Categories**:
 
@@ -520,7 +520,7 @@ Each ARR application follows the same setup pattern:
 
 ## Jellyfin
 
-1. Open `http://10.0.10.20:8096` — the setup wizard launches on first visit
+1. Open `http://10.0.10.32:8096` — the setup wizard launches on first visit
 2. Create an admin account
 3. Add libraries:
 
@@ -538,7 +538,7 @@ Each ARR application follows the same setup pattern:
 
 ## Overseerr
 
-1. Open `http://10.0.10.20:5055`
+1. Open `http://10.0.10.32:5055`
 2. Connect to Jellyfin:
    - URL: `http://jellyfin:8096`
    - API Key: from Jellyfin → Dashboard → API Keys
@@ -549,7 +549,7 @@ Each ARR application follows the same setup pattern:
 
 ## Bazarr
 
-1. Open `http://10.0.10.20:6767`
+1. Open `http://10.0.10.32:6767`
 2. **Settings → Sonarr**: connect with API key and `http://sonarr:8989`
 3. **Settings → Radarr**: connect with API key and `http://radarr:7878`
 4. **Settings → Providers**: add subtitle providers (OpenSubtitles, Subscene, etc.)
@@ -561,13 +561,13 @@ Each ARR application follows the same setup pattern:
 The Raspberry Pi on the network can access all services using SSH port forwarding if needed,
 but for LAN access the services are directly reachable by IP.
 
-From the RPi, services are at `http://10.0.10.20:<port>` — e.g. `http://10.0.10.20:8096` for Jellyfin.
+From the RPi, services are at `http://10.0.10.32:<port>` — e.g. `http://10.0.10.32:8096` for Jellyfin.
 
 If you are accessing from outside the LAN via SSH jump:
 
 ```bash
 # Tunnel Jellyfin to your local machine via the RPi
-ssh -L 8096:10.0.10.20:8096 pi@<rpi-ip>
+ssh -L 8096:10.0.10.32:8096 pi@<rpi-ip>
 # Then open http://localhost:8096 in your browser
 ```
 

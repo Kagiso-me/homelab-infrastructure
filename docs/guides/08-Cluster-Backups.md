@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 08 of 13
+**Guide:** 08 of 14
 
 > Kubernetes makes deploying systems easy.
 >
@@ -516,8 +516,10 @@ Velero restore:
 5. Restore etcd: k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
 6. Start k3s: systemctl start k3s
 7. Verify: kubectl get nodes
-8. Bootstrap Flux: flux bootstrap git ...
-9. Flux reconciles platform services from Git
+8. Bootstrap Flux + wait for platform:
+   cd ~/homelab-infrastructure/ansible
+   ansible-playbook -i inventory/homelab.yml playbooks/lifecycle/install-platform.yml
+9. Flux reconciles platform services from Git automatically
 10. Velero restores PVC data: velero restore create --from-backup <latest>
 ```
 

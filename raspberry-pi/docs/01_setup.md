@@ -18,7 +18,7 @@ graph LR
     Laptop["Laptop\n(your workstation)"]
     RPi["Raspberry Pi\n10.0.10.10\nControl Hub"]
     TrueNAS["TrueNAS\n10.0.10.80"]
-    Docker["Docker Host\n10.0.10.20"]
+    Docker["Docker VM\n10.0.10.32"]
 
     subgraph k3s ["k3s Cluster (10.0.10.x)"]
         tywin["tywin\n10.0.10.11\n(control plane)"]

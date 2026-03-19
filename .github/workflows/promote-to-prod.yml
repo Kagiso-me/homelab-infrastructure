@@ -1,5 +1,21 @@
 name: Promote to Production
 
+# Triggered on every push to main that touches cluster-relevant paths.
+# Pipeline is fully gated — staging must be healthy before prod is ever touched.
+#
+# Jobs:
+#   validate       — runs on GitHub-hosted ubuntu-latest (no cluster access needed)
+#   staging-health — runs on self-hosted runner (direct LAN access to 10.0.10.x)
+#   promote        — runs on GitHub-hosted ubuntu-latest (git operations only)
+#   prod-health    — runs on self-hosted runner (direct LAN access to 10.0.10.x)
+#
+# Required GitHub repository secrets:
+#   STAGING_KUBECONFIG  — kubeconfig for staging cluster (server = 10.0.10.31:6443)
+#   PROD_KUBECONFIG     — kubeconfig for prod cluster    (server = 10.0.10.11:6443)
+#
+# Self-hosted runner: install on bran (10.0.10.10) — see docs/adr/ADR-005-self-hosted-runners.md
+# See docs/guides/04-Flux-GitOps.md for full setup instructions.
+
 on:
   push:
     branches: [main]
@@ -9,7 +25,7 @@ on:
       - "clusters/staging/**"
 
 jobs:
-  # ─── Stage 1: Manifest validation ────────────────────────────────────────
+  # ─── Stage 1: Manifest validation ─────────────────────────────────────────
   validate:
     name: Validate manifests
     runs-on: ubuntu-latest
@@ -18,67 +34,104 @@ jobs:
 
       - name: Install kubeconform
         run: |
-          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
-            | tar xz && sudo mv kubeconform /usr/local/bin/
+          KUBECONFORM_VERSION="v0.6.7"
+          curl -sSL \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          chmod +x /usr/local/bin/kubeconform
 
       - name: Install kustomize
         run: |
-          curl -sL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
           sudo mv kustomize /usr/local/bin/
 
       - name: Validate with kubeconform
         run: |
           find platform/ apps/ clusters/ \
-            -name "*.yaml" -o -name "*.yml" | \
-          xargs kubeconform \
-            -strict \
-            -ignore-missing-schemas \
-            -schema-location default \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            -summary
+            -type f \( -name "*.yaml" -o -name "*.yml" \) \
+            ! -name "gotk-components.yaml" \
+          | xargs kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -summary
 
-      - name: Kustomize build — prod
+      - name: Kustomize build — apps/prod
         run: kustomize build apps/prod
 
-      - name: Kustomize build — staging
+      - name: Kustomize build — apps/staging
         run: kustomize build apps/staging
 
-  # ─── Stage 2: Staging health check (active once staging cluster exists) ──
+  # ─── Stage 2: Staging health check ────────────────────────────────────────
+  # Runs on a self-hosted runner (bran, 10.0.10.10) which has direct LAN access
+  # to the staging cluster. No VPN required.
+  # Waits for staging to sync this specific commit, then verifies all
+  # kustomizations are Ready and Traefik responds.
+  # Promotion is blocked if staging is unhealthy.
   staging-health:
     name: Staging health check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, homelab]
     needs: validate
     steps:
-      - name: Check staging cluster availability
-        id: staging-check
+      - uses: actions/checkout@v4
+
+      - name: Configure staging kubeconfig
         run: |
-          # This step is a no-op until the staging cluster is bootstrapped.
-          # Once the staging cluster exists, replace this block with:
-          #
-          #   - name: Configure kubeconfig for staging
-          #     run: |
-          #       mkdir -p ~/.kube
-          #       echo "${{ secrets.STAGING_KUBECONFIG }}" > ~/.kube/config
-          #
-          #   - name: Wait for Flux staging reconciliation
-          #     run: |
-          #       kubectl wait kustomization/apps \
-          #         --for=condition=ready \
-          #         --timeout=5m \
-          #         -n flux-system
-          #
-          #   - name: Check all pods healthy
-          #     run: |
-          #       kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded \
-          #         | grep -v "Completed" && exit 1 || exit 0
-          #
-          #   - name: Smoke test — Traefik responds
-          #     run: curl -sf http://10.0.10.110/ping || exit 1
+          mkdir -p ~/.kube
+          echo "${{ secrets.STAGING_KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
 
-          echo "Staging cluster not yet provisioned — skipping health check."
-          echo "Promotion will proceed directly. Add STAGING_KUBECONFIG secret when staging is ready."
+      - name: Wait for staging to sync this commit
+        run: |
+          EXPECTED_SHA=$(git rev-parse HEAD)
+          echo "Waiting for staging to sync commit ${EXPECTED_SHA}..."
+          timeout 120 bash -c "
+            until kubectl get gitrepository flux-system -n flux-system \
+              -o jsonpath='{.status.artifact.revision}' 2>/dev/null \
+              | grep -q '${EXPECTED_SHA}'; do
+              echo '  still waiting...'
+              sleep 10
+            done
+          "
+          echo "Staging synced ${EXPECTED_SHA}"
 
-  # ─── Stage 3: Promote to prod branch ─────────────────────────────────────
+      - name: Wait for all staging kustomizations to be Ready
+        run: |
+          for ks in platform-networking platform-security platform-namespaces platform-storage apps; do
+            echo "Waiting for kustomization/${ks}..."
+            kubectl wait kustomization/${ks} \
+              --for=condition=ready \
+              --timeout=5m \
+              -n flux-system
+          done
+
+      - name: Check for unhealthy pods
+        run: |
+          UNHEALTHY=$(kubectl get pods -A --no-headers \
+            | grep -Ev 'Running|Completed|Succeeded' || true)
+          if [ -n "$UNHEALTHY" ]; then
+            echo "Unhealthy pods found on staging:"
+            echo "$UNHEALTHY"
+            exit 1
+          fi
+          echo "All staging pods healthy"
+
+      - name: Smoke test — Traefik responds
+        run: |
+          TRAEFIK_IP=$(kubectl get svc traefik -n ingress \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Staging Traefik IP: ${TRAEFIK_IP}"
+          HTTP_CODE=$(curl -s --max-time 15 \
+            --write-out '%{http_code}' --output /dev/null \
+            "http://${TRAEFIK_IP}")
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "ERROR: Staging Traefik not reachable (connection refused or timeout)"
+            exit 1
+          fi
+          echo "Staging Traefik responding: HTTP ${HTTP_CODE}"
+
+  # ─── Stage 3: Promote to prod branch ──────────────────────────────────────
   promote:
     name: Promote main → prod
     runs-on: ubuntu-latest
@@ -99,7 +152,6 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Create prod branch if it doesn't exist
           git fetch origin prod 2>/dev/null || true
           git checkout prod 2>/dev/null || git checkout -b prod
 
@@ -115,22 +167,68 @@ jobs:
           echo "**Branch:** \`prod\`" >> $GITHUB_STEP_SUMMARY
           echo "**Flux prod cluster will reconcile within 1 minute.**" >> $GITHUB_STEP_SUMMARY
 
-  # ─── Stage 4: Production health check ────────────────────────────────────
+  # ─── Stage 4: Production health check ─────────────────────────────────────
+  # Runs on a self-hosted runner (bran, 10.0.10.10) which has direct LAN access
+  # to the prod cluster. Waits for Flux to reconcile the new prod branch commit.
+  # Fails the run (and alerts) if prod is unhealthy.
   prod-health:
     name: Production health check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, homelab]
     needs: promote
     steps:
-      - name: Verify prod cluster health
-        run: |
-          # Once you add PROD_KUBECONFIG as a GitHub secret, replace with:
-          #
-          #   mkdir -p ~/.kube
-          #   echo "${{ secrets.PROD_KUBECONFIG }}" > ~/.kube/config
-          #   kubectl wait kustomization/apps \
-          #     --for=condition=ready --timeout=10m -n flux-system
-          #   kubectl get pods -A | grep -v Running | grep -v Completed | grep -v NAME \
-          #     && echo "Unhealthy pods found" && exit 1 || echo "All pods healthy"
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
 
-          echo "Add PROD_KUBECONFIG secret to enable production health checks."
-          echo "See docs/guides/04-Flux-GitOps.md for setup instructions."
+      - name: Configure prod kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.PROD_KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Wait for prod to sync the promoted commit
+        run: |
+          EXPECTED_SHA=$(git rev-parse HEAD)
+          echo "Waiting for prod to sync commit ${EXPECTED_SHA}..."
+          timeout 180 bash -c "
+            until kubectl get gitrepository flux-system -n flux-system \
+              -o jsonpath='{.status.artifact.revision}' 2>/dev/null \
+              | grep -q '${EXPECTED_SHA}'; do
+              echo '  still waiting...'
+              sleep 15
+            done
+          "
+          echo "Prod synced ${EXPECTED_SHA}"
+
+      - name: Wait for all prod kustomizations to be Ready
+        run: |
+          for ks in platform-networking platform-security platform-namespaces \
+                    platform-storage platform-observability apps; do
+            echo "Waiting for kustomization/${ks}..."
+            kubectl wait kustomization/${ks} \
+              --for=condition=ready \
+              --timeout=10m \
+              -n flux-system
+          done
+
+      - name: Check for unhealthy pods
+        run: |
+          UNHEALTHY=$(kubectl get pods -A --no-headers \
+            | grep -Ev 'Running|Completed|Succeeded' || true)
+          if [ -n "$UNHEALTHY" ]; then
+            echo "Unhealthy pods found on prod:"
+            echo "$UNHEALTHY"
+            exit 1
+          fi
+          echo "All prod pods healthy"
+
+      - name: Smoke test — Traefik responds
+        run: |
+          HTTP_CODE=$(curl -s --max-time 15 \
+            --write-out '%{http_code}' --output /dev/null \
+            http://10.0.10.110)
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "ERROR: Prod Traefik not reachable"
+            exit 1
+          fi
+          echo "Prod Traefik responding: HTTP ${HTTP_CODE}"

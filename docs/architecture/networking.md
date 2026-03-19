@@ -18,9 +18,9 @@ All nodes are on the same Layer-2 network segment.
 | tyrion | 10.0.10.13 | Kubernetes worker |
 | TrueNAS | 10.0.10.80 | NFS storage |
 | Router / DNS | 10.0.10.1 | Default gateway, wildcard DNS |
-| Proxmox host (NUC) | 10.0.10.20 | Hypervisor |
-| docker-vm | 10.0.10.21 | Docker media stack |
-| staging-k3s | TBD | Single-node k3s staging |
+| Proxmox host (NUC) | 10.0.10.30 | Hypervisor |
+| docker-vm | 10.0.10.32 | Docker media stack |
+| staging-k3s | 10.0.10.31 | Single-node k3s staging |
 | RPi | 10.0.10.10 | Control hub (Ansible, kubectl, Pi-hole DNS, cloudflared) |
 
 ---
