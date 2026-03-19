@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** split all CRD-dependent resources into separate Kustomizations `21e566e`
 - **[CONFIG]** split metallb-config into separate Kustomization to resolve CRD dry-run failure on bootstrap `ea78f6d`
 - **[DEPLOY]** pre-create cert-manager namespace and Cloudflare API token secret for DNS-01 validation `a4e518d`
 - **[CONFIG]** update install-platform.yml for Flux GitOps setup and enhance vault.yml.example with Cloudflare and SSH key details `26c4283`
