@@ -238,7 +238,7 @@ rm jammy-server-cloudimg-amd64.img
 ssh root@10.0.10.30
 
 # Clone template and configure
-qm clone 9000 100 --name docker-vm --full
+qm clone 9000 3032 --name docked --full
 qm set 100 \
   --memory 8192 \
   --cores 2 \
@@ -247,9 +247,9 @@ qm set 100 \
   --nameserver 10.0.10.10
 
 # Expand disk to 80GB before first boot
-qm resize 100 scsi0 80G
+qm resize 3032 scsi0 80G
 
-qm start 100
+qm start 3032
 ```
 
 Cloud-init configures hostname, injects SSH key, sets static IP, and expands the
@@ -304,18 +304,18 @@ docker ps
 ssh root@10.0.10.30
 
 # Clone template and configure
-qm clone 9000 101 --name staging-k3s --full
+qm clone 9000 3031 --name staging-k3s --full
 qm set 101 \
-  --memory 6144 \
+  --memory 4096 \
   --cores 2 \
   --cpu host \
   --ipconfig0 ip=10.0.10.31/24,gw=10.0.10.1 \
   --nameserver 10.0.10.10
 
 # Expand disk to 60GB before first boot
-qm resize 101 scsi0 60G
+qm resize 3031 scsi0 60G
 
-qm start 101
+qm start 3031
 ```
 
 ### First Boot — staging-k3s
