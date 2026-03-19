@@ -3,5 +3,3 @@ kind: Kustomization
 resources:
   - rbac.yaml
   - controller.yaml
-  - plan-server.yaml
-  - plan-agent.yaml

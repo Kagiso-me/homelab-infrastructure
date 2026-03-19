@@ -4,6 +4,3 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrelease.yaml
-  - middlewares.yaml
-  - wildcard-certificate.yaml
-  - tls-store.yaml

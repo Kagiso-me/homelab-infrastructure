@@ -3,5 +3,3 @@ kind: Kustomization
 resources:
   - kube-prometheus-stack
   - loki
-  - alertmanager-config
-  - prometheus-rules

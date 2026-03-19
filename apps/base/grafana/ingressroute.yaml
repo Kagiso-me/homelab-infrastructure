@@ -1,7 +1,7 @@
 # Grafana IngressRoute
 # Grafana itself is deployed by kube-prometheus-stack HelmRelease.
 # TLS is served automatically by the *.kagiso.me wildcard cert via the Traefik
-# default TLSStore (platform/networking/traefik/tls-store.yaml).
+# default TLSStore (platform/networking/traefik-config/tls-store.yaml).
 # No per-service Certificate resource is needed.
 ---
 apiVersion: traefik.io/v1alpha1

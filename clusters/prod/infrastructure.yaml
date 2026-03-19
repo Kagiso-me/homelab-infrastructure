@@ -20,6 +20,50 @@ spec:
     secretRef:
       name: sops-age
 ---
+# Traefik CRs (Middleware, TLSStore) + wildcard Certificate.
+# Split from platform-networking so Traefik and cert-manager CRDs exist before dry-run.
+# Depends on platform-networking (Traefik CRDs) and platform-security (cert-manager CRDs).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-networking-tls
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/networking/traefik-config
+  prune: true
+  dependsOn:
+    - name: platform-networking
+    - name: platform-security-issuers
+---
+# ClusterIssuers (letsencrypt-prod, letsencrypt-staging, internal-ca).
+# Split from platform-security so cert-manager CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-security-issuers
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/security/cluster-issuers
+  prune: true
+  dependsOn:
+    - name: platform-security
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
 # Platform Security — cert-manager + ClusterIssuers (depends on networking for ingress)
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -76,9 +120,32 @@ spec:
     name: flux-system
   path: ./platform/observability
   prune: true
+  wait: true
   dependsOn:
     - name: platform-security
     - name: platform-namespaces
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# AlertmanagerConfig, PrometheusRules — split so monitoring CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-observability-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/observability/observability-config
+  prune: true
+  dependsOn:
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
@@ -121,12 +188,31 @@ spec:
     name: flux-system
   path: ./platform/backup
   prune: true
+  wait: true
   dependsOn:
     - name: platform-storage
   decryption:
     provider: sops
     secretRef:
       name: sops-age
+---
+# Velero CRs (BackupStorageLocation, Schedule) — split so Velero CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-backup-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/backup/velero-config
+  prune: true
+  dependsOn:
+    - name: platform-backup
 ---
 # Platform Upgrade — k3s System Upgrade Controller
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -143,5 +229,24 @@ spec:
     name: flux-system
   path: ./platform/upgrade
   prune: true
+  wait: true
   dependsOn:
     - name: platform-networking
+---
+# k3s upgrade Plans — split so upgrade-controller CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-upgrade-plans
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/upgrade/upgrade-plans
+  prune: true
+  dependsOn:
+    - name: platform-upgrade

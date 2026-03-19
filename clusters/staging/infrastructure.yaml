@@ -1,5 +1,5 @@
 # Staging platform — mirrors prod with reduced resource limits.
-# Staging uses the letsencrypt-staging ClusterIssuer (already defined in platform/security).
+# Staging uses the letsencrypt-staging ClusterIssuer (defined in platform-security-issuers).
 # MetalLB IP pool for staging: 10.0.10.190-10.0.10.199 (patched via platform-networking-config).
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -17,6 +17,58 @@ spec:
   path: ./platform/networking
   prune: true
   wait: true
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# Traefik CRs (Middleware, TLSStore) + wildcard Certificate.
+# Split from platform-networking so Traefik and cert-manager CRDs exist before dry-run.
+# Depends on platform-networking (Traefik CRDs) and platform-security (cert-manager CRDs).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-networking-tls
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/networking/traefik-config
+  prune: true
+  dependsOn:
+    - name: platform-networking
+    - name: platform-security-issuers
+  patches:
+    - patch: |
+        - op: replace
+          path: /spec/issuerRef/name
+          value: letsencrypt-staging
+      target:
+        kind: Certificate
+        name: wildcard-kagiso-me
+---
+# ClusterIssuers (letsencrypt-prod, letsencrypt-staging, internal-ca).
+# Split from platform-security so cert-manager CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-security-issuers
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/security/cluster-issuers
+  prune: true
+  dependsOn:
+    - name: platform-security
   decryption:
     provider: sops
     secretRef:
@@ -102,9 +154,32 @@ spec:
     name: flux-system
   path: ./platform/observability
   prune: true
+  wait: true
   dependsOn:
     - name: platform-security
     - name: platform-namespaces
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
+# AlertmanagerConfig, PrometheusRules — split so monitoring CRDs exist before dry-run.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-observability-config
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/observability/observability-config
+  prune: true
+  dependsOn:
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
