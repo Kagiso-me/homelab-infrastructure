@@ -182,24 +182,35 @@ sequenceDiagram
 
     Note over Flux,K8s: platform-networking kustomization
     Flux->>K8s: HelmRelease: metallb (v0.14.9)
-    Flux->>K8s: Wait for metallb-controller + metallb-speaker Ready
-    Flux->>K8s: Apply IPAddressPool + L2Advertisement (10.0.10.110-10.0.10.125)
     Flux->>K8s: HelmRelease: traefik (28.x)
-    Flux->>K8s: Apply wildcard Certificate + TLSStore
+    Flux->>K8s: Wait for metallb + traefik controllers Ready
 
-    Note over Flux,K8s: platform-security kustomization
+    Note over Flux,K8s: platform-networking-config kustomization (depends on platform-networking)
+    Flux->>K8s: Apply IPAddressPool + L2Advertisement
+    Note right of K8s: CRDs now exist — dry-run succeeds
+
+    Note over Flux,K8s: platform-security kustomization (depends on platform-networking)
     Flux->>K8s: HelmRelease: cert-manager
     Flux->>K8s: Apply letsencrypt-prod ClusterIssuer
+    Flux->>K8s: Apply wildcard Certificate + TLSStore
     Flux->>K8s: Wait for wildcard cert Ready (DNS-01 ~30-120s)
 ```
+
+> **Why `metallb-config` is a separate Kustomization:**
+> `IPAddressPool` and `L2Advertisement` are custom resource types that only exist after MetalLB
+> installs its CRDs. Flux validates all resources in a Kustomization with a dry-run before
+> applying any of them. If these CRs were in the same Kustomization as the MetalLB HelmRelease,
+> the dry-run would fail on a fresh cluster because the CRDs don't exist yet — blocking the
+> entire networking stack. Keeping them in a separate, dependent Kustomization ensures the
+> HelmRelease (and its CRDs) lands first.
 
 The manifests driving this are located at:
 
 ```
 platform/
 ├── networking/
-│   ├── metallb/          ← HelmRelease + HelmRepository
-│   ├── metallb-config/   ← IPAddressPool + L2Advertisement
+│   ├── metallb/          ← HelmRelease + HelmRepository (installs MetalLB CRDs)
+│   ├── metallb-config/   ← IPAddressPool + L2Advertisement (applied after CRDs exist)
 │   └── traefik/          ← HelmRelease + middlewares + wildcard cert + TLSStore
 └── security/
     └── cert-manager/     ← HelmRelease + ClusterIssuer

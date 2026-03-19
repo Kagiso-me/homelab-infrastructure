@@ -732,11 +732,15 @@ apps                     prod@sha1:xxxxxxxx   True    Applied revision: ...
 On the **staging cluster** (after a `git push` to `main`):
 
 ```
-NAME                     REVISION             READY   MESSAGE
-flux-system              main@sha1:xxxxxxxx   True    Applied revision: main@sha1:xxxxxxxx
-platform-namespaces      main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-networking      main@sha1:xxxxxxxx   True    Applied revision: ...
-...
+NAME                        REVISION             READY   MESSAGE
+flux-system                 main@sha1:xxxxxxxx   True    Applied revision: main@sha1:xxxxxxxx
+platform-namespaces         main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking         main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking-config  main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-security           main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-observability      main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-storage            main@sha1:xxxxxxxx   True    Applied revision: ...
+apps                        main@sha1:xxxxxxxx   True    Applied revision: ...
 ```
 
 And `flux get helmreleases -A`:
@@ -866,6 +870,39 @@ Application data (PVC contents) is restored separately via Velero — see [Guide
 
 This is one of the most powerful advantages of GitOps: **the cluster is entirely disposable
 and recoverable from a single vault + git repository.**
+
+---
+
+# Troubleshooting
+
+## `platform-networking` stuck: "no matches for kind IPAddressPool"
+
+**Symptom:** `flux get kustomizations` shows:
+
+```
+platform-networking   False   IPAddressPool/metallb-system/homelab-pool dry-run failed:
+                              no matches for kind "IPAddressPool" in version "metallb.io/v1beta1"
+```
+
+And every other kustomization shows `dependency '…/platform-networking' is not ready`.
+
+**Cause:** This is a Flux CRD bootstrapping problem. Flux dry-runs all resources in a
+Kustomization before applying any of them. `IPAddressPool` is a MetalLB custom resource type —
+the CRD only exists after MetalLB installs. If the MetalLB HelmRelease and the `IPAddressPool`
+resource are in the same Kustomization, the dry-run fails on a fresh cluster because the CRD
+hasn't been created yet.
+
+**Resolution:** The fix is already applied in this repository. `metallb-config` (IPAddressPool +
+L2Advertisement) lives in a separate `platform-networking-config` Kustomization that
+`dependsOn: platform-networking`. This ensures MetalLB's HelmRelease installs first (creating
+the CRDs), then the config is applied.
+
+If you see this error after a fresh bootstrap, it usually means you are on an older version of
+the repo that predates this fix. Pull the latest `main` and force a reconciliation:
+
+```bash
+flux reconcile kustomization flux-system --with-source
+```
 
 ---
 
