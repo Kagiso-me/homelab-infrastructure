@@ -500,8 +500,43 @@ flux bootstrap github \
   --personal
 ```
 
-> After bootstrap completes, immediately create the `sops-age` secret (Step 4 above)
-> before Flux begins reconciling encrypted resources. If you have NOT already created the sops-age!
+After bootstrap completes, create the two secrets Flux needs before it can reconcile
+the platform. Flux starts reconciling immediately — do this before moving on.
+
+**Secret 1 — age decryption key** (required for SOPS-encrypted manifests):
+
+```bash
+kubectl create secret generic sops-age \
+  --namespace=flux-system \
+  --from-file=age.agekey=$HOME/age.key
+```
+
+**Secret 2 — Cloudflare API token** (required for cert-manager DNS-01 wildcard cert):
+
+```bash
+# Get the token from vault
+ansible-vault view ~/homelab-infrastructure/ansible/vars/vault.yml | grep cloudflare_api_token
+
+kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic cloudflare-api-token \
+  --namespace cert-manager \
+  --from-literal=api-token=<token from vault output above>
+```
+
+Verify both exist before continuing:
+
+```bash
+kubectl get secret sops-age -n flux-system
+kubectl get secret cloudflare-api-token -n cert-manager
+```
+
+Once both secrets are in place, Flux will resolve `platform-networking` and the full
+dependency chain will converge automatically. Watch progress with:
+
+```bash
+watch flux get kustomizations
+```
 
 **Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). First set up the kubeconfig on bran:
 
