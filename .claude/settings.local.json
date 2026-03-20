@@ -43,7 +43,8 @@
       "Bash(sed -i 's|/mnt/{media,downloads,archive/k8s-backups/docker}|/mnt/{media,downloads,archive/backups/docker-backups}|g' docker/docs/05_backups_and_disaster_recovery.md)",
       "Bash(find c:UsersktjeaOneDriveDocumentsReposhomelab-infrastructure -name *metallb* -o -name *speaker* -o -name *ip-pool*)",
       "Bash(grep -v \"kustomize.config\\\\|kustomize.toolkit\\\\|apps/v1\\\\|v1$\\\\|rbac.authorization\")",
-      "Bash(grep -v \"kustomize.config\\\\|kustomize.toolkit\\\\|helm.toolkit\\\\|^Binary\\\\|apiVersion: v1$\\\\|apiVersion: apps/v1\\\\|apiVersion: rbac\\\\|apiVersion: batch\")"
+      "Bash(grep -v \"kustomize.config\\\\|kustomize.toolkit\\\\|helm.toolkit\\\\|^Binary\\\\|apiVersion: v1$\\\\|apiVersion: apps/v1\\\\|apiVersion: rbac\\\\|apiVersion: batch\")",
+      "Bash(grep -r ANSIBLE_VAULT c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ansible --include=*.yml -l)"
     ]
   }
 }

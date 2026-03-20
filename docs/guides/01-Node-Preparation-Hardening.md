@@ -176,41 +176,82 @@ Repeat for every node.
 
 ---
 
-# Step 5 — Create the Ansible Inventory
+# Step 5 — Clone the Repository
 
-Ansible needs to know which machines it should manage.
+The Ansible inventory already lives in this repo at `ansible/inventory/homelab.yml`. Rather than creating one manually, clone the repo on the machine you'll run Ansible from:
 
-Create an inventory file:
-
+```bash
+git clone https://github.com/Kagiso-me/homelab-infrastructure.git
+cd homelab-infrastructure
 ```
-inventory/homelab.yml
-```
 
-Example structure:
+The inventory at `ansible/inventory/homelab.yml` defines all nodes and groups:
 
-```
+```yaml
 all:
-  hosts:
-    tywin:
-      ansible_host: 10.0.10.11
-    jaime:
-      ansible_host: 10.0.10.12
-    tyrion:
-      ansible_host: 10.0.10.13
+  children:
+    rpi:
+      hosts:
+        rpi:
+          ansible_host: 10.0.10.10
+
+    k3s_controller:
+      hosts:
+        tywin:
+          ansible_host: 10.0.10.11
+
+    k3s_workers:
+      hosts:
+        jaime:
+          ansible_host: 10.0.10.12
+        tyrion:
+          ansible_host: 10.0.10.13
+
+  vars:
+    ansible_user: kagiso
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 ```
 
-This file tells Ansible how to connect to each machine.
+No manual inventory creation needed — it's already maintained in version control.
 
 ---
 
-# Step 6 — Test Ansible Connectivity
+# Step 6 — Create the Vault Password File
+
+The Ansible configuration at `ansible/ansible.cfg` references a vault password file:
+
+```
+vault_password_file = ~/.vault_pass
+```
+
+This file must exist before running any Ansible command, even those that don't use encrypted secrets. Without it, every command will error:
+
+```
+[ERROR]: The vault password file /home/kagiso/.vault_pass was not found
+```
+
+Create the file on the automation host:
+
+```bash
+echo "your-vault-password-here" > ~/.vault_pass
+chmod 600 ~/.vault_pass
+```
+
+> **Note:** Choose a strong password and store it somewhere safe (e.g. a password manager).
+> This password will be used to encrypt any secrets added to the repo later (SSH keys, API tokens, etc.).
+> The `chmod 600` restricts the file to your user only.
+
+---
+
+# Step 7 — Test Ansible Connectivity
 
 Before running any automation, confirm Ansible can reach the nodes.
 
-Run:
+Run from the `ansible/` directory:
 
-```
-ansible all -m ping -i inventory/homelab.yml
+```bash
+cd ansible
+ansible all -m ping
 ```
 
 Expected output:
@@ -226,10 +267,64 @@ If this fails, check:
 • SSH connectivity
 • IP addresses
 • inventory configuration
+• `~/.vault_pass` exists and is readable
 
 ---
 
-# Step 7 — Baseline Node Preparation
+# Step 8 — Harden the Raspberry Pi (Automation Host)
+
+The Raspberry Pi (`bran`, `10.0.10.10`) is both the automation host and a managed node. It must be hardened before it starts managing others.
+
+Run the three security playbooks targeting the `rpi` group only:
+
+```bash
+ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
+ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
+```
+
+### What each playbook does for the RPi
+
+**Firewall (`firewall.yml`)**
+
+UFW is configured with a default-deny policy. The RPi is only allowed inbound traffic from the LAN (`10.0.10.0/24`):
+
+| Port | Protocol | Reason |
+|---|---|---|
+| 22 | TCP | SSH from LAN workstations |
+| 53 | TCP + UDP | DNS queries (Pi-hole) |
+
+All other inbound traffic is dropped.
+
+**SSH hardening (`ssh-hardening.yml`)**
+
+Modifies `/etc/ssh/sshd_config`:
+
+| Setting | Value |
+|---|---|
+| `PasswordAuthentication` | `no` |
+| `PermitRootLogin` | `no` |
+| `MaxAuthTries` | `3` |
+| `X11Forwarding` | `no` |
+| `ClientAliveInterval` | `300` |
+
+Only key-based login is permitted after this runs.
+
+**Fail2Ban (`fail2ban.yml`)**
+
+Installs Fail2Ban and enables the SSH jail:
+
+| Setting | Value |
+|---|---|
+| `bantime` | 1 hour |
+| `findtime` | 10 minutes |
+| `maxretry` (SSH) | 3 attempts |
+
+> **Important:** Ensure your SSH public key is already present in `~/.ssh/authorized_keys` on the RPi before running `ssh-hardening.yml`. Password login will be permanently disabled.
+
+---
+
+# Step 9 — Baseline Node Preparation
 
 The automation repository already contains several playbooks for node preparation.
 
@@ -348,10 +443,14 @@ Fail2Ban protects against brute force login attempts.
 Before continuing ensure:
 
 ```
-✓ SSH access works to every node
-✓ ansible all -m ping succeeds
-✓ swap is disabled
-✓ firewall rules are applied
+✓ ~/.vault_pass exists with chmod 600
+✓ SSH access works to every node (including bran)
+✓ ansible all -m ping succeeds (run from ansible/ directory)
+✓ bran: UFW enabled, SSH + DNS from LAN only
+✓ bran: password authentication disabled
+✓ bran: Fail2Ban running (fail2ban-client status sshd)
+✓ swap is disabled on cluster nodes
+✓ firewall rules are applied to all nodes
 ✓ system clocks are synchronized
 ✓ nodes are fully updated
 ```
