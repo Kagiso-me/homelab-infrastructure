@@ -402,7 +402,7 @@ The platform uses **UFW**.
 
 Apply firewall configuration:
 
-```
+```                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
 ansible-playbook ansible/playbooks/security/firewall.yml
 ```
 
