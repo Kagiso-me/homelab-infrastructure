@@ -581,6 +581,28 @@ GitHub repository. On a fresh cluster, this key must be placed into the `flux-sy
 before Flux can sync. The `install-platform.yml` playbook handles this automatically — but
 it reads the key from Ansible Vault.
 
+> **First time? You need to create the vault file before you can add anything to it.**
+> If `ansible/vars/vault.yml` does not exist yet, run these steps first:
+>
+> ```bash
+> # 1. Create the vault password file (once per RPi — skip if it already exists)
+> echo "your-chosen-vault-password" > ~/.vault_pass
+> chmod 600 ~/.vault_pass
+>
+> # 2. Create the encrypted vault file
+> cd ~/homelab-infrastructure/ansible
+> ansible-vault create vars/vault.yml
+> ```
+>
+> Paste this as the initial content (you will fill in the Flux key in Step 2 below):
+>
+> ```yaml
+> cloudflare_api_token: "your-cloudflare-api-token-here"
+> ```
+>
+> Save and exit. Then continue with Step 1.
+> Full vault reference: [Ansible Vault Setup](#ansible-vault-setup-one-time-per-rpi)
+
 ## Step 1 — Extract the key material
 
 ```bash
@@ -594,7 +616,9 @@ ssh-keyscan github.com 2>/dev/null | grep ed25519
 ## Step 2 — Add to Ansible Vault
 
 ```bash
+# If the vault file already exists:
 ansible-vault edit ansible/vars/vault.yml
+# If you just created it in the prerequisite step above, it is already open — just add the entries below.
 ```
 
 Add the following entries (in addition to the existing `cloudflare_api_token`):
@@ -676,6 +700,9 @@ $ANSIBLE_VAULT;1.1;AES256
 ```bash
 ansible-vault edit ansible/vars/vault.yml
 ```
+
+> **Note:** `ansible-vault edit` fails with `No such file or directory` if the vault file does not exist yet.
+> Use `ansible-vault create` for first-time setup; use `edit` only after the file has been created.
 
 ## Run the Playbook
 
