@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** (doc)complete documentation rework. Fixed sequence, added new guides, and updated existing ones to reflect the latest changes in the platform architecture and operations. This commit also includes updates to the README and roadmap to align with the new documentation structure. `1588e6a`
 - **[CONFIG]** update cert-manager HelmRelease to disable ServiceMonitor during bootstrap `83f6fd1`
 - **[DEPLOY]** add ansible vault with Flux GitHub SSH credentials `219c65f`
 - **[MAINTENANCE]** configure SOPS encryption rules with age public key `1138c4f`
