@@ -938,6 +938,55 @@ the repo that predates this fix. Pull the latest `main` and force a reconciliati
 flux reconcile kustomization flux-system --with-source
 ```
 
+## `platform-security` stuck: "no matches for kind ServiceMonitor"
+
+**Symptom:** `flux get kustomizations` shows:
+
+```
+platform-security   Unknown   Reconciliation in progress
+```
+
+And `kubectl get helmrelease -n cert-manager` shows:
+
+```
+cert-manager   False   Helm install failed: unable to build kubernetes objects from release manifest:
+                       resource mapping not found for name: "cert-manager" namespace: "cert-manager"
+                       from "": no matches for kind "ServiceMonitor" in version "monitoring.coreos.com/v1"
+```
+
+Every downstream kustomization (`platform-security-issuers`, `platform-observability`, `apps`) is blocked waiting on `platform-security`.
+
+**Cause:** Another CRD bootstrapping chicken-and-egg. cert-manager's HelmRelease has
+`prometheus.servicemonitor.enabled: true`, which tells Helm to create a `ServiceMonitor`
+resource. `ServiceMonitor` is a kube-prometheus-stack CRD — it only exists after
+`platform-observability` installs. But `platform-observability` depends on `platform-security`
+(cert-manager). They block each other indefinitely.
+
+**Resolution:** The fix is already applied in this repository. `platform/security/cert-manager/helmrelease.yaml`
+sets `prometheus.servicemonitor.enabled: false` on bootstrap. Once `platform-observability`
+is healthy and kube-prometheus-stack CRDs exist, you can re-enable it:
+
+```yaml
+# platform/security/cert-manager/helmrelease.yaml
+values:
+  prometheus:
+    enabled: true
+    servicemonitor:
+      enabled: true   # safe to enable after platform-observability is Ready
+```
+
+Commit and push — Flux will upgrade the HelmRelease and create the ServiceMonitor against
+the now-existing CRDs.
+
+If you see this on a fresh bootstrap, the resolution is automatic — just wait for the full
+dependency chain to converge. Check progress with:
+
+```bash
+flux get kustomizations
+kubectl get helmrelease -n cert-manager
+kubectl get pods -n cert-manager
+```
+
 ---
 
 # Exit Criteria
