@@ -247,10 +247,9 @@ chmod 600 ~/.vault_pass
 
 Before running any automation, confirm Ansible can reach the nodes.
 
-Run from the `ansible/` directory:
+Run from the repo root:
 
 ```bash
-cd ansible
 ansible all -m ping
 ```
 
@@ -278,9 +277,9 @@ The Raspberry Pi (`bran`, `10.0.10.10`) is both the automation host and a manage
 Run the three security playbooks targeting the `rpi` group only:
 
 ```bash
-ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
-ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
-ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
+  ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
+  ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
+  ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
 ```
 
 ### What each playbook does for the RPi
