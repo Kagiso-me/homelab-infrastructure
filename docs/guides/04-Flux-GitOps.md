@@ -601,7 +601,6 @@ it reads the key from Ansible Vault.
 > ```
 >
 > Save and exit. Then continue with Step 1.
-> Full vault reference: [Ansible Vault Setup](#ansible-vault-setup-one-time-per-rpi)
 
 ## Step 1 — Extract the key material
 
@@ -654,55 +653,6 @@ This is the **standard procedure for all cluster rebuilds**. It assumes:
 - k3s has been reinstalled via `install-cluster.yml`
 - `clusters/prod/flux-system/gotk-sync.yaml` is committed in the repo (created during first-time bootstrap)
 - The Flux SSH deploy key is stored in Ansible Vault
-
-## Ansible Vault Setup (one-time per RPi)
-
-The playbook reads secrets from `ansible/vars/vault.yml`, an Ansible Vault encrypted file.
-The vault password lives only on the RPi and is never committed.
-
-**Create the vault password file:**
-
-```bash
-# On the Raspberry Pi (10.0.10.10)
-echo "your-chosen-vault-password" > ~/.vault_pass
-chmod 600 ~/.vault_pass
-```
-
-**Create the encrypted vault file** (if it does not exist yet):
-
-```bash
-cd ~/homelab-infrastructure/ansible
-ansible-vault create vars/vault.yml
-```
-
-Paste the following into the editor:
-
-```yaml
-cloudflare_api_token: "your-cloudflare-api-token-here"
-
-flux_github_ssh_private_key: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  <contents of ~/.ssh/flux_deploy_key>
-  -----END OPENSSH PRIVATE KEY-----
-
-flux_github_known_hosts: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C5okci41bzVz6S0k"
-```
-
-Save and exit. The file is encrypted immediately. What gets committed to git looks like:
-
-```
-$ANSIBLE_VAULT;1.1;AES256
-66386134653765363934346162623065613138646364646665...
-```
-
-**Edit the vault later** (e.g., to add secrets or rotate the Cloudflare token):
-
-```bash
-ansible-vault edit ansible/vars/vault.yml
-```
-
-> **Note:** `ansible-vault edit` fails with `No such file or directory` if the vault file does not exist yet.
-> Use `ansible-vault create` for first-time setup; use `edit` only after the file has been created.
 
 ## Run the Playbook
 
