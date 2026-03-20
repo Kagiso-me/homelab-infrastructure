@@ -1,8 +1,14 @@
 ---
 # install-pihole.yml
 #
-# Installs Pi-hole on the Raspberry Pi control hub (10.0.10.10).
+# Installs Pi-hole v6 on the Raspberry Pi control hub (10.0.10.10).
 # Pi-hole serves as the network-wide DNS resolver and ad blocker.
+#
+# Pi-hole v6 changes (vs v5):
+#   - Web UI served by FTL built-in web server — lighttpd no longer used.
+#   - Password set via 'pihole setpassword' after install (not setupVars.conf).
+#   - setupVars.conf still used for network/DNS config during unattended install.
+#   - dnsmasq.d wildcard config still works (FTL reads /etc/dnsmasq.d/*.conf).
 #
 # Responsibilities after install:
 #   - Network-wide ad blocking (all devices via DHCP DNS assignment)
@@ -14,15 +20,9 @@
 #   2. Verify Pi-hole admin at http://10.0.10.10/admin
 #   3. Verify *.kagiso.me resolves to 10.0.10.110 from any LAN device
 #
-# Usage (run from the Raspberry Pi itself or another Ansible host):
+# Usage:
 #   ansible-playbook -i ansible/inventory/homelab.yml \
 #     ansible/playbooks/services/install-pihole.yml
-#
-# Variables:
-#   pihole_admin_password : Pi-hole web admin password (prompt if not set)
-#   pihole_upstream_dns_1 : Primary upstream DNS (default: 1.1.1.1)
-#   pihole_upstream_dns_2 : Secondary upstream DNS (default: 1.0.0.1)
-#   pihole_domain         : Local domain suffix (default: lan)
 
 - name: Install Pi-hole on Raspberry Pi
   hosts: rpi
@@ -70,6 +70,22 @@
           - dnsutils
         state: present
 
+    # Pi-hole v6 serves its web UI via FTL's built-in web server on port 80.
+    # Lighttpd conflicts with FTL on port 80 — stop and remove it if present.
+    - name: "preflight | Stop lighttpd if present"
+      systemd:
+        name: lighttpd
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: "preflight | Remove lighttpd if installed"
+      apt:
+        name: lighttpd
+        state: absent
+        purge: true
+      ignore_errors: true
+
   # ============================================================================
   # PI-HOLE INSTALL
   # ============================================================================
@@ -82,18 +98,18 @@
         owner: root
         group: root
 
+    # Pi-hole v6 reads setupVars.conf for network/DNS settings during unattended
+    # install. WEBPASSWORD, LIGHTTPD_ENABLED, INSTALL_WEB_SERVER and
+    # INSTALL_WEB_INTERFACE are v5-only keys and are intentionally omitted here.
+    # Password is set post-install via 'pihole setpassword'.
     - name: "pihole | Create setupVars.conf for unattended install"
       copy:
         dest: /etc/pihole/setupVars.conf
         content: |
-          WEBPASSWORD={{ pihole_admin_password | hash('sha256') | hash('sha256') }}
           PIHOLE_INTERFACE={{ pihole_interface }}
           IPV4_ADDRESS={{ pihole_ipv4_address }}
           IPV6_ADDRESS=
           QUERY_LOGGING=true
-          INSTALL_WEB_SERVER=true
-          INSTALL_WEB_INTERFACE=true
-          LIGHTTPD_ENABLED=true
           CACHE_SIZE=10000
           DNS_FQDN_REQUIRED=false
           DNS_BOGUS_PRIV=true
@@ -109,7 +125,6 @@
         mode: '0644'
         owner: root
         group: root
-      register: setupvars
 
     - name: "pihole | Download installer"
       get_url:
@@ -127,6 +142,13 @@
         path: /tmp/install-pihole.sh
         state: absent
 
+    # In Pi-hole v6, passwords are managed by FTL directly.
+    # 'pihole setpassword' replaces the v5 WEBPASSWORD hash in setupVars.conf.
+    - name: "pihole | Set admin password"
+      command: "pihole setpassword {{ pihole_admin_password | quote }}"
+      changed_when: true
+      no_log: true
+
   # ============================================================================
   # SPLIT DNS — wildcard *.kagiso.me → Traefik
   # ============================================================================
@@ -143,9 +165,12 @@
           address=/.{{ kagiso_domain }}/{{ traefik_ip }}
         mode: '0644'
 
-    - name: "dns | Restart Pi-hole DNS to apply wildcard config"
-      command: pihole restartdns
-      changed_when: true
+    # Full service restart (not 'pihole restartdns') to guarantee new dnsmasq.d
+    # files are picked up by FTL.
+    - name: "dns | Restart pihole-FTL to apply wildcard config"
+      systemd:
+        name: pihole-FTL
+        state: restarted
 
     - name: "dns | Wait for Pi-hole DNS to be ready on port 53"
       wait_for:
@@ -162,6 +187,12 @@
         name: pihole-FTL
       register: ftl_status
       failed_when: ftl_status.status.ActiveState != 'active'
+
+    - name: "verify | Check Pi-hole web UI is reachable on port 80"
+      wait_for:
+        host: 127.0.0.1
+        port: 80
+        timeout: 15
 
     - name: "verify | Test wildcard DNS resolution"
       command: "dig +short grafana.{{ kagiso_domain }} @127.0.0.1"
@@ -184,7 +215,7 @@
     - name: "verify | Summary"
       debug:
         msg: |
-          Pi-hole installed successfully.
+          Pi-hole v6 installed successfully.
 
           Admin UI:    http://{{ ansible_host }}/admin
           DNS server:  {{ ansible_host }} ({{ pihole_ipv4_address | split('/') | first }})
