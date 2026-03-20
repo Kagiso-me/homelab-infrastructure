@@ -25,8 +25,9 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    # Enable Prometheus metrics
+    # ServiceMonitor disabled on bootstrap — kube-prometheus-stack CRDs don't exist yet.
+    # Re-enable once platform-observability is healthy.
     prometheus:
       enabled: true
       servicemonitor:
-        enabled: true
+        enabled: false
