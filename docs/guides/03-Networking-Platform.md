@@ -409,6 +409,38 @@ sudo tailscale up
 
 Run this on each device that needs remote access (RPi, workstation, phone, etc.). After `tailscale up`, each device gets a stable Tailscale IP (100.x.x.x range).
 
+### Configure RPi as Exit Node
+
+The RPi doubles as a Tailscale exit node, allowing other devices to route all internet traffic through the home network when away.
+
+**On the RPi:**
+
+```bash
+# Enable IP forwarding
+echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
+echo 'net.ipv6.conf.all.forwarding = 1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
+sudo sysctl -p /etc/sysctl.d/99-tailscale.conf
+
+# Advertise as exit node
+sudo tailscale up --advertise-exit-node
+```
+
+**In the Tailscale admin console:**
+
+Go to [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines), find the RPi, and approve the exit node under **Edit route settings**.
+
+**On client devices** (when you want to use the exit node):
+
+```bash
+# Enable exit node
+sudo tailscale up --exit-node=<rpi-tailscale-ip>
+
+# Disable exit node
+sudo tailscale up --exit-node=
+```
+
+Or toggle it from the Tailscale GUI/app on mobile.
+
 ### Accessing Plex via Tailscale
 
 Once enrolled, access Plex directly using its Tailscale IP or via MagicDNS:

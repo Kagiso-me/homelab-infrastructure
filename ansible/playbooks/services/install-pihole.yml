@@ -144,9 +144,14 @@
         mode: '0644'
 
     - name: "dns | Restart Pi-hole DNS to apply wildcard config"
-      systemd:
-        name: pihole-FTL
-        state: restarted
+      command: pihole restartdns
+      changed_when: true
+
+    - name: "dns | Wait for Pi-hole DNS to be ready on port 53"
+      wait_for:
+        host: 127.0.0.1
+        port: 53
+        timeout: 30
 
   # ============================================================================
   # VERIFY
