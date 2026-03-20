@@ -306,6 +306,12 @@ sudo systemctl enable --now cloudflared
 
 `tunnel route dns` creates the proxied CNAME record in Cloudflare DNS automatically.
 
+> **Note:** `cloudflared service install` runs as root and expects the tunnel credentials file at `/root/.cloudflared/<tunnel-id>.json`. If you created the tunnel as a non-root user, copy the credentials file before starting the service:
+> ```bash
+> sudo mkdir -p /root/.cloudflared
+> sudo cp ~/.cloudflared/<tunnel-id>.json /root/.cloudflared/
+> ```
+
 ### Adding a New Service
 
 Adding a new public service only requires adding an ingress rule to `/etc/cloudflared/config.yml` and restarting `cloudflared`. No Cloudflare dashboard changes are needed if using tunnel DNS routing:
