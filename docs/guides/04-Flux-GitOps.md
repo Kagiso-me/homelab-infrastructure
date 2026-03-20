@@ -501,10 +501,32 @@ flux bootstrap github \
 ```
 
 > After bootstrap completes, immediately create the `sops-age` secret (Step 4 above)
-> before Flux begins reconciling encrypted resources.
+> before Flux begins reconciling encrypted resources. If you have NOT already created the sops-age!
 
-**Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). Run with the prod
-cluster's kubeconfig active:
+**Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). First set up the kubeconfig on bran:
+
+```bash
+# Copy kubeconfig from tywin (prod control plane) and patch the address
+scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+
+# Activate for this session
+export KUBECONFIG=~/.kube/prod-config
+```
+
+> **Why the sed?** k3s writes `127.0.0.1:6443` into the kubeconfig — correct on `tywin`
+> itself, but unreachable from `bran`. Replacing it with `tywin`'s LAN IP lets `flux` and
+> `kubectl` reach the prod API server over the LAN.
+>
+> **Why set KUBECONFIG explicitly?** `flux bootstrap` targets whichever cluster the active
+> kubeconfig points to. If your shell still has `KUBECONFIG=~/.kube/staging-config` from
+> the staging step above, the prod bootstrap will silently install into staging again.
+> Always confirm the active context before running bootstrap:
+> ```bash
+> kubectl config current-context
+> ```
+
+Then bootstrap:
 
 ```bash
 # On the Raspberry Pi (10.0.10.10), with KUBECONFIG pointing at prod
