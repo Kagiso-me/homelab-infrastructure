@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add configuration steps for RPi as Tailscale exit node fix(ansible): update Pi-hole DNS restart method and add readiness check `bb04425`
 - **[DEPLOY]** add initial ansible.cfg configuration file `4d48f94`
 - **[CONFIG]** update Ansible inventory instructions and add vault password file setup `2b30b27`
 - **[CONFIG]** split all CRD-dependent resources into separate Kustomizations `21e566e`
