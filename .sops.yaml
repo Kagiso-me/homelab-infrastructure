@@ -36,16 +36,16 @@
 creation_rules:
   # Platform manifests — encrypt any file with "secret" in the name
   - path_regex: platform/.*secret.*\.yaml$
-    age: age13pg2cc048axuwyluxrvpnppgpnfwyzscmet367danqh8lqjxpf5s39w7cy
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
 
   # App manifests — encrypt any file with "secret" in the name
   - path_regex: apps/.*secret.*\.yaml$
-    age: age13pg2cc048axuwyluxrvpnppgpnfwyzscmet367danqh8lqjxpf5s39w7cy
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
 
   # Cluster layer — encrypt any file with "secret" in the name
   - path_regex: clusters/.*secret.*\.yaml$
-    age: age13pg2cc048axuwyluxrvpnppgpnfwyzscmet367danqh8lqjxpf5s39w7cy
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
 
   # Any .yaml file inside a secrets/ directory (anywhere in the repo)
   - path_regex: .*/secrets/.*\.yaml$
-    age: age13pg2cc048axuwyluxrvpnppgpnfwyzscmet367danqh8lqjxpf5s39w7cy
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
