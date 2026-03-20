@@ -1,5 +1,5 @@
 
-# ADR-005 — Self-Hosted GitHub Actions Runners
+# ADR-007 — Self-Hosted GitHub Actions Runners
 
 **Status:** Accepted
 **Date:** 2026-03-19

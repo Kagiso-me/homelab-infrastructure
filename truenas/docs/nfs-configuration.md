@@ -107,7 +107,7 @@ The control plane node (tywin) mounts the backup share permanently for etcd snap
 
 etcd snapshots are written to `/mnt/backups/k8s/etcd/`.
 
-See [Guide 08 — Cluster Backups](../../docs/guides/08-Cluster-Backups.md) for the full backup setup including the etcd snapshot cron job.
+See [Guide 10 — Backups & Disaster Recovery](../../docs/guides/10-Backups-Disaster-Recovery.md) for the full backup setup including the etcd snapshot cron job.
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐☆☆☆☆☆☆☆☆☆ (1/10)
-**Guide:** 00 of 14
+**Guide:** 00 of 13
 
 > This handbook documents the design, deployment, and operation of a production‑grade Kubernetes homelab platform.
 >
@@ -161,7 +161,7 @@ Each layer has a distinct purpose:
 | NFS Subdir Provisioner | dynamic PV provisioning via TrueNAS |
 | TrueNAS | centralized NFS storage backend |
 
-Each component was selected based on operational simplicity, reliability, and suitability for a single-operator platform. Architecture Decision Records documenting each technology choice are maintained in `docs/architecture/decisions/`.
+Each component was selected based on operational simplicity, reliability, and suitability for a single-operator platform. Architecture Decision Records documenting each technology choice are maintained in `docs/adr/`.
 
 ---
 
@@ -272,7 +272,7 @@ Technology decisions and component-level reference documentation.
 architecture/networking.md          → network design and IP allocation
 architecture/storage.md             → storage classes and PV lifecycle
 architecture/security.md            → security model and threat surface
-architecture/decisions/             → Architecture Decision Records
+adr/                               → Architecture Decision Records
 ```
 
 ## Operational Runbooks

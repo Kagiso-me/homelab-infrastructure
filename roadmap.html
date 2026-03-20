@@ -591,7 +591,7 @@ const items = [
     why: 'Converting the Intel NUC from bare Docker to Proxmox — gives a proper hypervisor with docker-vm for media and staging-k3s VM for the GitOps promotion pipeline.',
     deps: 'None',
     tags: ['infrastructure', 'hypervisor'],
-    links: [{ label: 'ADR-006', href: 'docs/architecture/decisions/ADR-006-proxmox-pivot.md' }, { label: 'ops-log', href: 'docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md' }],
+    links: [{ label: 'ADR-006', href: 'docs/adr/ADR-006-proxmox-pivot.md' }, { label: 'ops-log', href: 'docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md' }],
     start: '2026-03-16', end: '2026-03-22',
   },
   {
@@ -599,7 +599,7 @@ const items = [
     why: 'Eliminates all inbound port exposure on the router. Cloudflare proxies traffic to the cluster with zero performance trade-off — no open ports.',
     deps: 'Pi-hole (split DNS needed first)',
     tags: ['networking', 'security'],
-    links: [{ label: 'Guide 03', href: 'docs/guides/03-Networking-Platform.md' }],
+    links: [{ label: 'Guide 05', href: 'docs/guides/05-Networking-MetalLB-Traefik.md' }],
     start: '2026-03-18', end: '2026-03-24',
   },
   {

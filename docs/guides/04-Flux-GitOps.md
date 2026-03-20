@@ -4,15 +4,18 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 04 of 14
+**Guide:** 04 of 13
 
 > Up to this point the cluster has been built using traditional infrastructure automation.
-> Nodes were prepared with Ansible, Kubernetes was installed, and the networking platform
-> (MetalLB + Traefik + DNS + TLS) now exposes services to the network.
+> Nodes were prepared with Ansible, Kubernetes was installed, and secrets encryption
+> has been configured with SOPS + age.
 >
 > The next step is a major architectural shift:
 >
 > **Git becomes the control plane for the platform.**
+>
+> Once Flux is bootstrapped, it deploys the entire platform stack automatically:
+> networking, security, storage, observability, backups, and upgrades — all from Git.
 
 In this phase we install **FluxCD**, a GitOps controller that continuously reconciles
 the state of the Kubernetes cluster with the contents of a Git repository.
@@ -232,7 +235,7 @@ flowchart TD
 
 Health check jobs run on a **self-hosted runner installed on `bran` (10.0.10.10)**, which has
 direct LAN access to both cluster API servers. No VPN or third-party tunnelling is required.
-See [ADR-005](../adr/ADR-005-self-hosted-runners.md) for the full rationale and runner setup instructions.
+See [ADR-007](../adr/ADR-007-self-hosted-runners.md) for the full rationale and runner setup instructions.
 
 The pipeline requires two GitHub repository secrets. Add these under
 **Settings → Secrets and variables → Actions** in the GitHub repository.
@@ -254,6 +257,29 @@ sed 's/127.0.0.1/10.0.10.11/' /etc/rancher/k3s/k3s.yaml
 ```
 
 Paste the full output as the secret value.
+
+---
+
+# Pre-Bootstrap Checklist
+
+**Do not bootstrap Flux until all of the following are true.** Flux reconciles the entire
+platform stack immediately on first sync — if any prerequisite is missing, the corresponding
+kustomization will fail and may require manual recovery.
+
+| Prerequisite | How to verify |
+|---|---|
+| TrueNAS `core/k8s-volumes` NFS share exists and is exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
+| `nfs-common` installed on all k3s nodes | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
+| Cloudflare API token secret created in `cert-manager` namespace | `kubectl get secret cloudflare-api-token -n cert-manager` |
+| `sops-age` secret created in `flux-system` namespace | `kubectl get secret sops-age -n flux-system` |
+
+If `nfs-common` is missing, run `install-cluster.yml` again — it now installs it as the first
+step. Or install it directly:
+
+```bash
+ansible k3s_controller,k3s_workers -i inventory/homelab.yml \
+  -m apt -a "name=nfs-common state=present" --become
+```
 
 ---
 
@@ -321,132 +347,23 @@ flux --version
 
 ---
 
-# age Key Setup
+# Secrets Prerequisite
 
 Flux decrypts SOPS-encrypted secrets using an age private key stored in the cluster.
-This key must exist **before** bootstrap — if Flux reconciles an encrypted secret without
+This key **must exist before bootstrap** — if Flux reconciles an encrypted secret without
 it, reconciliation fails immediately.
 
-This is a one-time setup. The same key is used for all future secret encryption in this repository.
-
-## Step 1 — Install age and SOPS
-
-Both tools are needed: `age` for key management, `sops` for encrypting/decrypting secret files.
-Installing them here means they are available when the first encrypted secret is created in Guide 08.
-
-```bash
-# Install age
-sudo apt install -y age
-
-# Install SOPS (auto-detects latest version; uses arm64 for bran which is aarch64)
-SOPS_VERSION=$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d'"' -f4)
-sudo curl -Lo /usr/local/bin/sops "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.arm64"
-sudo chmod +x /usr/local/bin/sops
-```
-
-Verify:
-
-```bash
-age --version
-sops --version
-```
-
-## Step 2 — Generate the Key Pair
-
-```bash
-age-keygen -o ~/age.key
-```
-
-Output:
-
-```
-Public key: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-**Copy the public key from the output above** — you will need it in the next step.
-
-**Back up the private key now.** If this key is lost, every SOPS-encrypted secret in the
-repository becomes unreadable — there is no recovery path.
-
-Print the key content and save it to your password manager immediately:
-
-```bash
-cat ~/age.key
-```
-
-The output looks like this:
-
-```
-# created: 2026-03-18T00:00:00+02:00
-# public key: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-AGE-SECRET-KEY-1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-```
-
-Save the **entire output** (all three lines) as a secure note in your password manager
-(e.g., Bitwarden, 1Password). The `AGE-SECRET-KEY-1...` line is the private key — treat it
-like a master password.
-
-> The RPi automated backup (when configured) will also protect `~/age.key` as part of the
-> RPi config backup. Until that backup is running, the password manager entry is your only
-> recovery option.
-
-## Step 3 — Update .sops.yaml with the Public Key
-
-The `.sops.yaml` file in the repository root tells SOPS which key to use when encrypting files.
-Replace the placeholder with the public key printed above:
-
-```bash
-# View the current .sops.yaml
-cat .sops.yaml
-```
-
-Edit `.sops.yaml` and replace every occurrence of `age1REPLACEME_WITH_YOUR_ACTUAL_AGE_PUBLIC_KEY`
-with your actual public key:
-
-```yaml
-# .sops.yaml — encryption rules for this repository
-creation_rules:
-  - path_regex: platform/.*secret.*\.yaml$
-    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # ← your actual key
-
-  - path_regex: apps/.*secret.*\.yaml$
-    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-  - path_regex: clusters/.*secret.*\.yaml$
-    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-  - path_regex: .*/secrets/.*\.yaml$
-    age: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Commit this change:
-
-```bash
-git add .sops.yaml
-git commit -m "chore: configure SOPS encryption rules with age public key"
-git push
-```
-
-## Step 4 — Store the Key in the Cluster
-
-> **If bootstrapping a new cluster:** run `kubectl create namespace flux-system || true`
-> first so the secret can be created before Flux reconciles anything. If you ran
-> `flux bootstrap` first (which also creates the namespace), skip the `|| true` line
-> and create the secret immediately after bootstrap completes — before Flux attempts
-> to reconcile any SOPS-encrypted resources.
-
-```bash
-kubectl create namespace flux-system || true
-kubectl create secret generic sops-age \
-  --namespace=flux-system \
-  --from-file=age.agekey=$HOME/age.key
-```
+> **Complete [Guide 03 — Secrets Management](./03-Secrets-Management.md) before proceeding.**
+> That guide covers age key generation, `.sops.yaml` configuration, and storing the
+> `sops-age` Secret in the cluster. All of those steps must be done before Flux bootstrap.
 
 Verify:
 
 ```bash
 kubectl get secret sops-age -n flux-system
 ```
+
+If this returns `NotFound`, go back to Guide 03 and complete the setup.
 
 ---
 
@@ -900,7 +817,7 @@ Flux automatically reconstructs the full platform from Git:
 > date before running `install-platform.yml` — if it was destroyed with the cluster, push
 > the current `main`: `git push origin main:prod`
 
-Application data (PVC contents) is restored separately via Velero — see [Guide 08](./08-Cluster-Backups.md).
+Application data (PVC contents) is restored separately via Velero — see [Guide 10](./10-Backups-Disaster-Recovery.md).
 
 This is one of the most powerful advantages of GitOps: **the cluster is entirely disposable
 and recoverable from a single vault + git repository.**
@@ -978,14 +895,32 @@ values:
 Commit and push — Flux will upgrade the HelmRelease and create the ServiceMonitor against
 the now-existing CRDs.
 
-If you see this on a fresh bootstrap, the resolution is automatic — just wait for the full
-dependency chain to converge. Check progress with:
+If you see this on a fresh bootstrap after the fix is already committed, Flux may have
+exhausted its install retries (configured as 3) before the fix landed. In that case, Flux
+will not retry automatically — the HelmRelease stays in a failed state indefinitely.
+
+**Force a retry:**
 
 ```bash
-flux get kustomizations
-kubectl get helmrelease -n cert-manager
-kubectl get pods -n cert-manager
+flux reconcile helmrelease cert-manager -n cert-manager
 ```
+
+If that does not trigger a new install attempt (the HelmRelease is already marked failed),
+reset it by suspending and resuming:
+
+```bash
+flux suspend helmrelease cert-manager -n cert-manager
+flux resume helmrelease cert-manager -n cert-manager
+```
+
+Then watch it converge:
+
+```bash
+flux get helmrelease cert-manager -n cert-manager --watch
+```
+
+Once cert-manager goes `READY: True`, the downstream chain (`platform-security-issuers` →
+`platform-observability` → `apps`) unblocks automatically.
 
 ---
 
@@ -1009,11 +944,10 @@ Status should be **Ready**.
 
 # Next Guide
 
-➡ **[05 — Cluster Identity & Scheduling](./05-Cluster-Identity-Scheduling.md)**
+➡ **[05 — Networking: MetalLB & Traefik](./05-Networking-MetalLB-Traefik.md)**
 
-The next phase defines how workloads are distributed across nodes.
-Cluster identity determines where infrastructure services, storage,
-and applications are allowed to run.
+The next guide introduces the networking layer that exposes services
+from the cluster to the local network.
 
 ---
 
@@ -1021,6 +955,6 @@ and applications are allowed to run.
 
 | | Guide |
 |---|---|
-| ← Previous | [03 — Networking Platform](./03-Networking-Platform.md) |
-| Current | **04 — GitOps Control Plane (FluxCD)** |
-| → Next | [05 — Cluster Identity & Scheduling](./05-Cluster-Identity-Scheduling.md) |
+| ← Previous | [03 — Secrets Management](./03-Secrets-Management.md) |
+| Current | **04 — Flux GitOps Bootstrap** |
+| → Next | [05 — Networking: MetalLB & Traefik](./05-Networking-MetalLB-Traefik.md) |

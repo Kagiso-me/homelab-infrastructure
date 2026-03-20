@@ -85,5 +85,5 @@ kubectl delete ns traefik cert-manager metallb-system
 ## Related
 
 - Playbook: `ansible/playbooks/lifecycle/install-platform.yml`
-- Guide: `docs/guides/03-Networking-Platform.md`
+- Guide: `docs/guides/05-Networking-MetalLB-Traefik.md`
 - Traefik chart breaking change: `expose` field type changed in v28

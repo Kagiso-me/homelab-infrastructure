@@ -13,7 +13,7 @@ name: Promote to Production
 #   STAGING_KUBECONFIG  — kubeconfig for staging cluster (server = 10.0.10.31:6443)
 #   PROD_KUBECONFIG     — kubeconfig for prod cluster    (server = 10.0.10.11:6443)
 #
-# Self-hosted runner: install on bran (10.0.10.10) — see docs/adr/ADR-005-self-hosted-runners.md
+# Self-hosted runner: install on bran (10.0.10.10) — see docs/adr/ADR-007-self-hosted-runners.md
 # See docs/guides/04-Flux-GitOps.md for full setup instructions.
 
 on:

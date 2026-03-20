@@ -1,19 +1,19 @@
 
-# 03 — Networking Platform (MetalLB + Traefik + DNS + TLS)
-## Exposing Services from the Cluster
+# 05 — Networking: MetalLB & Traefik
+## Layer-2 Load Balancing and Ingress
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐☆☆☆ (7/10)
-**Guide:** 03 of 14
+**Guide:** 05 of 13
 
-> Kubernetes clusters running on bare-metal do not provide built‑in load balancers or ingress gateways.
+> Kubernetes clusters running on bare-metal do not provide built-in load balancers or ingress gateways.
 >
-> This phase introduces the **networking platform** responsible for exposing cluster services to the network
-> in a predictable, production‑style way.
+> This guide introduces the **networking platform** responsible for exposing cluster services to the network
+> in a predictable, production-style way.
 >
-> MetalLB, cert-manager, and Traefik are **managed entirely by Flux GitOps** via HelmReleases and
+> MetalLB and Traefik are **managed entirely by Flux GitOps** via HelmReleases and
 > Kustomizations committed to this repository. They are not manually installed — Flux reconciles
-> them automatically after the cluster is bootstrapped in Guide 04.
+> them automatically after the cluster is bootstrapped in [Guide 04](./04-Flux-GitOps.md).
 > Cloudflare Tunnel and Tailscale are separate setup steps covered later in this guide.
 
 The networking layer consists of:
@@ -21,9 +21,10 @@ The networking layer consists of:
 - **MetalLB** — provides LoadBalancer IP addresses on bare metal
 - **Traefik** — ingress controller handling HTTP/S routing
 - **Wildcard DNS** — human-friendly service hostnames
-- **cert-manager** — issues browser-trusted wildcard TLS cert (`*.kagiso.me`) via Let's Encrypt DNS-01 + Cloudflare API
 - **Cloudflare Tunnel** — outbound tunnel for public service exposure (no open inbound ports)
 - **Tailscale / Headscale** — encrypted private access for Plex, SSH, and kubectl
+
+TLS certificates (cert-manager, Let's Encrypt, wildcard cert) are covered in [Guide 06 — Security: cert-manager & TLS](./06-Security-CertManager-TLS.md).
 
 Together these components transform a raw Kubernetes cluster into a **usable application platform**.
 
@@ -41,11 +42,10 @@ Together these components transform a raw Kubernetes cluster into a **usable app
 8. [Cloudflare Tunnel Setup](#cloudflare-tunnel-setup)
 9. [Pi-hole (Split DNS + Ad Blocking)](#pi-hole-split-dns--ad-blocking)
 10. [Tailscale / Headscale (Private Remote Access)](#tailscale--headscale-private-remote-access)
-11. [TLS Certificate Flow](#tls-certificate-flow)
-12. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
-13. [Verifying the Platform](#verifying-the-platform)
-14. [Exit Criteria](#exit-criteria)
-15. [Troubleshooting](#troubleshooting)
+11. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
+12. [Verifying the Platform](#verifying-the-platform)
+13. [Exit Criteria](#exit-criteria)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -59,7 +59,7 @@ GCP   → Cloud Load Balancer
 Azure → Azure Load Balancer
 ```
 
-Bare‑metal clusters lack this functionality. Without a networking platform, services appear like this:
+Bare-metal clusters lack this functionality. Without a networking platform, services appear like this:
 
 ```
 kubectl get svc
@@ -85,11 +85,11 @@ graph TD
     CFD --> Traefik["Traefik Ingress Controller<br/>Host-based routing"]
     Traefik -->|"Host: grafana.kagiso.me"| Grafana["Grafana Service"]
     Traefik -->|"Host: app.kagiso.me"| App["Other App Services"]
-    CertManager["cert-manager<br/>letsencrypt-prod ClusterIssuer"] -.->|issues wildcard-kagiso-me-tls Secret| Traefik
+    CertManager["cert-manager<br/>(see Guide 06)"] -.->|issues wildcard-kagiso-me-tls Secret| Traefik
     TS["Tailscale Client<br/>(Plex / SSH / kubectl)"] -->|"Encrypted peer-to-peer tunnel"| Traefik
 ```
 
-Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel → Traefik → the target service. Cloudflare handles public TLS automatically. For private remote access (Plex, SSH, kubectl), Tailscale provides encrypted peer-to-peer tunnels with its own certificate infrastructure. cert-manager issues and renews the single `*.kagiso.me` wildcard certificate used by Traefik for all LAN and Cloudflare Tunnel services.
+Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel → Traefik → the target service. Cloudflare handles public TLS automatically. For private remote access (Plex, SSH, kubectl), Tailscale provides encrypted peer-to-peer tunnels with its own certificate infrastructure. TLS certificate management is covered in [Guide 06](./06-Security-CertManager-TLS.md).
 
 ---
 
@@ -98,10 +98,9 @@ Traffic flows from the browser through Cloudflare Edge → cloudflared tunnel �
 | Component | Version | Namespace | Managed By | Responsibility |
 |-----------|---------|-----------|------------|----------------|
 | MetalLB | 0.14.9 (Helm) | `metallb-system` | Flux HelmRelease | Assign LoadBalancer IPs from the local IP pool |
-| cert-manager | v1.14.4 (Helm) | `cert-manager` | Flux HelmRelease | Issues `*.kagiso.me` wildcard cert via Let's Encrypt DNS-01 (Cloudflare API) |
 | Traefik | 28.x (Helm) | `ingress` | Flux HelmRelease | HTTP/S routing, TLS termination, IngressRoute CRDs |
 
-All three are defined as HelmReleases under `platform/networking/` and `platform/security/`, reconciled by Flux after the cluster is bootstrapped. See [Guide 04](./04-Flux-GitOps.md) for the bootstrap process.
+Both are defined as HelmReleases under `platform/networking/`, reconciled by Flux after the cluster is bootstrapped. See [Guide 04](./04-Flux-GitOps.md) for the bootstrap process. cert-manager (the third networking-adjacent component) is covered in [Guide 06](./06-Security-CertManager-TLS.md).
 
 ### MetalLB — Layer-2 Mode
 
@@ -117,18 +116,6 @@ Traffic routed to that node → kube-proxy → Traefik pod
 **IP pool:** `10.0.10.110 – 10.0.10.125` (21 addresses available for LoadBalancer services)
 **Traefik pinned to:** `10.0.10.110`
 
-### cert-manager — Wildcard TLS via Let's Encrypt DNS-01
-
-cert-manager issues a single `*.kagiso.me` wildcard certificate using Let's Encrypt and the DNS-01 challenge via the Cloudflare API. Because DNS-01 proves ownership by writing a TXT record in Cloudflare DNS — rather than by serving an HTTP challenge — the certificate is issued without any public HTTP exposure. This means **every service, including LAN-only internal services, gets a browser-trusted TLS certificate automatically**.
-
-The wildcard cert is stored as a Kubernetes Secret (`wildcard-kagiso-me-tls`) in the `ingress` namespace and is configured as Traefik's default TLS certificate via a `TLSStore` resource. No per-service `Certificate` resource is required.
-
-**The three TLS paths are:**
-
-- **Public services** → Cloudflare Tunnel + wildcard cert. TLS is terminated at Cloudflare Edge. Internally, Traefik serves the wildcard cert to `cloudflared`.
-- **LAN / internal services** → wildcard cert via Traefik default TLSStore. Browser-trusted on any device whose DNS resolves `*.kagiso.me` to `10.0.10.110` (via Pi-hole).
-- **Private remote access** → Tailscale. Plex, SSH, and kubectl use Tailscale's own encrypted tunnels. No cert-manager involvement.
-
 ### Traefik — Ingress Controller
 
 Traefik is the single entry point for all HTTP/S traffic. It:
@@ -136,7 +123,7 @@ Traefik is the single entry point for all HTTP/S traffic. It:
 - Listens on port 80 and 443 at `10.0.10.110`
 - Redirects all HTTP → HTTPS automatically
 - Routes requests to the correct backend Service based on the `Host` header
-- Serves TLS certificates stored as Kubernetes Secrets by cert-manager
+- Serves TLS certificates stored as Kubernetes Secrets by cert-manager (see [Guide 06](./06-Security-CertManager-TLS.md))
 
 ---
 
@@ -160,7 +147,7 @@ Before running the Flux bootstrap:
 
 ## Installation — Via Flux GitOps
 
-MetalLB, cert-manager, and Traefik are **not installed manually**. They are defined as Flux
+MetalLB and Traefik are **not installed manually**. They are defined as Flux
 HelmReleases in this repository and reconciled automatically after the cluster is bootstrapped.
 
 The full installation process — including the `install-platform.yml` playbook that triggers Flux
@@ -189,11 +176,8 @@ sequenceDiagram
     Flux->>K8s: Apply IPAddressPool + L2Advertisement
     Note right of K8s: CRDs now exist — dry-run succeeds
 
-    Note over Flux,K8s: platform-security kustomization (depends on platform-networking)
-    Flux->>K8s: HelmRelease: cert-manager
-    Flux->>K8s: Apply letsencrypt-prod ClusterIssuer
-    Flux->>K8s: Apply wildcard Certificate + TLSStore
-    Flux->>K8s: Wait for wildcard cert Ready (DNS-01 ~30-120s)
+    Note over Flux,K8s: platform-security + platform-networking-tls (see Guide 06)
+    Flux->>K8s: cert-manager, ClusterIssuers, wildcard Certificate, TLSStore
 ```
 
 > **Why `metallb-config` is a separate Kustomization:**
@@ -211,9 +195,11 @@ platform/
 ├── networking/
 │   ├── metallb/          ← HelmRelease + HelmRepository (installs MetalLB CRDs)
 │   ├── metallb-config/   ← IPAddressPool + L2Advertisement (applied after CRDs exist)
-│   └── traefik/          ← HelmRelease + middlewares + wildcard cert + TLSStore
+│   ├── traefik/          ← HelmRelease + HelmRepository
+│   └── traefik-config/   ← Middlewares + TLSStore + wildcard Certificate (see Guide 06)
 └── security/
-    └── cert-manager/     ← HelmRelease + ClusterIssuer
+    ├── cert-manager/     ← HelmRelease + ClusterIssuer (see Guide 06)
+    └── cluster-issuers/  ← letsencrypt-prod, letsencrypt-staging, internal-ca (see Guide 06)
 ```
 
 Any change to these manifests (e.g., upgrading a chart version) is made via a Git commit.
@@ -364,12 +350,6 @@ Pi-hole's admin dashboard is accessible at:
 http://10.0.10.10/admin
 ```
 
-### Security Model: Certs Don't Expose Services
-
-> **The TLS certificate does not expose a service. DNS and routing do.**
-
-A service can have a valid `*.kagiso.me` cert and still be completely invisible from the internet. Pi-hole's wildcard makes the hostname resolvable on the LAN. For a service to be reachable from the WAN, it needs **both** a public Cloudflare DNS record **and** an ingress rule in the `cloudflared` config. Without those, the hostname simply does not resolve outside the LAN.
-
 ### Adding a New Internal-Only Service
 
 Create an `IngressRoute` in k3s with the desired `Host(*.kagiso.me)` rule. No DNS changes are needed — Pi-hole's wildcard `*.kagiso.me → 10.0.10.110` handles resolution on the LAN automatically.
@@ -473,37 +453,6 @@ kubectl --server=https://100.x.x.x:6443 get nodes
 
 ---
 
-## TLS Certificate Flow
-
-TLS is handled by three paths. A single wildcard cert covers all `*.kagiso.me` services automatically.
-
-**Wildcard cert → `*.kagiso.me`.** cert-manager requests one certificate from Let's Encrypt using DNS-01 (Cloudflare API). The resulting Secret (`wildcard-kagiso-me-tls` in the `ingress` namespace) is configured as Traefik's default TLS certificate via a `TLSStore` resource. Every IngressRoute using `entryPoints: [websecure]` and `tls: {}` automatically serves this cert — no per-service `Certificate` resource is needed.
-
-**Public services → Cloudflare Tunnel.** TLS is terminated at the Cloudflare Edge. Internally, `cloudflared` forwards requests to Traefik over HTTP. Cloudflare manages its own edge certificate separately.
-
-**Private remote access → Tailscale.** Plex, SSH, and `kubectl` use Tailscale's encrypted tunnels. No cert-manager involvement.
-
-**IngressRoute pattern (all services):**
-
-```yaml
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: my-service
-  namespace: my-namespace
-spec:
-  entryPoints: [websecure]
-  routes:
-    - match: Host(`my-service.kagiso.me`)
-      kind: Rule
-      services:
-        - name: my-service
-          port: 8080
-  tls: {}    # Uses wildcard-kagiso-me-tls from Traefik default TLSStore
-```
-
----
-
 ## Ingress vs IngressRoute
 
 Traefik supports two routing models:
@@ -551,7 +500,7 @@ spec:
       services:
         - name: grafana
           port: 3000
-  tls: {}    # Uses wildcard-kagiso-me-tls from Traefik default TLSStore
+  tls: {}    # Uses wildcard-kagiso-me-tls from Traefik default TLSStore (see Guide 06)
 ```
 
 - Full Traefik routing rule syntax
@@ -565,8 +514,8 @@ spec:
 
 ## Verifying the Platform
 
-> **Note:** None of these components exist yet at this point in the guide sequence. MetalLB,
-> Traefik, and cert-manager are all deployed by Flux when Guide 04 runs. Run these checks
+> **Note:** None of these components exist yet at this point in the guide sequence. MetalLB
+> and Traefik are deployed by Flux when [Guide 04](./04-Flux-GitOps.md) runs. Run these checks
 > **after completing Guide 04**.
 
 ```bash
@@ -582,18 +531,6 @@ kubectl get ipaddresspool -n metallb-system
 kubectl get svc traefik -n ingress
 # Expected: traefik TYPE=LoadBalancer EXTERNAL-IP=10.0.10.110
 
-# cert-manager — all pods running
-kubectl get pods -n cert-manager
-# Expected: cert-manager, cert-manager-cainjector, cert-manager-webhook (all 1/1)
-
-# cert-manager — ClusterIssuer ready
-kubectl get clusterissuer
-# Expected: letsencrypt-prod READY=True
-
-# Wildcard certificate issued and ready
-kubectl get certificate -n ingress
-# Expected: wildcard-kagiso-me READY=True
-
 # End-to-end — Traefik is responding (expect 404, not connection refused)
 curl -k https://10.0.10.110
 # Expected: 404 page not found
@@ -602,24 +539,25 @@ curl -k https://10.0.10.110
 The `404 page not found` response from Traefik is correct — it means Traefik is running and
 handling requests, but no IngressRoute has been defined yet to route them anywhere.
 
+For cert-manager and TLS certificate verification steps, see [Guide 06 — Verifying Certificates](./06-Security-CertManager-TLS.md#verifying-certificates).
+
 ---
 
 ## Exit Criteria
 
-> Verify these after Guide 04 — Flux deploys everything in this guide.
+> Verify these after [Guide 04](./04-Flux-GitOps.md) — Flux deploys everything in this guide.
 
 The networking platform is complete when all of the following are true:
 
-- ✓ `flux get kustomization platform-networking` — `READY=True`
-- ✓ `flux get helmrelease -A` — metallb and traefik both `READY=True`
-- ✓ `kubectl get pods -n metallb-system` — metallb-controller and metallb-speaker Running on all nodes
-- ✓ `kubectl get pods -n ingress` — Traefik pod Running
-- ✓ Traefik service shows `EXTERNAL-IP: 10.0.10.110`
-- ✓ `kubectl get pods -n cert-manager` — all cert-manager pods Running
-- ✓ `kubectl get clusterissuer` — `letsencrypt-prod` `READY=True`
-- ✓ `kubectl get certificate -n ingress` — `wildcard-kagiso-me` `READY=True`
-- ✓ `curl https://10.0.10.110` returns `404 page not found` with a valid `*.kagiso.me` cert
-- ✓ DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine
+- `flux get kustomization platform-networking` — `READY=True`
+- `flux get helmrelease -A` — metallb and traefik both `READY=True`
+- `kubectl get pods -n metallb-system` — metallb-controller and metallb-speaker Running on all nodes
+- `kubectl get pods -n ingress` — Traefik pod Running
+- Traefik service shows `EXTERNAL-IP: 10.0.10.110`
+- `curl https://10.0.10.110` returns `404 page not found`
+- DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine
+
+For cert-manager and TLS exit criteria, see [Guide 06 — Exit Criteria](./06-Security-CertManager-TLS.md#exit-criteria).
 
 ---
 
@@ -637,9 +575,6 @@ kubectl get pods -n metallb-system               # Speakers must be Running
 
 Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.125`).
 
-> **cert-manager and wildcard certificate issues** are covered in the Guide 04 troubleshooting
-> section, since Flux deploys cert-manager during that phase.
-
 **Traefik returning 404 for a deployed service**
 
 ```bash
@@ -650,13 +585,7 @@ kubectl logs -n traefik deploy/traefik          # Check for routing errors
 
 Ensure the `Host()` rule in the IngressRoute matches the requested hostname exactly.
 
----
-
-## Next Guide
-
-➡ **[04 — GitOps Control Plane (FluxCD)](./04-Flux-GitOps.md)**
-
-The next phase introduces FluxCD, allowing the entire platform to be managed declaratively through Git.
+**cert-manager and TLS troubleshooting** is covered in [Guide 06 — Troubleshooting](./06-Security-CertManager-TLS.md#troubleshooting).
 
 ---
 
@@ -664,6 +593,6 @@ The next phase introduces FluxCD, allowing the entire platform to be managed dec
 
 | | Guide |
 |---|---|
-| ← Previous | [02 — Kubernetes Installation](./02-Kubernetes-Installation.md) |
-| Current | **03 — Networking Platform** |
-| → Next | [04 — GitOps Control Plane](./04-Flux-GitOps.md) |
+| ← Previous | [04 — Flux GitOps Bootstrap](./04-Flux-GitOps.md) |
+| Current | **05 — Networking: MetalLB & Traefik** |
+| → Next | [06 — Security: cert-manager & TLS](./06-Security-CertManager-TLS.md) |

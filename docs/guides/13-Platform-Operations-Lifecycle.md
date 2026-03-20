@@ -1,10 +1,10 @@
 
-# 10 — Platform Operations & Lifecycle Management
+# 13 — Platform Operations & Lifecycle Management
 ## Running the Platform Day‑to‑Day
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 10 of 14
+**Guide:** 13 of 13
 
 > Building a Kubernetes platform is only half the work.
 > Operating it reliably over time is where real platform engineering begins.
@@ -328,7 +328,7 @@ flux logs --follow --level=error
 
 > Runbooks at `docs/operations/runbooks/` are living documents — use the first-check
 > commands below until they are written. See
-> [Guide 07 — Monitoring](./07-Monitoring-Observability.md#13-alert-response-runbooks)
+> [Guide 09 — Monitoring & Observability](./09-Monitoring-Observability.md#13-alert-response-runbooks)
 > for additional inline guidance per alert type.
 
 | Incident | First Check |
@@ -431,9 +431,7 @@ Platform operations are considered stable when:
 
 # Next Guide
 
-➡ **[11 — Secrets Management (SOPS + age)](./11-Secrets-Management.md)**
-
-The next guide covers how secrets are encrypted, stored in Git, and decrypted by Flux at reconciliation time.
+This is the final guide in the series. The platform is now **fully operational and maintainable**.
 
 ---
 
@@ -441,6 +439,6 @@ The next guide covers how secrets are encrypted, stored in Git, and decrypted by
 
 | | Guide |
 |---|---|
-| ← Previous | [09 — Applications via GitOps](./09-Applications-GitOps.md) |
-| Current | **10 — Platform Operations & Lifecycle Management** |
-| → Next | [11 — Secrets Management](./11-Secrets-Management.md) |
+| ← Previous | [12 — Applications via GitOps](./12-Applications-GitOps.md) |
+| Current | **13 — Platform Operations & Lifecycle** |
+| → Next | *End of series — platform fully deployed* |

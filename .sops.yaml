@@ -26,7 +26,7 @@
 #     --namespace=flux-system \
 #     --from-file=age.agekey=age.key
 #
-# Full guide: docs/guides/11-Secrets-Management.md
+# Full guide: docs/guides/03-Secrets-Management.md
 #
 # To encrypt a file:   sops --encrypt --in-place path/to/secret.yaml
 # To edit a file:      sops path/to/secret.yaml

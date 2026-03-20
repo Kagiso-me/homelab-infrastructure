@@ -1,11 +1,22 @@
 # =============================================================================
 # Proxy Stack — Docker Compose
-# Nginx Proxy Manager — reverse proxy with automatic SSL (Let's Encrypt)
+# Nginx Proxy Manager — reverse proxy with automatic TLS (Let's Encrypt)
 # Host: 10.0.10.32
 #
-# .env.example — copy to .env and fill in values before deploying
-# -----------------------------------------------------------------------------
-# (No required env vars — NPM manages its own config via the admin UI)
+# TLS Strategy:
+#   NPM uses Let's Encrypt DNS-01 challenge via Cloudflare API to issue
+#   valid certificates for *.kagiso.me subdomains. This eliminates browser
+#   warnings on the LAN without exposing any ports to the internet.
+#
+#   Setup: NPM Admin UI → SSL Certificates → Add → Let's Encrypt
+#     - Domain: *.kagiso.me
+#     - Use DNS Challenge: Yes
+#     - DNS Provider: Cloudflare
+#     - API Token: (same Cloudflare token from Guide 00.5)
+#
+# Prerequisites:
+#   1. media-stack must be running first (creates media-net network)
+#   2. Cloudflare API token with Zone:Read + DNS:Edit for kagiso.me
 # =============================================================================
 
 name: proxy-stack
@@ -13,21 +24,20 @@ name: proxy-stack
 networks:
   media-net:
     external: true
-  monitoring-net:
-    external: true
 
 services:
 
   # ---------------------------------------------------------------------------
-  # Nginx Proxy Manager — Reverse proxy and SSL termination
+  # Nginx Proxy Manager — Reverse proxy and TLS termination
+  # Admin UI: http://10.0.10.32:81
+  # Default login: admin@example.com / changeme (change immediately)
   # ---------------------------------------------------------------------------
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
+    image: jc21/nginx-proxy-manager:${NPM_VERSION:-latest}
     container_name: nginx-proxy-manager
     restart: unless-stopped
     networks:
       - media-net
-      - monitoring-net
     ports:
       - "80:80"       # HTTP (redirects to HTTPS)
       - "81:81"       # Admin UI

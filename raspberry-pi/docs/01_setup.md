@@ -114,7 +114,7 @@ kubectl get nodes
 
 ## Step 5 — Configure SOPS Age Key
 
-The age private key is required to encrypt/decrypt secrets. After generating the key (see [Guide 11](../../docs/guides/11-Secrets-Management.md)):
+The age private key is required to encrypt/decrypt secrets. After generating the key (see [Guide 03](../../docs/guides/03-Secrets-Management.md)):
 
 ```bash
 # Store the private key on the RPi

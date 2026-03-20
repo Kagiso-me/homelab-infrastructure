@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 02 of 14
+**Guide:** 02 of 13
 
 > In this phase we install Kubernetes using **k3s** and the existing Ansible automation.
 
@@ -300,10 +300,9 @@ should show all system pods running.
 
 # Next Guide
 
-➡ **[03 — Networking Platform (MetalLB + Traefik)](./03-Networking-Platform.md)**
+➡ **[03 — Secrets Management](./03-Secrets-Management.md)**
 
-The next guide introduces the networking layer that exposes services
-from the cluster to the local network.
+The next guide covers how secrets are encrypted, stored in Git, and decrypted by Flux at reconciliation time.
 
 ---
 
@@ -313,4 +312,4 @@ from the cluster to the local network.
 |---|---|
 | ← Previous | [01 — Node Preparation & Hardening](./01-Node-Preparation-Hardening.md) |
 | Current | **02 — Kubernetes Installation** |
-| → Next | [03 — Networking Platform](./03-Networking-Platform.md) |
+| → Next | [03 — Secrets Management](./03-Secrets-Management.md) |

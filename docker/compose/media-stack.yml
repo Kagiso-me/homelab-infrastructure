@@ -3,21 +3,10 @@
 # Host: 10.0.10.32 | TrueNAS: 10.0.10.80
 # User: kagiso (PUID=1000, PGID=1000) | TZ: Africa/Johannesburg
 #
-# .env.example — copy to .env and fill in values before deploying
-# -----------------------------------------------------------------------------
-# PUID=1000
-# PGID=1000
-# TZ=Africa/Johannesburg
-# JELLYFIN_PublishedServerUrl=http://10.0.10.32:8096
-# SONARR_API_KEY=changeme
-# RADARR_API_KEY=changeme
-# LIDARR_API_KEY=changeme
-# PROWLARR_API_KEY=changeme
-# SABNZBD_API_KEY=changeme
-# BAZARR_API_KEY=changeme
-# OVERSEERR_API_KEY=changeme
-# NAVIDROME_ND_LASTFM_APIKEY=changeme
-# NAVIDROME_ND_LASTFM_SECRET=changeme
+# Prerequisites:
+#   1. Copy .env.example to .env and fill in values
+#   2. NFS mounts configured (/mnt/media, /mnt/downloads) — see Guide 02
+#   3. Deploy this stack BEFORE proxy-stack (creates media-net network)
 # =============================================================================
 
 name: media-stack
@@ -31,31 +20,35 @@ networks:
 services:
 
   # ---------------------------------------------------------------------------
-  # Jellyfin — Media server
+  # Plex — Media server
+  # Hardware transcoding via Intel VA-API (requires /dev/dri)
+  # Web UI: http://10.0.10.32:32400/web
   # ---------------------------------------------------------------------------
-  jellyfin:
-    image: jellyfin/jellyfin:latest
-    container_name: jellyfin
+  plex:
+    image: lscr.io/linuxserver/plex:${PLEX_VERSION:-latest}
+    container_name: plex
     restart: unless-stopped
     networks:
       - media-net
     ports:
-      - "8096:8096"
+      - "32400:32400"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-Africa/Johannesburg}
-      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PublishedServerUrl:-http://10.0.10.32:8096}
+      - VERSION=docker
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
     volumes:
-      - /srv/docker/appdata/jellyfin:/config
+      - /srv/docker/appdata/plex:/config
       - /mnt/media:/media:ro
+      - /srv/docker/appdata/plex/transcode:/transcode
     devices:
       - /dev/dri:/dev/dri
     group_add:
       - "render"
       - "video"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8096/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fs http://localhost:32400/identity || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -68,9 +61,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Sonarr — TV series management
+  # Web UI: http://10.0.10.32:8989
   # ---------------------------------------------------------------------------
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:${SONARR_VERSION:-latest}
     container_name: sonarr
     restart: unless-stopped
     networks:
@@ -99,9 +93,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Radarr — Movie management
+  # Web UI: http://10.0.10.32:7878
   # ---------------------------------------------------------------------------
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:${RADARR_VERSION:-latest}
     container_name: radarr
     restart: unless-stopped
     networks:
@@ -130,9 +125,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Lidarr — Music management
+  # Web UI: http://10.0.10.32:8686
   # ---------------------------------------------------------------------------
   lidarr:
-    image: lscr.io/linuxserver/lidarr:latest
+    image: lscr.io/linuxserver/lidarr:${LIDARR_VERSION:-latest}
     container_name: lidarr
     restart: unless-stopped
     networks:
@@ -160,9 +156,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Prowlarr — Indexer manager
+  # Web UI: http://10.0.10.32:9696
   # ---------------------------------------------------------------------------
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:${PROWLARR_VERSION:-latest}
     container_name: prowlarr
     restart: unless-stopped
     networks:
@@ -189,9 +186,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Overseerr — Media request management
+  # Web UI: http://10.0.10.32:5055
   # ---------------------------------------------------------------------------
   overseerr:
-    image: lscr.io/linuxserver/overseerr:latest
+    image: lscr.io/linuxserver/overseerr:${OVERSEERR_VERSION:-latest}
     container_name: overseerr
     restart: unless-stopped
     networks:
@@ -218,15 +216,17 @@ services:
 
   # ---------------------------------------------------------------------------
   # SABnzbd — Usenet download client
+  # Web UI: http://10.0.10.32:8085
+  # NOTE: Host port 8085 (not 8080) to avoid conflict with cAdvisor in monitoring-stack
   # ---------------------------------------------------------------------------
   sabnzbd:
-    image: lscr.io/linuxserver/sabnzbd:latest
+    image: lscr.io/linuxserver/sabnzbd:${SABNZBD_VERSION:-latest}
     container_name: sabnzbd
     restart: unless-stopped
     networks:
       - media-net
     ports:
-      - "8080:8080"
+      - "8085:8080"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -249,9 +249,10 @@ services:
 
   # ---------------------------------------------------------------------------
   # Bazarr — Subtitle management
+  # Web UI: http://10.0.10.32:6767
   # ---------------------------------------------------------------------------
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
+    image: lscr.io/linuxserver/bazarr:${BAZARR_VERSION:-latest}
     container_name: bazarr
     restart: unless-stopped
     networks:
@@ -278,10 +279,11 @@ services:
         max-file: "3"
 
   # ---------------------------------------------------------------------------
-  # Navidrome — Music streaming server
+  # Navidrome — Music streaming server (Subsonic-compatible)
+  # Web UI: http://10.0.10.32:4533
   # ---------------------------------------------------------------------------
   navidrome:
-    image: deluan/navidrome:latest
+    image: deluan/navidrome:${NAVIDROME_VERSION:-latest}
     container_name: navidrome
     restart: unless-stopped
     networks:

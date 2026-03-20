@@ -1,3 +1,13 @@
+- name: Install node prerequisites
+  hosts: k3s_controller,k3s_workers
+  become: true
+  tasks:
+    - name: Install NFS client utilities
+      apt:
+        name: nfs-common
+        state: present
+        update_cache: yes
+
 - name: Install K3s server
   hosts: k3s_controller
   become: true

@@ -272,5 +272,5 @@ This ensures all devices on the LAN use Pi-hole for DNS resolution, receiving bo
 
 ## Related Guides
 
-- [Guide 03: Networking Platform](../03-Networking-Platform.md)
-- [ADR-003: Traefik over nginx-ingress](./decisions/ADR-003-traefik-over-nginx-ingress.md)
+- [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)
+- [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)

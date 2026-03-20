@@ -15,9 +15,9 @@ _Infrastructure-as-code for a fully self-hosted homelab — GitOps-reconciled by
 <!-- Stack badges -->
 [![k3s](https://img.shields.io/badge/k3s-v1.31-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://k3s.io)&nbsp;
 [![FluxCD](https://img.shields.io/badge/GitOps-FluxCD_v2-5468FF?style=for-the-badge&logo=flux&logoColor=white)](https://fluxcd.io)&nbsp;
-[![SOPS](https://img.shields.io/badge/Secrets-SOPS_+_age-7C3AED?style=for-the-badge&logoColor=white)](docs/guides/11-Secrets-Management.md)&nbsp;
+[![SOPS](https://img.shields.io/badge/Secrets-SOPS_+_age-7C3AED?style=for-the-badge&logoColor=white)](docs/guides/03-Secrets-Management.md)&nbsp;
 [![TrueNAS](https://img.shields.io/badge/Storage-TrueNAS_SCALE-F47B20?style=for-the-badge&logoColor=white)](truenas/README.md)&nbsp;
-[![Prometheus](https://img.shields.io/badge/Monitoring-Prometheus_+_Grafana-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](docs/guides/07-Monitoring-Observability.md)
+[![Prometheus](https://img.shields.io/badge/Monitoring-Prometheus_+_Grafana-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)](docs/guides/09-Monitoring-Observability.md)
 
 </div>
 
@@ -36,7 +36,7 @@ _Infrastructure-as-code for a fully self-hosted homelab — GitOps-reconciled by
 [![Home Network](https://img.shields.io/badge/Network-10.0.10.0%2F24-22c55e?style=flat-square&logo=ubiquiti&logoColor=white)](#infrastructure)&nbsp;
 [![Nodes](https://img.shields.io/badge/Nodes-3-326CE5?style=flat-square&logo=kubernetes&logoColor=white)](#kubernetes-platform)&nbsp;
 [![Backups](https://img.shields.io/badge/Backups-4_layer-22c55e?style=flat-square)](#backup-strategy)&nbsp;
-[![Alerts](https://img.shields.io/badge/Alertmanager-Slack-4A154B?style=flat-square&logo=slack&logoColor=white)](docs/guides/07-Monitoring-Observability.md)
+[![Alerts](https://img.shields.io/badge/Alertmanager-Slack-4A154B?style=flat-square&logo=slack&logoColor=white)](docs/guides/09-Monitoring-Observability.md)
 
 </div>
 
@@ -173,7 +173,7 @@ ansible-playbook -i raspberry-pi/ansible/inventory/hosts.yml \
 
 Install k3s across all three nodes with a single Ansible playbook, then install the networking platform (MetalLB + cert-manager + Traefik).
 
-> Full guides: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md) → [Guide 02](docs/guides/02-Kubernetes-Installation.md) → [Guide 03](docs/guides/03-Networking-Platform.md)
+> Full guides: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md) → [Guide 02](docs/guides/02-Kubernetes-Installation.md) → [Guide 05](docs/guides/05-Networking-MetalLB-Traefik.md)
 
 ```bash
 # From the Raspberry Pi
@@ -278,7 +278,7 @@ Layer 4 — Offsite      TrueNAS → Backblaze B2            Nightly cloud sync 
 
 RPi key material (age key, SSH keys, kubeconfig) is separately backed up encrypted to TrueNAS with GPG AES-256.
 
-> Full strategy: [Guide 08 — Cluster Backups](docs/guides/08-Cluster-Backups.md)
+> Full strategy: [Guide 10 — Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md)
 
 ---
 
@@ -298,24 +298,25 @@ Custom applications, operational tooling, and platform initiatives built on top 
 
 ## Deployment Guides
 
-A 14-guide series that walks through building and operating the full platform from bare metal.
+A 13-guide series that walks through building and operating the full platform from bare metal. Guides follow the exact Flux deployment order — what gets deployed first is documented first.
 
-| Guide | Topic |
-|-------|-------|
-| [00 — Platform Philosophy](docs/guides/00-Platform-Philosophy.md) | Design principles and architectural decisions |
-| [00.5 — Infrastructure Prerequisites](docs/guides/00.5-Infrastructure-Prerequisites.md) | TrueNAS datasets, NFS exports, Cloudflare API token |
-| [01 — Node Preparation & Hardening](docs/guides/01-Node-Preparation-Hardening.md) | OS prep, SSH hardening, firewall, time sync |
-| [02 — Kubernetes Installation](docs/guides/02-Kubernetes-Installation.md) | k3s install via Ansible across 3 nodes |
-| [03 — Networking Platform](docs/guides/03-Networking-Platform.md) | MetalLB + Traefik + cert-manager via Flux |
-| [04 — GitOps Control Plane](docs/guides/04-Flux-GitOps.md) | FluxCD v2 bootstrap, two-environment promotion model |
-| [05 — Cluster Identity & Scheduling](docs/guides/05-Cluster-Identity-Scheduling.md) | Node labels, taints, affinity rules |
-| [06 — Platform Namespaces](docs/guides/06-Platform-Namespaces.md) | Namespace layout and GitOps ownership |
-| [07 — Monitoring & Observability](docs/guides/07-Monitoring-Observability.md) | Prometheus + Grafana + Loki + SMART alerting |
-| [08 — Cluster Backups](docs/guides/08-Cluster-Backups.md) | etcd snapshots + Velero + MinIO |
-| [09 — Applications via GitOps](docs/guides/09-Applications-GitOps.md) | Deploying apps with Flux HelmReleases |
-| [10 — Platform Operations & Lifecycle](docs/guides/10-Platform-Operations-Lifecycle.md) | Node upgrades, drain, maintenance, disaster recovery |
-| [11 — Secrets Management](docs/guides/11-Secrets-Management.md) | SOPS + age — encrypt secrets for Git |
-| [12 — Storage Architecture](docs/guides/12-Storage-Architecture.md) | NFS provisioner, PVC lifecycle, TrueNAS datasets |
+| Phase | Guide | Topic |
+|-------|-------|-------|
+| **Foundations** | [00 — Platform Philosophy](docs/guides/00-Platform-Philosophy.md) | Design principles and architectural decisions |
+| | [00.5 — Infrastructure Prerequisites](docs/guides/00.5-Infrastructure-Prerequisites.md) | TrueNAS datasets, NFS exports, MinIO, Cloudflare API token |
+| **Cluster Build** | [01 — Node Preparation & Hardening](docs/guides/01-Node-Preparation-Hardening.md) | OS prep, SSH hardening, firewall, nfs-common |
+| | [02 — Kubernetes Installation](docs/guides/02-Kubernetes-Installation.md) | k3s install via Ansible across 3 nodes |
+| **GitOps Bootstrap** | [03 — Secrets Management](docs/guides/03-Secrets-Management.md) | SOPS + age — encrypt secrets for Git |
+| | [04 — Flux GitOps Bootstrap](docs/guides/04-Flux-GitOps.md) | FluxCD v2 bootstrap, two-environment promotion model |
+| **Platform Services** | [05 — Networking: MetalLB & Traefik](docs/guides/05-Networking-MetalLB-Traefik.md) | Layer-2 load balancing and ingress routing |
+| | [06 — Security: cert-manager & TLS](docs/guides/06-Security-CertManager-TLS.md) | Automated wildcard certificates via Let's Encrypt |
+| | [07 — Namespaces & Cluster Identity](docs/guides/07-Namespaces-Cluster-Identity.md) | Namespace layout, node labels, scheduling rules |
+| | [08 — Storage Architecture](docs/guides/08-Storage-Architecture.md) | NFS provisioner, PVC lifecycle, TrueNAS datasets |
+| | [09 — Monitoring & Observability](docs/guides/09-Monitoring-Observability.md) | Prometheus + Grafana + Loki + SMART alerting |
+| | [10 — Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md) | etcd snapshots + Velero + MinIO |
+| | [11 — Platform Upgrade Controller](docs/guides/11-Platform-Upgrade-Controller.md) | Automated k3s upgrades via system-upgrade-controller |
+| **Applications & Ops** | [12 — Applications via GitOps](docs/guides/12-Applications-GitOps.md) | Deploying apps with Flux HelmReleases |
+| | [13 — Platform Operations & Lifecycle](docs/guides/13-Platform-Operations-Lifecycle.md) | Node maintenance, incident response, disaster recovery |
 
 ---
 
@@ -380,7 +381,7 @@ homelab-infrastructure/
 | [flux-local.yml](.github/workflows/flux-local.yml) | PR | flux-local diff posted as PR comment |
 | [promote-to-prod.yml](.github/workflows/promote-to-prod.yml) | Push to `main` | 4-stage gated pipeline: validate → staging health → promote → prod health |
 
-Health check jobs run on a **self-hosted runner on `bran` (10.0.10.10)**, giving the CI pipeline direct LAN access to both clusters with no third-party VPN dependency. See [ADR-005](docs/adr/ADR-005-self-hosted-runners.md).
+Health check jobs run on a **self-hosted runner on `bran` (10.0.10.10)**, giving the CI pipeline direct LAN access to both clusters with no third-party VPN dependency. See [ADR-007](docs/adr/ADR-007-self-hosted-runners.md).
 
 ---
 
@@ -392,7 +393,7 @@ Health check jobs run on a **self-hosted runner on `bran` (10.0.10.10)**, giving
 | [Cluster Architecture](docs/architecture/cluster-architecture.md) | Node layout, networking, storage |
 | [Networking](docs/architecture/networking.md) | MetalLB, Traefik, DNS, TLS |
 | [Monitoring](docs/architecture/monitoring.md) | Observability stack design |
-| [ADR Index](docs/architecture/decisions/) | Architecture Decision Records |
+| [ADR Index](docs/adr/) | Architecture Decision Records |
 
 ---
 

@@ -4,7 +4,7 @@
 > hypervisor**. The Docker stack will move into a VM (`docker-vm`) running on Proxmox.
 > A second VM (`staging-k3s`) will host the staging Kubernetes cluster.
 > This directory documents the current bare-metal Docker configuration and will remain
-> as a historical reference. See [ADR-006](../docs/architecture/decisions/ADR-006-proxmox-pivot.md)
+> as a historical reference. See [ADR-006](../docs/adr/ADR-006-proxmox-pivot.md)
 > and the [ops-log entry](../docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md) for context.
 
 **Hostname:** `docked`
