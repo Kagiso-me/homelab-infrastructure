@@ -60,7 +60,9 @@
       "Read(//c/Users/ktjea/.kube//**)",
       "Read(//c/Users/ktjea/**)",
       "Read(//c/ProgramData/**)",
-      "Bash(kubectl describe:*)"
+      "Bash(kubectl describe:*)",
+      "Bash(git pull:*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }
