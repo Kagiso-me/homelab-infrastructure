@@ -25,6 +25,11 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # cert-manager v1.15+ moved CRDs to a subchart — crds.enabled is required to install them.
+    # keep: true prevents CRDs from being deleted on chart uninstall.
+    crds:
+      enabled: true
+      keep: true
     # ServiceMonitor disabled on bootstrap — kube-prometheus-stack CRDs don't exist yet.
     # Re-enable once platform-observability is healthy.
     prometheus:
