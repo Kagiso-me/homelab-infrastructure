@@ -52,7 +52,15 @@
       "Bash(grep -E \"\\\\.\\(yaml|yml\\)$\")",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(KUBECONFIG=~/.kube/prod-config kubectl get namespace cert-manager)",
+      "Bash(command -v kubectl)",
+      "Read(//usr/local/bin/**)",
+      "Bash(echo \"PATH=$PATH\")",
+      "Read(//c/Users/ktjea/.kube//**)",
+      "Read(//c/Users/ktjea/**)",
+      "Read(//c/ProgramData/**)",
+      "Bash(kubectl describe:*)"
     ]
   }
 }
