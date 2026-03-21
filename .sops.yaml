@@ -49,3 +49,9 @@ creation_rules:
   # Any .yaml file inside a secrets/ directory (anywhere in the repo)
   - path_regex: .*/secrets/.*\.yaml$
     age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+
+  # Velero MinIO credentials (filename does not contain "secret")
+  - path_regex: platform/backup/velero/minio-credentials\.yaml$
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+
+
