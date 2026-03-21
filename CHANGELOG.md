@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[MAINTENANCE]** encrypt grafana admin secret `0b3e3b7`
 - **[MAINTENANCE]** encrypt velero minio credentials and add sops rule for minio-credentials `c2f7df9`
 - **[CONFIG]** (doc)complete documentation rework. Fixed sequence, added new guides, and updated existing ones to reflect the latest changes in the platform architecture and operations. This commit also includes updates to the README and roadmap to align with the new documentation structure. `1588e6a`
 - **[CONFIG]** update cert-manager HelmRelease to disable ServiceMonitor during bootstrap `83f6fd1`
