@@ -79,8 +79,10 @@ mkdir -p /opt/github-runner && cd /opt/github-runner
 curl -sL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz" \
   | tar -xz
 
-# 3. Configure — get the token from GitHub:
-#    Repository → Settings → Actions → Runners → New self-hosted runner
+# 3. Get a registration token:
+#    GitHub → Repository → Settings → Actions → Runners → New self-hosted runner
+#    Set architecture to arm64. Copy the token from the ./config.sh command shown
+#    on that page (valid for 1 hour, single use).
 ./config.sh \
   --url https://github.com/Kagiso-me/homelab-infrastructure \
   --token <TOKEN_FROM_GITHUB> \
@@ -88,7 +90,7 @@ curl -sL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}
   --name bran \
   --unattended
 
-# 4. Install and start as a systemd service
+# 4. Install and start as a systemd service (NOT ./run.sh — that only runs in the foreground)
 sudo ./svc.sh install
 sudo ./svc.sh start
 
