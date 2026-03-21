@@ -49,7 +49,10 @@
       "Bash(git mv:*)",
       "Bash(ls *.md)",
       "Bash(ls docs/guides/_OLD*)",
-      "Bash(grep -E \"\\\\.\\(yaml|yml\\)$\")"
+      "Bash(grep -E \"\\\\.\\(yaml|yml\\)$\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
