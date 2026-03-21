@@ -249,19 +249,20 @@ Each guide introduces a new layer of the platform in dependency order.
 
 ```
 00   — Platform Philosophy            (this document)
-00.5 — Infrastructure Prerequisites  (TrueNAS datasets, NFS exports, Cloudflare token)
+00.5 — Infrastructure Prerequisites  (TrueNAS datasets, NFS exports, MinIO, Cloudflare token)
 01   — Node Preparation & Hardening
 02   — Kubernetes Installation
-03   — Networking Platform
+03   — Secrets Management (SOPS + age)
 04   — GitOps Control Plane (FluxCD)
-05   — Cluster Identity & Scheduling
-06   — Platform Namespaces & Layout
-07   — Monitoring & Observability
-08   — Cluster Backups & Disaster Recovery
-09   — Applications via GitOps
-10   — Platform Operations & Lifecycle
-11   — Secrets Management (SOPS + age)
-12   — Storage Architecture
+05   — Networking: MetalLB & Traefik
+06   — Security: cert-manager & TLS
+07   — Namespaces & Cluster Identity
+08   — Storage Architecture
+09   — Monitoring & Observability
+10   — Backups & Disaster Recovery
+11   — Platform Upgrade Controller
+12   — Applications via GitOps
+13   — Platform Operations & Lifecycle
 ```
 
 ## Architecture Reference

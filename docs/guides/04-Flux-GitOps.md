@@ -542,7 +542,9 @@ it reads the key from Ansible Vault.
 > ansible-vault create vars/vault.yml
 > ```
 >
-> Paste this as the initial content (you will fill in the Flux key in Step 2 below):
+> Paste this as the initial content (you will fill in the Flux key in Step 2 below).
+> Replace the placeholder with the **real token from your password manager** — you stored it
+> there in [Guide 00.5 — Step 6](./00.5-Infrastructure-Prerequisites.md):
 >
 > ```yaml
 > cloudflare_api_token: "your-cloudflare-api-token-here"

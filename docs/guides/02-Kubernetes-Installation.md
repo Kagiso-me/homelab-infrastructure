@@ -182,14 +182,25 @@ This process ensures every node is configured consistently.
 
 # Retrieving Kubeconfig
 
-After installation the playbook retrieves the cluster kubeconfig file
-from the control-plane node.
+After installation, copy the kubeconfig from the control-plane node (`tywin`) to the automation host (`bran`) and configure `kubectl` to use it.
 
-The kubeconfig allows the automation host to communicate with the cluster.
+Run on **bran**:
+
+```bash
+# Copy kubeconfig from tywin and fix the address (k3s writes 127.0.0.1, which is only reachable on tywin itself)
+scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+
+# Activate for this session
+export KUBECONFIG=~/.kube/prod-config
+
+# Persist so future sessions don't need the export
+echo 'export KUBECONFIG=~/.kube/prod-config' >> ~/.bashrc
+```
 
 Verify connectivity:
 
-```
+```bash
 kubectl get nodes
 ```
 

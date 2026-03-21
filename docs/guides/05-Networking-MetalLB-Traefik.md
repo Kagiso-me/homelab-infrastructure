@@ -136,7 +136,7 @@ Before running the Flux bootstrap:
 | k3s cluster running | `kubectl get nodes` — all nodes Ready |
 | Ansible installed on RPi | `ansible --version` |
 | RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
-| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi — see [Guide 04 Vault Setup](./04-Flux-GitOps.md#ansible-vault-setup) |
+| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi — see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault) |
 | Flux SSH deploy key in vault | `flux_github_ssh_private_key` present in vault — see [Guide 04](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault) |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for

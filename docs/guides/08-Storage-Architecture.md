@@ -276,7 +276,7 @@ NFS does not have a block device to resize — the directory on TrueNAS is not s
 
 The NFS provisioner creates directories under `/mnt/core/k8s-volumes/`. Velero backs up PVC data by mounting volumes and copying files.
 
-For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s/etcd/` separately (see guide 08).
+For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s/etcd/` separately — see [Guide 10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) for the snapshot script and mount setup.
 
 The ZFS pool on TrueNAS provides:
 
