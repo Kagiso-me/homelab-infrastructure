@@ -16,7 +16,7 @@
 # Step 3 — Replace the placeholder public key in the creation_rules below with
 #           the public key printed by age-keygen.
 #
-# Step 4 — Encrypt the three secret files in this repo (see guide 11 for details):
+# Step 4 — Encrypt the three secret files in this repo:
 #   sops --encrypt --in-place platform/backup/velero/minio-credentials.yaml
 #   sops --encrypt --in-place platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml
 #   sops --encrypt --in-place platform/observability/alertmanager-config/alertmanager-secret.yaml

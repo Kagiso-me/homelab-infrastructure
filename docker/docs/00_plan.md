@@ -3,7 +3,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐☆☆☆☆☆☆☆☆ (2/10)
-**Guide:** 01 of 06
+**Guide:** 01 of 07
 
 > This series documents the design, deployment, and operation of a production‑grade Docker homelab platform.
 >
@@ -15,7 +15,7 @@
 
 Most homelab environments begin the same way:
 
-1. A server is provisioned. Docker is installed. Plex (or Jellyfin) runs.
+1. A server is provisioned. Docker is installed. Plex runs.
 2. Applications are added manually as needs grow.
 3. Configuration accumulates without documentation.
 4. Storage is reorganised several times without a plan.
@@ -69,7 +69,7 @@ The platform is built on five non-negotiable principles.
 | 1 | **Compute is disposable** | The Docker host can be wiped and rebuilt. No critical data lives on it. |
 | 2 | **Storage survives compute failure** | Media and persistent data live on TrueNAS, mounted over NFS. |
 | 3 | **Configuration lives in Git** | Compose stacks, monitoring config, and scripts are version-controlled. |
-| 4 | **Monitoring exists from day one** | Prometheus, Grafana, Loki, and Node Exporter are deployed early. |
+| 4 | **Monitoring exists from day one** | Monitoring exporters run on this host and ship data to the centralised k3s observability stack. |
 | 5 | **Recovery is predictable** | Disaster recovery is documented and tested, not improvised. |
 
 ---
@@ -111,14 +111,12 @@ If configuration changes, Git records it. Rollback is a `git revert` away.
 
 Many homelabs add monitoring only after something breaks. By then, diagnosis is difficult because there is no historical data.
 
-This platform deploys monitoring before any application stacks. The monitoring stack includes:
+Monitoring exporters are deployed on this host (node-exporter, cAdvisor, Promtail) and scraped by the k3s cluster's kube-prometheus-stack. Observability is centralised in the k3s platform — no duplicate monitoring stack on Docker.
 
 ```
-Prometheus    → metrics collection
-Grafana       → dashboards and alerting
-Node Exporter → host-level metrics
-Loki          → centralized log aggregation
-Promtail      → log shipping from containers
+node-exporter  → host metrics (scraped by k3s Prometheus)
+cAdvisor       → container metrics (scraped by k3s Prometheus)
+Promtail       → log shipping to k3s Loki
 ```
 
 Operational visibility is built-in, not bolted on.
@@ -137,7 +135,7 @@ Individual service restore < 15 minutes
 Media library (NAS data)  → never lost (ZFS + backups)
 ```
 
-Recovery procedures are documented in Guide 06 and tested against real failure scenarios.
+Recovery procedures are documented in Guide 07 and tested against real failure scenarios.
 
 ---
 
@@ -149,7 +147,7 @@ The platform is structured as layered infrastructure. Traffic enters at the netw
 graph TD
     User["User / Browser"] --> Router["Home Router\n10.0.10.1"]
     Router --> NPM["Nginx Proxy Manager\n10.0.10.32:80/443\nTLS Termination + Routing"]
-    NPM --> MediaStack["Media Stack\nJellyfin - Sonarr - Radarr\nProwlarr - SABnzbd - Overseerr"]
+    NPM --> MediaStack["Media Stack\nPlex - Sonarr - Radarr\nProwlarr - SABnzbd - Overseerr"]
     NPM --> MonStack["Monitoring Stack\nGrafana - Prometheus - Loki"]
     MediaStack --> DockerHost["Docker Host\n10.0.10.32\nUbuntu Server"]
     MonStack --> DockerHost
@@ -192,11 +190,11 @@ graph TD
     Downloads -->|Import + rename| Radarr
     Sonarr -->|Organized file| Media["/mnt/tera"]
     Radarr -->|Organized file| Media
-    Media --> Jellyfin["Jellyfin\nMedia Server"]
-    Jellyfin --> User
+    Media --> Plex["Plex\nMedia Server"]
+    Plex --> User
 
     style User fill:#2d3748,color:#fff
-    style Jellyfin fill:#00a4dc,color:#fff
+    style Plex fill:#E5A00D,color:#000
     style Media fill:#744210,color:#fff
     style Downloads fill:#744210,color:#fff
 ```
@@ -212,7 +210,7 @@ One of the most important improvements in this rebuild is a predictable, documen
 ├── docker/
 │   ├── stacks/          ← Docker Compose files (version-controlled)
 │   └── appdata/         ← Container configuration and databases
-│       ├── jellyfin/
+│       ├── plex/
 │       ├── sonarr/
 │       ├── radarr/
 │       ├── lidarr/
@@ -221,9 +219,7 @@ One of the most important improvements in this rebuild is a predictable, documen
 │       ├── overseerr/
 │       ├── sabnzbd/
 │       ├── navidrome/
-│       ├── grafana/
-│       ├── prometheus/
-│       ├── loki/
+│       ├── node-exporter/
 │       └── npm/
 └── scripts/             ← Automation and maintenance scripts
 
@@ -267,16 +263,17 @@ Even if files are deleted through the mount, they are recoverable from the most 
 
 # Series Overview
 
-This series is divided into six guides, each building on the previous.
+This series is divided into seven guides, each building on the previous.
 
 | Guide | Title | Description |
 |-------|-------|-------------|
-| **01 of 06** | Platform Philosophy | Architecture, principles, and series overview (this document) |
-| **02 of 06** | Host Installation & Hardening | Ubuntu Server install, static IP, SSH keys, UFW, Fail2Ban |
-| **03 of 06** | Docker Installation & Filesystem | Docker setup, daemon config, directory layout, NFS mounts |
-| **04 of 06** | Media Stack & Reverse Proxy | Jellyfin, Sonarr, Radarr, SABnzbd, Overseerr, Nginx Proxy Manager |
-| **05 of 06** | Monitoring & Logging | Prometheus, Grafana, Node Exporter, Loki, Promtail |
-| **06 of 06** | Backups & Disaster Recovery | Restic, restore procedures, tested recovery runbooks |
+| **01 of 07** | Platform Philosophy | Architecture, principles, and series overview (this document) |
+| **02 of 07** | Host Installation & Hardening | Ubuntu Server install, static IP, SSH keys, UFW, Fail2Ban |
+| **03 of 07** | Docker Installation & Filesystem | Docker setup, daemon config, directory layout, NFS mounts |
+| **04 of 07** | Media Stack & Reverse Proxy | Plex, Sonarr, Radarr, SABnzbd, Overseerr, Nginx Proxy Manager |
+| **05 of 07** | Monitoring & Logging | node-exporter, cAdvisor, Promtail — scraped by k3s Prometheus |
+| **06 of 07** | Application Configuration | Per-app recommended settings — Plex, Sonarr, Radarr, Bazarr, and the full stack |
+| **07 of 07** | Backups & Disaster Recovery | Restic, restore procedures, tested recovery runbooks |
 
 ---
 

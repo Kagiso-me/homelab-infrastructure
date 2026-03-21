@@ -266,12 +266,12 @@ Paste the full output as the secret value.
 platform stack immediately on first sync — if any prerequisite is missing, the corresponding
 kustomization will fail and may require manual recovery.
 
-| Prerequisite | How to verify |
-|---|---|
-| TrueNAS `core/k8s-volumes` NFS share exists and is exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
-| `nfs-common` installed on all k3s nodes | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
-| Cloudflare API token secret created in `cert-manager` namespace | `kubectl get secret cloudflare-api-token -n cert-manager` |
-| `sops-age` secret created in `flux-system` namespace | `kubectl get secret sops-age -n flux-system` |
+| Prerequisite | When | How to verify |
+|---|---|---|
+| TrueNAS `core/k8s-volumes` NFS share exists and is exported | Before bootstrap | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
+| `nfs-common` installed on all k3s nodes | Before bootstrap | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
+| `sops-age` secret created in `flux-system` namespace (Guide 03) | Before bootstrap | `kubectl get secret sops-age -n flux-system` |
+| Cloudflare API token secret created in `cert-manager` namespace | Immediately after bootstrap, before watching convergence | `kubectl get secret cloudflare-api-token -n cert-manager` |
 
 If `nfs-common` is missing, run `install-cluster.yml` again — it now installs it as the first
 step. Or install it directly:
@@ -374,12 +374,7 @@ If this returns `NotFound`, go back to Guide 03 and complete the setup.
 > **[Ansible playbook method](#installing-on-a-rebuilt-cluster-ansible)** instead — no manual
 > `flux bootstrap` call is needed again.
 
-## Step 1 — Complete age Key Setup
-
-Ensure Steps 1–4 above are complete: age and sops installed, `.sops.yaml` updated and
-committed, `sops-age` Secret present in `flux-system`.
-
-## Step 2 — Bootstrap Both Clusters
+## Step 1 — Bootstrap Both Clusters
 
 With the secret in place, bootstrap each cluster. Both clusters use the same repository
 and deploy key; only the branch and path differ.
@@ -417,18 +412,19 @@ flux bootstrap github \
   --personal
 ```
 
-After bootstrap completes, create the two secrets Flux needs before it can reconcile
-the platform. Flux starts reconciling immediately — do this before moving on.
+After bootstrap completes, Flux immediately begins reconciling. It needs two secrets to
+progress past the initial kustomizations. The first (`sops-age`) was created in Guide 03.
+The second (Cloudflare API token) must be created now.
 
-**Secret 1 — age decryption key** (required for SOPS-encrypted manifests):
+**Verify `sops-age` is present** (created in Guide 03 — should already exist):
 
 ```bash
-kubectl create secret generic sops-age \
-  --namespace=flux-system \
-  --from-file=age.agekey=$HOME/age.key
+kubectl get secret sops-age -n flux-system
 ```
 
-**Secret 2 — Cloudflare API token** (required for cert-manager DNS-01 wildcard cert):
+If this returns `NotFound`, go back to [Guide 03 — Step 5](./03-Secrets-Management.md) and create it before continuing.
+
+**Create the Cloudflare API token secret** (required for cert-manager DNS-01 wildcard cert):
 
 ```bash
 # Get the token from vault
@@ -441,15 +437,15 @@ kubectl create secret generic cloudflare-api-token \
   --from-literal=api-token=<token from vault output above>
 ```
 
-Verify both exist before continuing:
+Verify both secrets exist:
 
 ```bash
 kubectl get secret sops-age -n flux-system
 kubectl get secret cloudflare-api-token -n cert-manager
 ```
 
-Once both secrets are in place, Flux will resolve `platform-networking` and the full
-dependency chain will converge automatically. Watch progress with:
+Once both are present, Flux will resolve `platform-networking` and the full dependency
+chain will converge automatically. Watch progress with:
 
 ```bash
 watch flux get kustomizations
