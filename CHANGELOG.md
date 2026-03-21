@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add kubectl commands and read permissions for cert-manager namespace `cb8adee`
 - **[CONFIG]** enable CRDs subchart for v1.16 compatibility `2623c83`
 - **[MAINTENANCE]** encrypt grafana admin secret `0b3e3b7`
 - **[MAINTENANCE]** encrypt velero minio credentials and add sops rule for minio-credentials `c2f7df9`
