@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** patch Traefik LoadBalancer IP to staging pool (10.0.10.190) `8223510`
 - **[MAINTENANCE]** trigger promotion pipeline test `2b46bbd`
 - **[DEPLOY]** add kubectl commands and read permissions for cert-manager namespace `cb8adee`
 - **[CONFIG]** enable CRDs subchart for v1.16 compatibility `2623c83`
