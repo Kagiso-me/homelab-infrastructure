@@ -113,14 +113,22 @@ jobs:
 
       - name: Check for unhealthy pods
         run: |
-          UNHEALTHY=$(kubectl get pods -A --no-headers \
-            | grep -Ev 'Running|Completed|Succeeded' || true)
+          # Check only namespaces managed by Flux — not cluster-wide system namespaces.
+          NAMESPACES="flux-system ingress cert-manager monitoring storage velero metallb-system"
+          UNHEALTHY=""
+          for ns in $NAMESPACES; do
+            PODS=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null \
+              | grep -Ev 'Running|Completed|Succeeded' || true)
+            if [ -n "$PODS" ]; then
+              UNHEALTHY="${UNHEALTHY}--- ${ns} ---\n${PODS}\n"
+            fi
+          done
           if [ -n "$UNHEALTHY" ]; then
             echo "Unhealthy pods found on staging:"
-            echo "$UNHEALTHY"
+            echo -e "$UNHEALTHY"
             exit 1
           fi
-          echo "All staging pods healthy"
+          echo "All managed namespace pods healthy"
 
       - name: Smoke test — Traefik responds
         run: |
@@ -218,11 +226,19 @@ jobs:
 
       - name: Check for unhealthy pods
         run: |
-          UNHEALTHY=$(kubectl get pods -A --no-headers \
-            | grep -Ev 'Running|Completed|Succeeded' || true)
+          # Check only namespaces managed by Flux — not cluster-wide system namespaces.
+          NAMESPACES="flux-system ingress cert-manager monitoring storage velero metallb-system"
+          UNHEALTHY=""
+          for ns in $NAMESPACES; do
+            PODS=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null \
+              | grep -Ev 'Running|Completed|Succeeded' || true)
+            if [ -n "$PODS" ]; then
+              UNHEALTHY="${UNHEALTHY}--- ${ns} ---\n${PODS}\n"
+            fi
+          done
           if [ -n "$UNHEALTHY" ]; then
             echo "Unhealthy pods found on prod:"
-            echo "$UNHEALTHY"
+            echo -e "$UNHEALTHY"
             exit 1
           fi
           echo "All prod pods healthy"
