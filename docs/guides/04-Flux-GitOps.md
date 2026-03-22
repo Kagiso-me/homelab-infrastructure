@@ -488,6 +488,19 @@ flux bootstrap git \
 > **Note:** The `prod` branch must exist before bootstrapping prod. Create it if it
 > doesn't exist yet: `git push origin main:prod`
 
+**After prod bootstrap, create the Cloudflare API token secret on prod** — same as staging:
+
+```bash
+# With KUBECONFIG pointing at prod
+kubectl create secret generic cloudflare-api-token \
+  --namespace cert-manager \
+  --from-literal=api-token=$(ansible-vault view ~/homelab-infrastructure/ansible/vars/vault.yml | grep cloudflare_api_token | awk '{print $2}' | tr -d '"')
+
+kubectl get secret cloudflare-api-token -n cert-manager
+```
+
+Without this secret, cert-manager cannot complete the DNS-01 challenge and the wildcard TLS certificate will never become `Ready`.
+
 Flux will for each cluster:
 
 - install controllers into the `flux-system` namespace
