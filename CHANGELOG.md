@@ -16,14 +16,12 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+
+- **[DEPLOY]** Promotion pipeline commissioned end-to-end; prod Grafana live at `https://grafana.kagiso.me` with trusted TLS — fixes spanned NFS `nfs-common` missing on staging node, Grafana `initChownData` NFS root squash, Loki `RetriesExceeded`, MetalLB IP pool missing on prod, Cloudflare secret missing on prod, and three CI pipeline bugs (SHA mismatch, sync timeout, missing trigger paths) → [details](docs/ops-log/2026-03-22-promotion-pipeline-and-prod-grafana.md)
+
+- **[CONFIG]** Staging environment fixes — Flux healthCheck wrong Deployment name, Traefik IP outside staging MetalLB pool, staging/prod access pattern established → [details](docs/ops-log/2026-03-22-grafana-ingress-staging-fixes.md)
+
 - **[FIX]** switch Velero kubectl init container from `bitnami/kubectl` to `registry.k8s.io/kubectl:v1.32.0` — Bitnami stopped publishing images to Docker Hub (now behind authentication); all pulls were failing with `not found` errors, blocking Velero CRD upgrade job on bootstrap
-- **[CONFIG]** add clusters/prod/** to promotion workflow trigger paths `618e00e`
-- **[CONFIG]** add platform-networking-config kustomization for MetalLB IPAddressPool `6dbadb4`
-- **[CONFIG]** track encrypted minio-credentials, unignore via gitignore exception `fa7fde0`
-- **[CONFIG]** restore letsencrypt-staging issuer, access staging by IP only `6523dd8`
-- **[CONFIG]** patch Traefik LoadBalancer IP to staging pool (10.0.10.190) `8223510`
-- **[MAINTENANCE]** trigger promotion pipeline test `2b46bbd`
-- **[DEPLOY]** add kubectl commands and read permissions for cert-manager namespace `cb8adee`
 - **[CONFIG]** enable CRDs subchart for v1.16 compatibility `2623c83`
 - **[MAINTENANCE]** encrypt grafana admin secret `0b3e3b7`
 - **[MAINTENANCE]** encrypt velero minio credentials and add sops rule for minio-credentials `c2f7df9`
