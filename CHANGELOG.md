@@ -16,7 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
-- **[CONFIG]** use latest bitnami/kubectl tag, short version tags not published `f058d0c`
+- **[FIX]** switch Velero kubectl init container from `bitnami/kubectl` to `registry.k8s.io/kubectl:v1.32.0` — Bitnami stopped publishing images to Docker Hub (now behind authentication); all pulls were failing with `not found` errors, blocking Velero CRD upgrade job on bootstrap
 - **[CONFIG]** add clusters/prod/** to promotion workflow trigger paths `618e00e`
 - **[CONFIG]** add platform-networking-config kustomization for MetalLB IPAddressPool `6dbadb4`
 - **[CONFIG]** track encrypted minio-credentials, unignore via gitignore exception `fa7fde0`
