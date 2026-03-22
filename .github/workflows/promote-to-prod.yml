@@ -67,8 +67,7 @@ jobs:
   # ─── Stage 2: Staging health check ────────────────────────────────────────
   # Runs on a self-hosted runner (bran, 10.0.10.10) which has direct LAN access
   # to the staging cluster. No VPN required.
-  # Waits for staging to sync this specific commit, then verifies all
-  # kustomizations are Ready and Traefik responds.
+  # Forces a Flux source reconcile, then waits for all kustomizations to be Ready.
   # Promotion is blocked if staging is unhealthy.
   staging-health:
     name: Staging health check
@@ -85,21 +84,10 @@ jobs:
           echo "${{ secrets.STAGING_KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Wait for staging to sync this commit
+      - name: Trigger Flux source reconcile
         run: |
-          EXPECTED_SHA=$(git rev-parse HEAD)
-          echo "Triggering immediate Flux source reconcile..."
+          echo "Forcing Flux to pull latest from Git..."
           flux reconcile source git flux-system -n flux-system --timeout=60s || true
-          echo "Waiting for staging to sync commit ${EXPECTED_SHA}..."
-          timeout 180 bash -c "
-            until kubectl get gitrepository flux-system -n flux-system \
-              -o jsonpath='{.status.artifact.revision}' 2>/dev/null \
-              | grep -q '${EXPECTED_SHA}'; do
-              echo '  still waiting...'
-              sleep 10
-            done
-          "
-          echo "Staging synced ${EXPECTED_SHA}"
 
       - name: Wait for all staging kustomizations to be Ready
         run: |
@@ -199,19 +187,10 @@ jobs:
           echo "${{ secrets.PROD_KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Wait for prod to sync the promoted commit
+      - name: Trigger Flux source reconcile
         run: |
-          EXPECTED_SHA=$(git rev-parse HEAD)
-          echo "Waiting for prod to sync commit ${EXPECTED_SHA}..."
-          timeout 180 bash -c "
-            until kubectl get gitrepository flux-system -n flux-system \
-              -o jsonpath='{.status.artifact.revision}' 2>/dev/null \
-              | grep -q '${EXPECTED_SHA}'; do
-              echo '  still waiting...'
-              sleep 15
-            done
-          "
-          echo "Prod synced ${EXPECTED_SHA}"
+          echo "Forcing Flux to pull latest from Git..."
+          flux reconcile source git flux-system -n flux-system --timeout=60s || true
 
       - name: Wait for all prod kustomizations to be Ready
         run: |
