@@ -66,8 +66,6 @@ spec:
     # Default backup storage location name used by the Schedule CRD
     defaultBackupStorageLocation: truenas-minio
 
-    # Use official kubectl image — bitnami stopped publishing free images to Docker Hub
-    kubectl:
-      image:
-        repository: registry.k8s.io/kubectl
-        tag: "v1.32.0"
+    # Disable pre-install CRD upgrade job — Helm manages CRDs via install.crds: CreateReplace
+    # The bitnami/kubectl image used by the job is no longer publicly available on Docker Hub
+    upgradeCRDs: false
