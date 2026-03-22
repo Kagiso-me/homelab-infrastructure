@@ -50,14 +50,6 @@ spec:
   dependsOn:
     - name: platform-networking
     - name: platform-security-issuers
-  patches:
-    - patch: |
-        - op: replace
-          path: /spec/issuerRef/name
-          value: letsencrypt-staging
-      target:
-        kind: Certificate
-        name: wildcard-kagiso-me
 ---
 # ClusterIssuers (letsencrypt-prod, letsencrypt-staging, internal-ca).
 # Split from platform-security so cert-manager CRDs exist before dry-run.
