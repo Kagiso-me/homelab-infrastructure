@@ -3,6 +3,7 @@
 .env*
 *secrets*
 *credentials*
+!platform/backup/velero/minio-credentials.yaml
 vault_pass.txt
 *.key
 *.pem
