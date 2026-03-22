@@ -70,4 +70,4 @@ spec:
     kubectl:
       image:
         repository: docker.io/bitnami/kubectl
-        tag: "1.33"
+        tag: "latest"
