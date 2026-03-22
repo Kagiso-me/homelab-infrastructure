@@ -412,6 +412,6 @@ TrueNAS and the k3s cluster are completely unaffected throughout.
 
 ## Related
 
-- ADR: `docs/architecture/decisions/ADR-006-proxmox-pivot.md`
+- ADR: `docs/adr/ADR-006-proxmox-pivot.md`
 - Staging cluster config: `clusters/staging/`
 - Promotion pipeline: `.github/workflows/promote-to-prod.yml`

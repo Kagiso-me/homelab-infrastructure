@@ -147,6 +147,6 @@ Monitor actual usage in Grafana. Alert when any PVC exceeds 80% of declared size
 
 ## Related Guides
 
-- [Guide 08: Cluster Backups](../08-Cluster-Backups.md)
-- [Guide 12: Storage Architecture](../12-Storage-Architecture.md)
-- [ADR-004: SOPS + age](./decisions/ADR-004-sops-age-secrets.md)
+- [Guide 10: Backups & Disaster Recovery](../guides/10-Backups-Disaster-Recovery.md)
+- [Guide 08: Storage Architecture](../guides/08-Storage-Architecture.md)
+- [ADR-004: SOPS + age](../adr/ADR-004-sops-age-secrets.md)

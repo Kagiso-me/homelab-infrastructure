@@ -94,11 +94,11 @@ The diagram below shows the order in which platform layers must be healthy befor
 
 ## Key Design Decisions
 
-Significant architectural choices are captured as Architecture Decision Records (ADRs) in [`docs/architecture/decisions/`](decisions/). Each ADR documents the context, the decision made, alternatives considered, and the consequences accepted.
+Significant architectural choices are captured as Architecture Decision Records (ADRs) in [`docs/adr/`](../adr/). Each ADR documents the context, the decision made, alternatives considered, and the consequences accepted.
 
 | ADR | Title | Status |
 |---|---|---|
-| [ADR-005](decisions/ADR-005-single-control-plane.md) | Single Control-Plane Node | Accepted |
+| [ADR-005](../adr/ADR-005-single-control-plane.md) | Single Control-Plane Node | Accepted |
 
 ---
 

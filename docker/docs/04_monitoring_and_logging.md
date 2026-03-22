@@ -1,17 +1,16 @@
-
-# 05 — Monitoring & Logging
-## Full Observability for the Docker Media Server
+# 05 — Monitoring Integration
+## Connecting the Docker Host to the k3s Observability Stack
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 05 of 06
+**Difficulty:** ⭐⭐⭐☆☆☆☆☆☆☆ (3/10)
+**Guide:** 05 of 07
 
 > A platform that cannot be observed cannot be operated.
 >
-> At this point the media stack is running and traffic is flowing through Nginx Proxy Manager.
-> But knowing containers are "up" is not the same as knowing the system is healthy. This guide
-> adds the full visibility layer: host metrics, container telemetry, log aggregation, alert
-> rules, and notification delivery.
+> The media stack is running. Traffic is flowing through Nginx Proxy Manager. But knowing
+> containers are "up" is not the same as knowing the system is healthy. This guide connects
+> the Docker host to the k3s cluster's existing observability stack — giving you host metrics,
+> container telemetry, and log aggregation without duplicating infrastructure.
 
 ---
 
@@ -26,322 +25,209 @@ Without observability you only find out something is wrong when it stops working
 - Nginx Proxy Manager's Let's Encrypt cert expired — users get browser security warnings with no logged error you can easily find
 - The nightly backup script failed because the NFS mount dropped — you discover this during a disaster recovery event
 
-With a monitoring stack in place, the same scenarios look different:
+With the observability stack connected, the same scenarios look different:
 
-- An alert fires 4 hours before `/srv` fills, triggered by a `predict_linear()` query
-- A Grafana panel shows the Sonarr job queue depth climbing while download count stays flat
+- An alert fires 4 hours before `/srv` fills, triggered by a `predict_linear()` query in Prometheus
+- A Grafana panel in the k3s cluster shows the Sonarr job queue depth climbing while download count stays flat
 - NPM certificate expiry is visible as a metric days before it becomes a user-facing problem
-- A `docker_backup_last_success_timestamp` metric goes stale at 25h and pages Slack before you go to bed
+- A `docker_backup_last_success_timestamp` metric goes stale at 25h and fires a Slack alert before you go to bed
 
-Observability turns reactive firefighting into proactive operations.
+Observability turns reactive firefighting into proactive operations. The k3s cluster already has
+Prometheus, Grafana, Loki, and Alertmanager fully deployed via kube-prometheus-stack. Rather than
+running a duplicate monitoring stack on this host, we integrate into it: the Docker host runs
+three lightweight exporters that the cluster scrapes and ingests. Single pane of glass; no
+redundant infrastructure to maintain.
 
 ---
 
-## Monitoring Architecture
+## Architecture
+
+The Docker host (10.0.10.32) runs three exporters. The k3s cluster's Prometheus scrapes the
+metrics endpoints directly over the LAN. Promtail pushes Docker container logs to the cluster's
+Loki instance. Dashboards, alert rules, and log search all live in Grafana on the k3s cluster.
 
 ```
 Docker Host (10.0.10.32)
-├── Node Exporter :9100 ──────────────────────► Prometheus :9090
-├── cAdvisor :8080 ───────────────────────────► Prometheus
-├── /var/lib/node_exporter/textfile_collector/ ► Prometheus (backup metrics)
-└── Docker containers ──────► Promtail ───────► Loki :3100
-                                                      │
-                                                 Grafana :3000
-                                                      │
-                                               Alertmanager
-                                                      │
-                                       ┌──────────────┴──────────────┐
-                                     Slack                      Webhook
-                                #homelab-alerts            healthchecks.io
+├── node-exporter  :9100  ──── scrape ──────► k3s Prometheus (kube-prometheus-stack)
+├── cAdvisor       :8080  ──── scrape ──────►         │
+└── Promtail              ──── push ───────► k3s Loki ▼
+                                                Grafana (grafana.kagiso.me)
+                                                   │
+                                             Alertmanager
+                                                   │
+                                          Slack #homelab-alerts
 ```
 
-Two complementary pipelines carry all signal:
+```mermaid
+graph TD
+    NE["node-exporter\n10.0.10.32:9100\nHost metrics"]
+    CA["cAdvisor\n10.0.10.32:8080\nContainer metrics"]
+    PT["Promtail\nDocker log shipping"]
+    PROM["k3s Prometheus\nkube-prometheus-stack"]
+    LOKI["k3s Loki\nLog storage"]
+    GRAF["Grafana\ngrafana.kagiso.me"]
+    AM["Alertmanager"]
+    SLACK["Slack\n#homelab-alerts"]
 
-| Pipeline | What it carries | Components |
-|----------|----------------|------------|
-| Metrics | Numeric time-series (CPU %, bytes, counts) | Node Exporter, cAdvisor, textfile collector → Prometheus → Grafana |
-| Logs | Raw log lines from containers and the host | Docker log files, /var/log → Promtail → Loki → Grafana |
+    NE -->|scrape| PROM
+    CA -->|scrape| PROM
+    PT -->|push| LOKI
+    PROM --> GRAF
+    LOKI --> GRAF
+    PROM --> AM
+    AM --> SLACK
 
-| Component | Role | Port |
-|-----------|------|------|
-| Prometheus | Scrapes and stores time-series metrics | 9090 |
-| Grafana | Visualises metrics and logs; manages alert rules | 3000 |
-| Node Exporter | Exposes host-level metrics (CPU, memory, disk, network) | 9100 (host network) |
-| cAdvisor | Exposes per-container resource metrics | 8080 |
-| Loki | Stores and indexes log streams | 3100 |
-| Promtail | Tails log files and ships them to Loki | — (internal) |
-| Alertmanager | Routes alerts to Slack, webhooks, email | 9093 |
+    style NE fill:#2b6cb0,color:#fff
+    style CA fill:#2b6cb0,color:#fff
+    style PT fill:#2b6cb0,color:#fff
+    style PROM fill:#276749,color:#fff
+    style LOKI fill:#276749,color:#fff
+    style GRAF fill:#744210,color:#fff
+    style AM fill:#4a5568,color:#fff
+    style SLACK fill:#4a5568,color:#fff
+```
+
+### Component Roles
+
+| Component | Role | Location | Port |
+|-----------|------|----------|------|
+| node-exporter | Exposes host-level metrics: CPU, memory, disk, network, NFS mounts | Docker host | 9100 (host network) |
+| cAdvisor | Exposes per-container resource metrics | Docker host | 8080 |
+| Promtail | Tails Docker container logs and pushes to Loki | Docker host | 9080 (readiness only) |
+| Prometheus | Scrapes and stores all time-series metrics | k3s cluster | — |
+| Loki | Stores and indexes log streams | k3s cluster | 3100 |
+| Grafana | Dashboards, log explorer, alert rules | k3s cluster | 443 (grafana.kagiso.me) |
+| Alertmanager | Routes alerts to Slack | k3s cluster | — |
 
 ---
 
-## Config Files in This Repo
+## Why Exporters Only — Not a Local Prometheus
 
-All configuration files are committed to this repository under `docker/config/` and are
-bind-mounted into their respective containers as read-only volumes. Do not write config
-directly into the appdata directories — edit the repo files and restart the container.
+A natural question: why not just run Prometheus locally on the Docker host as before?
 
-| Repo path | Mounted into container at |
-|-----------|--------------------------|
-| `docker/config/prometheus/prometheus.yml` | `/etc/prometheus/prometheus.yml` |
-| `docker/config/prometheus/alerts/*.yml` | `/etc/prometheus/alerts/` |
-| `docker/config/loki/loki-config.yml` | `/etc/loki/config.yml` |
-| `docker/config/promtail/promtail-config.yml` | `/etc/promtail/config.yml` |
-| `docker/config/grafana/provisioning/` | `/etc/grafana/provisioning/` |
+The k3s cluster already has a fully configured Prometheus with storage, retention, Alertmanager
+integration, and Grafana dashboards. Adding a second Prometheus on the Docker host would mean:
 
-The bind mount blocks in `monitoring-stack.yml` for Prometheus look like this:
+- Two Prometheus instances to upgrade, maintain, and back up
+- Alert rules defined in two places, potentially diverging
+- Two Grafana instances — or complex cross-datasource federation
+- Additional memory and CPU burden on the Docker host for no operational gain
 
-```yaml
-volumes:
-  - /srv/docker/appdata/prometheus:/prometheus
-  - ../../docker/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  - ../../docker/config/prometheus/alerts:/etc/prometheus/alerts:ro
-```
+The exporters-only model is the correct architectural choice once a cluster-grade observability
+stack exists. The Docker host is a compute resource. Observability is a platform concern.
 
-The path `../../docker/config/` is relative to `/srv/docker/stacks/` where the compose file lives.
-Adjust the depth if your stacks directory is elsewhere.
+| Consideration | Local stack (decommissioned) | Exporters only (current) |
+|---------------|------------------------------|--------------------------|
+| Memory footprint | ~600 MB (Prometheus + Grafana + Loki + Alertmanager) | ~60 MB (three exporters) |
+| Maintenance surface | 4+ containers to update, 4+ configs to manage | 3 containers, 1 config file |
+| Alert rules | Duplicated from k3s | Single source of truth in k3s |
+| Dashboards | Separate Grafana instance | Shared Grafana in k3s |
+| Log search | Local Loki only | Unified across cluster + Docker host |
+| Single pane of glass | No — two Grafanas | Yes — one Grafana for everything |
 
 ---
 
-## Step 1 — Create Directories
+## Pre-requisites
+
+Before working through this guide, the following must be true:
+
+1. **k3s cluster is running** with kube-prometheus-stack deployed (see k3s Guide 09 — Observability).
+
+2. **k3s Prometheus is configured to scrape the Docker host.** The scrape targets live in the
+   HelmRelease at `platform/observability/kube-prometheus-stack/helmrelease.yaml` under
+   `additionalScrapeConfigs`. Verify it contains entries for `10.0.10.32:9100` and `10.0.10.32:8080`.
+
+   ```bash
+   # From the repo root — confirm the scrape targets are present
+   grep -A 5 "docker-vm" platform/observability/kube-prometheus-stack/helmrelease.yaml
+   ```
+
+3. **Network reachability.** The Docker host at `10.0.10.32` must be reachable from the k3s
+   nodes on ports `9100` and `8080`. These are LAN-internal addresses; no external routing is
+   required. If UFW is active on the Docker host, the firewall rule is in
+   [Guide 02 — Host Installation & Hardening](./01_host_installation_and_hardening.md).
+
+4. **k3s Loki endpoint is known.** You will need the Loki service address to configure Promtail.
+   Retrieve it from the cluster:
+
+   ```bash
+   kubectl get svc -n monitoring loki
+   # Note the CLUSTER-IP or LoadBalancer EXTERNAL-IP and port (typically 3100)
+   ```
+
+---
+
+## Step 1 — Prepare the Textfile Collector Directory
+
+Node Exporter's textfile collector allows any script on the host to export custom Prometheus
+metrics by writing `.prom` format files into a watched directory. This is how the backup script
+reports its success timestamp to Prometheus — without running a separate exporter.
 
 ```bash
-# Persistent data directories (written at runtime by each service)
-sudo mkdir -p /srv/docker/appdata/prometheus/data
-sudo mkdir -p /srv/docker/appdata/grafana
-sudo mkdir -p /srv/docker/appdata/loki
-sudo mkdir -p /srv/docker/appdata/alertmanager
-
-# Grafana writes its SQLite DB as UID 472 — fix ownership now
-sudo chown -R 472:472 /srv/docker/appdata/grafana
-
-# Textfile collector directory (used by backup script to export custom metrics)
 sudo mkdir -p /var/lib/node_exporter/textfile_collector
-sudo chown root:root /var/lib/node_exporter/textfile_collector
+
+# Attempt to chown to the node_exporter system user if it exists (created by the
+# node_exporter deb package). The container reads the directory as root, so this
+# is belt-and-suspenders — the || true prevents the command from failing if the
+# user does not exist on this system.
+sudo chown node_exporter:node_exporter /var/lib/node_exporter/textfile_collector 2>/dev/null || true
 sudo chmod 755 /var/lib/node_exporter/textfile_collector
 ```
 
----
+Verify the directory exists:
 
-## Step 2 — Prometheus Configuration
-
-`docker/config/prometheus/prometheus.yml`
-
-Prometheus scrapes metrics from Node Exporter, cAdvisor, Loki, and itself on a 15-second
-interval. The `external_labels` block stamps every metric with the instance name so dashboards
-remain readable if you ever aggregate multiple hosts into one Prometheus.
-
-```yaml
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-  external_labels:
-    host: docker-host
-    environment: homelab
-
-rule_files:
-  - /etc/prometheus/alerts/*.yml
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets: ['alertmanager:9093']
-
-scrape_configs:
-
-  # Host-level metrics: CPU, memory, disk, network, NFS mounts, textfile collector
-  - job_name: node
-    static_configs:
-      - targets: ['node-exporter:9100']
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: instance
-        replacement: 'docker-host (10.0.10.32)'
-
-  # Per-container resource metrics from cAdvisor
-  - job_name: cadvisor
-    static_configs:
-      - targets: ['cadvisor:8080']
-    relabel_configs:
-      - source_labels: [__address__]
-        target_label: instance
-        replacement: 'docker-host (10.0.10.32)'
-
-  # Prometheus self-monitoring
-  - job_name: prometheus
-    static_configs:
-      - targets: ['localhost:9090']
-
-  # Loki internal metrics (ingestion rate, chunk count, etc.)
-  - job_name: loki
-    static_configs:
-      - targets: ['loki:3100']
+```bash
+ls -ld /var/lib/node_exporter/textfile_collector
+# Expected: drwxr-xr-x ... /var/lib/node_exporter/textfile_collector
 ```
 
+The compose file mounts this directory into the node-exporter container as read-only. Node
+Exporter reads any `.prom` file it finds there and exposes the metrics under the `node_`
+namespace automatically. The backup script (Guide 06) writes here on every successful run.
+
 ---
 
-## Step 3 — Alert Rules
+## Step 2 — Configure Promtail
 
-Alert rules live in `docker/config/prometheus/alerts/`. Prometheus evaluates them on every
-`evaluation_interval` and forwards firing alerts to Alertmanager.
+Promtail uses Docker service discovery to automatically detect and tail every container running
+on the host. Its configuration must exist on disk before the monitoring stack is started.
 
-`docker/config/prometheus/alerts/docker-host.yml`
+### 2a — Create the Promtail config directory
 
-```yaml
-groups:
-  - name: docker-host
-    interval: 60s
-    rules:
-
-      # Fires when /srv is more than 80% full
-      - alert: DockerHostDiskFull
-        expr: >
-          (1 - node_filesystem_avail_bytes{mountpoint="/srv", fstype!="tmpfs"}
-               / node_filesystem_size_bytes{mountpoint="/srv", fstype!="tmpfs"}) * 100 > 80
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Docker host disk /srv is {{ $value | humanize }}% full"
-          description: "Free up space in /srv/docker/appdata or expand the volume. Run: du -sh /srv/docker/appdata/* | sort -rh"
-
-      # Fires when NFS mount /mnt/media becomes unavailable (available bytes == 0)
-      - alert: DockerNFSMountMissing
-        expr: node_filesystem_avail_bytes{mountpoint=~"/mnt/.*"} == 0
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "NFS mount {{ $labels.mountpoint }} is unavailable"
-          description: "Check TrueNAS is online and the export is healthy. Run: df -h {{ $labels.mountpoint }}"
-
-      # Fires when host memory availability drops below 10%
-      - alert: DockerHostMemoryHigh
-        expr: >
-          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Docker host memory is {{ $value | humanize }}% utilised"
-          description: "Run: docker stats --no-stream | sort -k4 -rh"
-
-      # Fires when CPU sustains above 85% for 15 minutes
-      - alert: DockerHostCPUHigh
-        expr: >
-          100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
-        for: 15m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Docker host CPU is {{ $value | humanize }}% utilised"
-          description: "Likely a runaway Jellyfin transcode or indexer rebuild. Check: docker stats"
-
-  - name: backups
-    interval: 300s
-    rules:
-
-      # Fires when the backup script has not run successfully in over 25 hours
-      - alert: DockerBackupTooOld
-        expr: time() - docker_backup_last_success_timestamp > 90000
-        for: 0m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Docker backup is {{ $value | humanize }}s old (threshold: 90000s / 25h)"
-          description: "Check: sudo journalctl -u docker-backup -n 50 or cat /var/log/docker-backup.log"
-
-      # Fires when backup file size is suspiciously small (under 10 MB)
-      - alert: DockerBackupSizeSuspicious
-        expr: docker_backup_size_bytes < 10485760
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Docker backup archive is only {{ $value | humanizeBytes }} — expected >10MB"
-          description: "The backup script may have produced an empty or corrupt archive."
-
-  - name: containers
-    interval: 60s
-    rules:
-
-      # Fires when a key media stack container disappears from cAdvisor
-      - alert: DockerContainerDown
-        expr: >
-          absent(container_last_seen{name=~"jellyfin|sonarr|radarr|prowlarr|sabnzbd|nginx-proxy-manager"})
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Container {{ $labels.name }} has disappeared"
-          description: "Run: docker ps -a | grep {{ $labels.name }} && docker logs {{ $labels.name }} --tail 50"
+```bash
+sudo mkdir -p /srv/docker/appdata/promtail
 ```
 
----
+### 2b — Get the Loki endpoint
 
-## Step 4 — Loki Configuration
+Promtail pushes logs directly to Loki's HTTP API. You need the Loki service address from the
+k3s cluster. Run this from any machine with `kubectl` access to the cluster:
 
-`docker/config/loki/loki-config.yml`
-
-Loki stores log chunks on the local filesystem under the appdata directory. Retention is set
-to 14 days, which is typically enough for debugging any incident that gets noticed within
-two weeks. Increase `retention_period` if you need longer history.
-
-```yaml
-auth_enabled: false
-
-server:
-  http_listen_port: 3100
-  grpc_listen_port: 9096
-
-common:
-  instance_addr: 127.0.0.1
-  path_prefix: /loki
-  storage:
-    filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
-  replication_factor: 1
-  ring:
-    kvstore:
-      store: inmemory
-
-query_range:
-  results_cache:
-    cache:
-      embedded_cache:
-        enabled: true
-        max_size_mb: 100
-
-schema_config:
-  configs:
-    - from: 2024-01-01
-      store: tsdb
-      object_store: filesystem
-      schema: v13
-      index:
-        prefix: index_
-        period: 24h
-
-limits_config:
-  retention_period: 336h      # 14 days
-  ingestion_rate_mb: 16
-  ingestion_burst_size_mb: 32
-  max_query_series: 5000
-
-compactor:
-  working_directory: /loki/compactor
-  retention_enabled: true
-  retention_delete_delay: 2h
+```bash
+kubectl get svc -n monitoring loki
 ```
 
----
+Look for either:
+- The `CLUSTER-IP` — use this if Promtail can reach the cluster's pod network (generally not
+  the case from a Docker host outside the cluster)
+- The `EXTERNAL-IP` or LoadBalancer IP — use this if Loki has a LoadBalancer service type
+- A NodePort — use any k3s node IP + the NodePort
 
-## Step 5 — Promtail Configuration
+The most reliable option for a Docker host outside the cluster is a `LoadBalancer` IP or a
+static `NodePort`. If you are using MetalLB in the k3s cluster, Loki will have a dedicated IP.
 
-`docker/config/promtail/promtail-config.yml`
+```bash
+# Example: if Loki's LoadBalancer IP is 10.0.10.200:
+# http://10.0.10.200:3100/loki/api/v1/push
+```
 
-Promtail ships logs from two sources: Docker container stdout/stderr (via the Docker socket
-for service discovery) and host system logs under `/var/log`.
+### 2c — Write the Promtail configuration
+
+```bash
+sudo nano /srv/docker/appdata/promtail/promtail-config.yml
+```
+
+Paste the following, replacing `<loki-endpoint>` with the address obtained above:
 
 ```yaml
 server:
@@ -352,687 +238,412 @@ positions:
   filename: /tmp/positions.yaml
 
 clients:
-  - url: http://loki:3100/loki/api/v1/push
+  - url: http://<loki-endpoint>:3100/loki/api/v1/push
+    # Replace <loki-endpoint> with the k3s Loki service IP or hostname.
+    # Example: http://10.0.10.200:3100/loki/api/v1/push
+    # Get it: kubectl get svc -n monitoring loki
 
 scrape_configs:
 
-  # Docker container logs — auto-labels by container name, image, compose service/project
+  # Docker container logs — auto-discovered via the Docker socket.
+  # Each container gets labelled with its name, compose project, and compose service.
   - job_name: docker
     docker_sd_configs:
-      - host: unix:///var/run/docker.sock
+      - host: unix:///run/docker.sock
         refresh_interval: 5s
     relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
+      # Strip the leading slash from container names (/plex → plex)
+      - source_labels: [__meta_docker_container_name]
         regex: '/(.*)'
         target_label: container
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: stream
-      - source_labels: ['__meta_docker_image_name']
-        target_label: image
-      - source_labels: ['__meta_docker_compose_service']
-        target_label: service
-      - source_labels: ['__meta_docker_compose_project']
+      # Label by compose project (e.g. media-stack, monitoring-exporters)
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
         target_label: compose_project
-      - target_label: app
-        replacement: media-stack
-
-  # Host system logs (/var/log/*.log)
-  - job_name: system
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: system
-          host: docker-host
-          __path__: /var/log/*.log
-
-  # Auth log (SSH logins, sudo, PAM) — separate job for easier alerting
-  - job_name: auth
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: auth
-          host: docker-host
-          __path__: /var/log/auth.log
+      # Label by compose service name (e.g. jellyfin, sonarr)
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: compose_service
+      # Log stream (stdout / stderr)
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+      # Stamp all Docker logs with a consistent job label for LogQL filtering
+      - target_label: job
+        replacement: docker
+      # Stamp the host so logs from multiple hosts can be distinguished in Loki
+      - target_label: host
+        replacement: docker-vm
 ```
+
+Save the file. The compose file bind-mounts this path at
+`/etc/promtail/promtail-config.yml` inside the container.
+
+> **Note on Docker socket path:** The compose file mounts `/run/docker.sock` (not
+> `/var/run/docker.sock`). On modern Ubuntu, `/var/run` is a symlink to `/run`, so both
+> paths are equivalent. The config above uses `/run/docker.sock` to match the compose
+> mount exactly.
 
 ---
 
-## Step 6 — Alertmanager Configuration
+## Step 3 — Deploy the Monitoring Exporters Stack
 
-Alertmanager receives firing alerts from Prometheus and routes them to the configured
-receivers. This example routes all alerts to a Slack webhook.
-
-Create `/srv/docker/appdata/alertmanager/alertmanager.yml`:
-
-```yaml
-global:
-  resolve_timeout: 5m
-  slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
-
-route:
-  group_by: ['alertname', 'severity']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
-  receiver: slack-homelab
-
-  routes:
-    - match:
-        severity: critical
-      receiver: slack-homelab
-      repeat_interval: 1h
-
-receivers:
-  - name: slack-homelab
-    slack_configs:
-      - channel: '#homelab-alerts'
-        send_resolved: true
-        title: '{{ .Status | toUpper }} — {{ .GroupLabels.alertname }}'
-        text: |
-          {{ range .Alerts }}
-          *Alert:* {{ .Labels.alertname }}
-          *Severity:* {{ .Labels.severity }}
-          *Summary:* {{ .Annotations.summary }}
-          *What to do:* {{ .Annotations.description }}
-          {{ end }}
-        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
-
-  # healthchecks.io integration for backup freshness
-  - name: healthchecks
-    webhook_configs:
-      - url: 'https://hc-ping.com/YOUR-UUID-HERE'
-        send_resolved: false
-
-inhibit_rules:
-  # Suppress warnings when a critical alert is already firing for the same instance
-  - source_match:
-      severity: critical
-    target_match:
-      severity: warning
-    equal: ['instance']
-```
-
----
-
-## Step 7 — Grafana Provisioning
-
-`docker/config/grafana/provisioning/datasources/datasources.yml`
-
-Grafana auto-provisions data sources from this file on startup. No manual UI configuration
-is needed after deploying the stack.
-
-```yaml
-apiVersion: 1
-
-datasources:
-  - name: Prometheus
-    type: prometheus
-    access: proxy
-    url: http://prometheus:9090
-    isDefault: true
-    editable: false
-    jsonData:
-      timeInterval: '15s'
-
-  - name: Loki
-    type: loki
-    access: proxy
-    url: http://loki:3100
-    editable: false
-    jsonData:
-      maxLines: 1000
-```
-
----
-
-## Step 8 — Deploy the Monitoring Stack
+The compose file is already present in the repository at `docker/compose/monitoring-stack.yml`.
+Deploy it from the standard stacks location:
 
 ```bash
-# Create the shared monitoring network (skip if it already exists)
-docker network create monitoring-net
-
-# Deploy all six services
-cd /srv/docker/stacks
-docker compose -f monitoring-stack.yml up -d
-
-# Verify all six started and are healthy
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" \
-  | grep -E "prometheus|grafana|node-exporter|cadvisor|loki|promtail|alertmanager"
+cd /srv/docker
+docker compose -f compose/monitoring-stack.yml up -d
 ```
 
-Expected output (all containers should show `Up` or `Up (healthy)`):
+This starts three containers:
+- `node-exporter` — runs on host network, exposes metrics on port 9100
+- `cadvisor` — runs in privileged mode, exposes metrics on port 8080
+- `promtail` — reads the Docker socket, pushes logs to k3s Loki
+
+Expected output:
 
 ```
-prometheus       Up 2 minutes (healthy)   0.0.0.0:9090->9090/tcp
-grafana          Up 2 minutes (healthy)   0.0.0.0:3000->3000/tcp
-node-exporter    Up 2 minutes             (host network)
-cadvisor         Up 2 minutes (healthy)   0.0.0.0:8080->8080/tcp
-loki             Up 2 minutes (healthy)   0.0.0.0:3100->3100/tcp
-promtail         Up 2 minutes
-alertmanager     Up 2 minutes             0.0.0.0:9093->9093/tcp
+[+] Running 3/3
+ ✔ Container node-exporter  Started
+ ✔ Container cadvisor       Started
+ ✔ Container promtail       Started
 ```
-
-The `monitoring-stack.yml` compose file should look like this:
-
-```yaml
-networks:
-  monitoring-net:
-    external: true   # Created above with docker network create
-
-services:
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=15d'
-      - '--storage.tsdb.retention.size=10GB'
-      - '--web.enable-lifecycle'
-    volumes:
-      - /srv/docker/appdata/prometheus/data:/prometheus
-      - ../../docker/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ../../docker/config/prometheus/alerts:/etc/prometheus/alerts:ro
-    ports:
-      - "9090:9090"
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    environment:
-      - TZ=Africa/Johannesburg
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=changeme    # Change immediately after first login
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://10.0.10.32:3000
-      - GF_LOG_LEVEL=warn
-    volumes:
-      - /srv/docker/appdata/grafana:/var/lib/grafana
-      - ../../docker/config/grafana/provisioning:/etc/grafana/provisioning:ro
-    ports:
-      - "3000:3000"
-    networks:
-      - monitoring-net
-    depends_on:
-      - prometheus
-      - loki
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    command:
-      - '--path.rootfs=/host'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--collector.textfile.directory=/var/lib/node_exporter/textfile_collector'
-    pid: host
-    network_mode: host    # Must use host network to see real interfaces + NFS mounts
-    volumes:
-      - /:/host:ro,rslave
-      - /var/lib/node_exporter/textfile_collector:/var/lib/node_exporter/textfile_collector:ro
-    restart: unless-stopped
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    privileged: true
-    command:
-      - '--port=8080'
-      - '--housekeeping_interval=10s'
-      - '--docker_only=true'
-    devices:
-      - /dev/kmsg:/dev/kmsg
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /cgroup:/cgroup:ro
-    ports:
-      - "8080:8080"
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
-    command: -config.file=/etc/loki/config.yml
-    volumes:
-      - /srv/docker/appdata/loki:/loki
-      - ../../docker/config/loki/loki-config.yml:/etc/loki/config.yml:ro
-    ports:
-      - "3100:3100"
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  promtail:
-    image: grafana/promtail:latest
-    container_name: promtail
-    command: -config.file=/etc/promtail/config.yml
-    volumes:
-      - /var/log:/var/log:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ../../docker/config/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-    volumes:
-      - /srv/docker/appdata/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - /srv/docker/appdata/alertmanager/data:/alertmanager
-    ports:
-      - "9093:9093"
-    networks:
-      - monitoring-net
-    restart: unless-stopped
-```
-
-> **Note on `node-exporter`:** It runs with `network_mode: host` and `pid: host` so it can
-> see the real host network interfaces, NFS mounts, and process table — not Docker's namespaced
-> view. This means it cannot use the `monitoring-net` Docker network to reach Prometheus.
-> Instead, Prometheus scrapes `node-exporter:9100` by using the container name only when
-> node-exporter is on the same bridge network. Because node-exporter uses host networking,
-> Prometheus must use the host IP `10.0.10.32:9100` or `host-gateway:9100` in its scrape
-> config, or both must share the host network. The config above uses `node-exporter:9100`
-> which works when Prometheus has a `host-gateway` alias or both containers are on the same
-> machine. If Prometheus shows the node target as DOWN, change the target to `10.0.10.32:9100`.
 
 ---
 
-## Step 9 — Grafana Initial Setup
+## Step 4 — Verify Exporters Are Running
 
-### First Login
+### 4a — Confirm all three containers are up
 
-Open `http://10.0.10.32:3000`
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+```
 
-Default credentials: `admin` / `admin` (or whatever was set in `GF_SECURITY_ADMIN_PASSWORD`).
+Expected (all three should be `Up` or `Up (healthy)`):
 
-**Change the password immediately.** Grafana stores dashboards, alert state, and contact
-point secrets. Treat it like any other administrative interface.
+```
+NAMES            STATUS                    PORTS
+node-exporter    Up 2 minutes (healthy)
+cadvisor         Up 2 minutes (healthy)    0.0.0.0:8080->8080/tcp
+promtail         Up 2 minutes (healthy)
+```
 
-### Verify Auto-Provisioned Data Sources
+`node-exporter` has no `PORTS` column entry because it runs on the host network — it binds
+directly to `0.0.0.0:9100` on the host interface without a Docker port mapping.
 
-Navigate to **Connections → Data Sources**. You should see:
+### 4b — Test the node-exporter endpoint
 
-- **Prometheus** — click it, scroll to the bottom, click **Save & Test** — expect "Data source is working"
-- **Loki** — same process — expect "Data source connected and labels found"
+```bash
+curl -s http://localhost:9100/metrics | head -20
+```
 
-If either shows an error, check that the container names in the data source URLs match the
-running container names (`docker ps`).
+Expected: a stream of Prometheus metric lines beginning with `# HELP` and `# TYPE` followed
+by `node_` prefixed metric names. The first few lines will look like:
 
-### Import Community Dashboards
+```
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} ...
+...
+# HELP node_boot_time_seconds Node boot time, in unixtime.
+# TYPE node_boot_time_seconds gauge
+node_boot_time_seconds 1718000000
+```
 
-Navigate to **Dashboards → New → Import**, enter the dashboard ID, click **Load**, select
-the correct data source, and click **Import**.
+### 4c — Test the cAdvisor endpoint
 
-| Dashboard | ID | Data source | What it shows |
-|-----------|-----|-------------|---------------|
-| Node Exporter Full | 1860 | Prometheus | CPU, memory, disk I/O, network, all mounts for the Docker host |
-| Docker Container Monitoring | 893 | Prometheus | Per-container CPU, memory, network, block I/O |
-| Docker Container & Host Metrics | 10619 | Prometheus | Alternative container view with host context |
-| Loki Dashboard | 13639 | Loki | Log volume, error rate, log explorer by container |
-| cAdvisor Exporter | 14282 | Prometheus | Detailed container resource breakdown |
+```bash
+curl -s http://localhost:8080/metrics | head -20
+```
 
-The **Node Exporter Full** (1860) dashboard is the most immediately useful — open it after
-import and verify you can see real CPU, memory, and disk data for the host.
+Expected: metric lines prefixed with `container_` and `machine_`.
 
----
+```bash
+# Also verify the cAdvisor web UI loads
+curl -s http://localhost:8080/healthz
+# Expected: ok
+```
 
-## Step 10 — What Each Metric Source Collects
+### 4d — Test Promtail readiness
 
-### Node Exporter — Host Metrics
+```bash
+curl -s http://localhost:9080/ready
+# Expected: ready
+```
 
-Node Exporter exposes hundreds of host-level metrics. These are the ones that matter most
-for operating a media server:
+Check Promtail logs to confirm it connected to Loki and is discovering containers:
 
-| Metric | Example PromQL query | Alert threshold |
-|--------|---------------------|----------------|
-| CPU usage % | `100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)` | >85% for 15m |
-| Memory used % | `(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100` | >90% for 5m |
-| Disk usage /srv | `(1 - node_filesystem_avail_bytes{mountpoint="/srv"} / node_filesystem_size_bytes{mountpoint="/srv"}) * 100` | >80% |
-| Disk bytes free /srv | `node_filesystem_avail_bytes{mountpoint="/srv"}` | <50GB = start cleaning |
-| NFS mount /mnt/media | `node_filesystem_avail_bytes{mountpoint="/mnt/media"}` | ==0 means mount lost |
-| Network receive | `rate(node_network_receive_bytes_total{device="eth0"}[5m]) * 8` | — (trend monitoring) |
-| Network transmit | `rate(node_network_transmit_bytes_total{device="eth0"}[5m]) * 8` | — (trend monitoring) |
-| Load average | `node_load1` | >number of vCPUs |
-| Backup age | `time() - docker_backup_last_success_timestamp` | >90000s = >25h |
+```bash
+docker logs promtail --tail 30
+```
 
-### cAdvisor — Container Metrics
+Look for lines like:
 
-cAdvisor exposes per-container resource consumption. The `name` label contains the container name.
+```
+level=info msg="Starting Promtail" version=...
+level=info component=discovery.manager msg="Starting provider" provider=docker/0 ...
+level=info component=client host=<loki-endpoint>:3100 msg="Sending batch" ...
+```
 
-| Metric | Example PromQL query | What it tells you |
-|--------|---------------------|-------------------|
-| Container CPU % | `rate(container_cpu_usage_seconds_total{name="jellyfin"}[5m]) * 100` | Whether Jellyfin is transcoding |
-| Container memory | `container_memory_usage_bytes{name="sonarr"}` | RSS memory for each service |
-| Container memory limit | `container_spec_memory_limit_bytes{name!=""}` | Whether limits are set |
-| Container restarts | `rate(container_start_time_seconds{name!=""}[1h])` | Crash-looping containers |
-| Container network in | `rate(container_network_receive_bytes_total{name="sabnzbd"}[5m])` | Download bandwidth |
-| Container network out | `rate(container_network_transmit_bytes_total{name="sabnzbd"}[5m])` | Upload / API traffic |
-| Container disk reads | `rate(container_fs_reads_bytes_total{name="jellyfin"}[5m])` | Disk read rate |
-
-### Textfile Collector — Backup Metrics
-
-The backup script writes `.prom` files to `/var/lib/node_exporter/textfile_collector/`.
-Node Exporter reads them and exposes the metrics to Prometheus automatically.
-
-| Metric | Written by | Example PromQL query | Alert threshold |
-|--------|-----------|---------------------|----------------|
-| `docker_backup_last_success_timestamp` | `backup_docker.sh` | `time() - docker_backup_last_success_timestamp` | >90000s (25h) |
-| `docker_backup_size_bytes` | `backup_docker.sh` | `docker_backup_size_bytes` | <10MB = suspicious |
-| `docker_backup_duration_seconds` | `backup_docker.sh` | trend over time | sudden spike = investigate |
+If you see `level=error` lines with connection refused or timeout, the Loki endpoint in the
+config file is wrong — revisit Step 2b.
 
 ---
 
-## Step 11 — Key Prometheus Queries to Bookmark
+## Step 5 — Verify Prometheus Is Scraping the Docker Host
 
-Open Prometheus at `http://10.0.10.32:9090` and use the **Graph** tab to run these queries.
-They are also useful as the basis for Grafana panels.
+This verification must be done from the k3s cluster side. The Prometheus UI shows whether
+the Docker host scrape targets are reachable and returning metrics.
+
+### 5a — Access the Prometheus UI via port-forward
+
+From a machine with `kubectl` access to the k3s cluster (e.g. on `bran`):
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+```
+
+Then open `http://localhost:9090/targets` in a browser.
+
+### 5b — Confirm Docker host targets are UP
+
+In the Prometheus targets page, look for the jobs that scrape the Docker host. These are
+defined in `additionalScrapeConfigs` in the HelmRelease and will be named something like
+`docker-vm-node-exporter` and `docker-vm-cadvisor`.
+
+Both targets must show **State: UP**.
+
+If a target shows **State: DOWN**, the error message beneath it will indicate the cause:
+
+| Error message | Cause | Fix |
+|---------------|-------|-----|
+| `dial tcp 10.0.10.32:9100: connect: connection refused` | node-exporter container not running | `docker ps \| grep node-exporter`; restart if missing |
+| `dial tcp 10.0.10.32:9100: i/o timeout` | Firewall blocking the port | `sudo ufw allow from 10.0.10.0/24 to any port 9100,8080` on the Docker host |
+| `dial tcp 10.0.10.32:8080: connect: connection refused` | cAdvisor container not running | `docker logs cadvisor` |
+
+### 5c — Confirm metrics are flowing
+
+In the Prometheus UI, navigate to **Graph** and run:
 
 ```promql
-# Which containers are consuming the most memory right now?
-topk(5, container_memory_usage_bytes{name!=""})
-
-# Is the NFS /mnt/media mount healthy? (non-zero = healthy)
-node_filesystem_avail_bytes{mountpoint=~"/mnt/.*"}
-
-# How many hours until /srv fills at the current rate?
-predict_linear(node_filesystem_avail_bytes{mountpoint="/srv"}[6h], 3600 * 24) /
-  node_filesystem_size_bytes{mountpoint="/srv"} * 100
-
-# Container restart rate over the last hour (crashes per hour per container)
-rate(container_start_time_seconds{name!=""}[1h]) * 3600
-
-# Current CPU load by container, sorted highest first
-sort_desc(
-  sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[5m])) * 100
-)
-
-# How old is the most recent backup, in hours?
-(time() - docker_backup_last_success_timestamp) / 3600
-
-# Memory pressure: how much memory headroom does the host have?
-node_memory_MemAvailable_bytes / 1024 / 1024 / 1024
-
-# Network bandwidth currently being consumed by SABnzbd (Mbps)
-rate(container_network_receive_bytes_total{name="sabnzbd"}[1m]) * 8 / 1000000
-
-# Which containers are currently running? (container present in cAdvisor)
-count by (name) (container_last_seen{name!=""})
-
-# Disk I/O read rate for all containers (top consumers)
-topk(5, rate(container_fs_reads_bytes_total{name!=""}[5m]))
+node_memory_MemTotal_bytes{instance="10.0.10.32:9100"}
 ```
+
+This should return a single value equal to the Docker host's total RAM (e.g. `16977346560`
+for 16 GB). If it returns no results, the scrape is not reaching node-exporter.
+
+```promql
+container_memory_usage_bytes{instance="10.0.10.32:8080", name="jellyfin"}
+```
+
+This should return the current memory usage for the jellyfin container. If it returns no
+results, cAdvisor is not being scraped successfully.
 
 ---
 
-## Step 12 — Log Monitoring with Loki
+## Step 6 — Verify Logs Are Arriving in Loki
 
-Open the Grafana Explore view, select the **Loki** data source, and run these LogQL queries.
+Open Grafana at `https://grafana.kagiso.me` (k3s cluster).
 
-### Essential LogQL Queries
+### 6a — Navigate to Explore
+
+In the left sidebar: **Explore** → select **Loki** as the data source.
+
+### 6b — Run a basic label filter query
+
+In the log browser, set:
+- Label filter: `job` = `docker`
+
+Or switch to code mode and enter:
 
 ```logql
-# All log lines from any container in the media stack (last 1h)
-{app="media-stack"}
+{job="docker"}
+```
 
-# All error-level lines from any container
-{app="media-stack"} |= "error"
+Log lines from all running Docker containers on the host should appear within a few seconds.
+Set the time range to **Last 5 minutes** if you do not see results immediately.
 
-# Failed download events (Sonarr/Radarr)
-{container=~"sonarr|radarr"} |= "failed"
-| line_format "{{.container}}: {{.line}}"
+### 6c — Query a specific container
+
+```logql
+{job="docker", container="jellyfin"}
+```
+
+```logql
+{job="docker", container="sonarr"}
+```
+
+```logql
+{job="docker", container="sabnzbd"}
+```
+
+### 6d — Useful LogQL queries for the media stack
+
+```logql
+# All error-level lines from any Docker container on this host
+{job="docker"} |= "error"
 
 # SABnzbd warnings and errors
-{container="sabnzbd"} |~ "(WARNING|ERROR)"
+{job="docker", container="sabnzbd"} |~ "(WARNING|ERROR)"
 
-# Nginx Proxy Manager 4xx responses (access denied, not found)
-{container="nginx-proxy-manager"} |= " 40"
+# Failed download events (Sonarr/Radarr)
+{job="docker", container=~"sonarr|radarr"} |= "failed"
 
-# NPM certificate renewal activity
-{container="nginx-proxy-manager"} |= "certificate"
+# Nginx Proxy Manager 4xx responses
+{job="docker", container="nginx-proxy-manager"} |= " 40"
 
-# SSH failed password attempts on the host
-{job="auth"} |= "Failed password"
-| regexp `from (?P<ip>\S+) port`
-| line_format "Failed login from: {{.ip}}"
+# Jellyfin transcoding activity
+{job="docker", container="jellyfin"} |= "transcode"
 
-# All backup script log output
-{job="system"} |= "backup"
+# Any container that logged "OOMKilled" or "killed" (out of memory)
+{job="docker"} |~ "(OOMKilled|killed)"
 
-# Jellyfin transcoding activity (useful for diagnosing performance issues)
-{container="jellyfin"} |= "transcode"
-
-# Any container that has logged "OOMKilled" or "killed" (out of memory)
-{app="media-stack"} |~ "(OOMKilled|killed|kill)"
-
-# Promtail delivery errors to Loki (if logs are missing)
-{container="promtail"} |= "error"
+# Log volume rate by container — spot containers flooding logs (crash loop symptom)
+sum by (container) (rate({job="docker"}[5m]))
 ```
 
-### Log Volume Rate Query
+If no results appear in step 6b:
 
-This query gives you a rate-of-log-lines-per-second by container, useful for spotting
-a container that is suddenly flooding logs (often a symptom of a crash loop):
-
-```logql
-sum by (container) (
-  rate({app="media-stack"}[5m])
-)
-```
+1. Check Promtail is running and healthy: `curl -s http://localhost:9080/ready`
+2. Check Promtail logs for connection errors: `docker logs promtail --tail 30`
+3. Confirm the Loki URL in `/srv/docker/appdata/promtail/promtail-config.yml` is correct
+4. Verify Promtail can reach Loki: `curl -s http://<loki-endpoint>:3100/ready`
 
 ---
 
-## Step 13 — Alert Rules Overview
+## Step 7 — Verify Alerts Are Configured
 
-All alert rules live in `docker/config/prometheus/alerts/`. This table summarises what
-is configured and what the correct first response is:
+The k3s kube-prometheus-stack Prometheus evaluates alert rules for the Docker host. These
+rules reference the metrics scraped from `10.0.10.32:9100` (node-exporter) and
+`10.0.10.32:8080` (cAdvisor).
 
-| Alert | Condition | Severity | First response |
-|-------|-----------|----------|----------------|
-| `DockerBackupTooOld` | Last backup >25h old | critical | `sudo journalctl -u docker-backup -n 50` |
-| `DockerContainerDown` | jellyfin/sonarr/etc absent from cAdvisor | critical | `docker ps -a`, then `docker logs <name> --tail 50` |
-| `DockerHostDiskFull` | `/srv` >80% full | warning | `du -sh /srv/docker/appdata/* \| sort -rh` |
-| `DockerNFSMountMissing` | `/mnt/media` unavailable | critical | `df -h /mnt/media`; check TrueNAS status |
-| `DockerHostMemoryHigh` | Memory >90% for 5m | warning | `docker stats --no-stream \| sort -k4 -rh` |
-| `DockerHostCPUHigh` | CPU >85% for 15m | warning | `docker stats --no-stream` |
-| `DockerBackupSizeSuspicious` | Backup archive <10MB | warning | Inspect `/srv/docker/backups/` manually |
-
-### Alert Routing
-
-All critical alerts repeat every 1 hour until resolved. Warning alerts repeat every 4 hours.
-The Alertmanager inhibition rule suppresses warning alerts when a critical alert is already
-firing for the same instance, preventing alert fatigue during a major incident.
-
----
-
-## Step 14 — Textfile Collector Setup
-
-Node Exporter's textfile collector allows any script to export custom metrics by writing
-`.prom` format files into a watched directory. This is how backup success/failure timestamps
-reach Prometheus without running a separate exporter.
+Confirm the alert rules exist and are loaded:
 
 ```bash
-# Create and secure the directory
-sudo mkdir -p /var/lib/node_exporter/textfile_collector
-sudo chown root:root /var/lib/node_exporter/textfile_collector
-sudo chmod 755 /var/lib/node_exporter/textfile_collector
-
-# Run a backup manually to verify the metrics file gets written
-sudo /srv/scripts/backup_docker.sh
-
-# Check the written metrics
-cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
+# From a machine with kubectl access
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+# Open http://localhost:9090/alerts in a browser
 ```
 
-Expected content of `docker_backup.prom`:
+You should see alert rules covering disk usage on `/srv`, NFS mount availability, high CPU,
+high memory, container restarts, and backup staleness. These are evaluated on every
+`evaluation_interval` in the HelmRelease configuration.
+
+If an alert rule is firing (shown in red), investigate immediately using the `description`
+annotation — it includes the exact diagnostic command to run.
+
+---
+
+## Custom Metrics via the Textfile Collector
+
+The textfile collector directory (`/var/lib/node_exporter/textfile_collector/`) is a
+first-class integration point between host shell scripts and Prometheus.
+
+Any script can write a `.prom` format file into this directory and node-exporter will expose
+those metrics on the next scrape — no exporter process, no network port, no configuration
+change required.
+
+### How the backup script uses this
+
+The backup script (Guide 06) writes the following metrics on every successful run:
+
+```bash
+# Snippet from backup_docker.sh
+cat > /var/lib/node_exporter/textfile_collector/docker_backup.prom <<EOF
+# HELP docker_backup_last_success_timestamp Unix timestamp of last successful backup
+# TYPE docker_backup_last_success_timestamp gauge
+docker_backup_last_success_timestamp $(date +%s)
+
+# HELP docker_backup_size_bytes Size in bytes of the most recent backup archive
+# TYPE docker_backup_size_bytes gauge
+docker_backup_size_bytes $(stat -c%s "$BACKUP_FILE")
+
+# HELP docker_backup_duration_seconds Duration in seconds of the last backup run
+# TYPE docker_backup_duration_seconds gauge
+docker_backup_duration_seconds $DURATION
+EOF
+```
+
+### Alert that fires when the backup goes stale
+
+Defined in the kube-prometheus-stack HelmRelease:
+
+```yaml
+- alert: DockerBackupTooOld
+  expr: time() - docker_backup_last_success_timestamp{instance="10.0.10.32:9100"} > 90000
+  for: 0m
+  labels:
+    severity: critical
+  annotations:
+    summary: "Docker host backup is {{ $value | humanizeDuration }} old (threshold: 25h)"
+    description: "Check: sudo journalctl -u docker-backup -n 50"
+```
+
+This alert fires if the `docker_backup_last_success_timestamp` metric is absent (backup script
+has never run) or stale (over 90000 seconds / 25 hours old).
+
+### Verify the textfile collector is working
+
+After running the backup script at least once:
+
+```bash
+# Check the .prom file was written
+cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
+
+# Confirm node-exporter is exposing the metric
+curl -s http://localhost:9100/metrics | grep docker_backup
+```
+
+Expected:
 
 ```
 # HELP docker_backup_last_success_timestamp Unix timestamp of last successful backup
 # TYPE docker_backup_last_success_timestamp gauge
 docker_backup_last_success_timestamp 1718000000
-
-# HELP docker_backup_size_bytes Size in bytes of the most recent backup archive
-# TYPE docker_backup_size_bytes gauge
-docker_backup_size_bytes 524288000
-
-# HELP docker_backup_duration_seconds Duration in seconds of the last backup run
-# TYPE docker_backup_duration_seconds gauge
-docker_backup_duration_seconds 142
 ```
-
-Verify the metric is visible in Prometheus:
-
-```
-http://10.0.10.32:9090/graph?g0.expr=docker_backup_last_success_timestamp
-```
-
-If the metric does not appear, check that the node-exporter compose command includes
-`--collector.textfile.directory=/var/lib/node_exporter/textfile_collector`.
 
 ---
 
-## Step 15 — Complete Verification Procedure
+## Useful PromQL Queries
 
-Work through each of the following in order. Do not move on to Guide 06 until all
-verification steps pass.
+These queries are useful in Grafana's Explore view (Prometheus data source) or when
+port-forwarding to Prometheus directly.
 
-### 1. All containers running
+```promql
+# Which Docker containers are consuming the most memory right now?
+topk(5, container_memory_usage_bytes{instance="10.0.10.32:8080", name!=""})
 
-```bash
-docker ps --format "table {{.Names}}\t{{.Status}}" \
-  | grep -E "prometheus|grafana|node-exporter|cadvisor|loki|promtail|alertmanager"
+# Is the NFS /mnt/media mount healthy? (non-zero = healthy)
+node_filesystem_avail_bytes{instance="10.0.10.32:9100", mountpoint=~"/mnt/.*"}
+
+# How many hours until /srv fills at the current rate?
+predict_linear(
+  node_filesystem_avail_bytes{instance="10.0.10.32:9100", mountpoint="/srv"}[6h], 3600 * 24
+) / 1024 / 1024 / 1024
+
+# Container restart rate over the last hour (crashes per hour per container)
+rate(container_start_time_seconds{instance="10.0.10.32:8080", name!=""}[1h]) * 3600
+
+# Current CPU load by container, highest first
+sort_desc(
+  sum by (name) (
+    rate(container_cpu_usage_seconds_total{instance="10.0.10.32:8080", name!=""}[5m])
+  ) * 100
+)
+
+# How old is the most recent backup, in hours?
+(time() - docker_backup_last_success_timestamp{instance="10.0.10.32:9100"}) / 3600
+
+# Memory headroom on the Docker host (in GB)
+node_memory_MemAvailable_bytes{instance="10.0.10.32:9100"} / 1024 / 1024 / 1024
+
+# SABnzbd current download bandwidth (Mbps)
+rate(container_network_receive_bytes_total{instance="10.0.10.32:8080", name="sabnzbd"}[1m]) * 8 / 1000000
+
+# Which containers are currently running? (seen by cAdvisor)
+count by (name) (container_last_seen{instance="10.0.10.32:8080", name!=""})
+
+# Top 5 containers by disk read rate
+topk(5, rate(container_fs_reads_bytes_total{instance="10.0.10.32:8080", name!=""}[5m]))
 ```
-
-All seven lines must show `Up` (with `healthy` for those that have a healthcheck).
-
-### 2. Prometheus targets all UP
-
-Open `http://10.0.10.32:9090/targets`
-
-All four jobs must show state `UP`:
-- `node` (1/1 up)
-- `cadvisor` (1/1 up)
-- `prometheus` (1/1 up)
-- `loki` (1/1 up)
-
-If a target shows `DOWN`, click on its error message. Common causes:
-
-| Error | Cause |
-|-------|-------|
-| `dial tcp: no route to host` | Container not on the same Docker network |
-| `connection refused` | Container not yet started or crashed |
-| `context deadline exceeded` | Container overloaded or wrong port |
-
-### 3. Prometheus receiving node metrics
-
-In the Prometheus UI, query:
-
-```
-node_memory_MemTotal_bytes
-```
-
-This should return a single value showing the host's total RAM (e.g. `16977346560` for 16 GB).
-If it returns no results, node-exporter is not being scraped.
-
-### 4. Prometheus receiving backup metrics
-
-```
-docker_backup_last_success_timestamp
-```
-
-This must return a result. If it does not:
-- Verify the backup script has been run at least once
-- Verify the `.prom` file exists: `ls -la /var/lib/node_exporter/textfile_collector/`
-- Verify the textfile directory is mounted into the node-exporter container
-
-### 5. Grafana data sources connected
-
-In Grafana, navigate to **Connections → Data Sources**.
-Click each data source and run **Save & Test**.
-Both Prometheus and Loki must show a green success message.
-
-### 6. Grafana Node Exporter dashboard showing real data
-
-Open the **Node Exporter Full** dashboard (ID 1860).
-Set the time range to **Last 5 minutes**.
-CPU usage, memory used, and filesystem usage panels must all show values (not "No data").
-
-### 7. Loki receiving container logs
-
-In Grafana **Explore**, select the Loki data source and run:
-
-```logql
-{app="media-stack"}
-```
-
-Log lines from running containers must appear within a few seconds.
-
-If no results appear:
-- Check Promtail is running: `docker logs promtail --tail 30`
-- Verify Promtail can reach Loki: look for "level=info component=client" lines in promtail logs
-- Verify Docker socket is mounted: `docker exec promtail ls /var/run/docker.sock`
-
-### 8. Test alert delivery
-
-Temporarily create a test alert rule in Grafana (**Alerting → Alert Rules → New Alert Rule**)
-with a condition that is immediately true (e.g. `vector(1) > 0`), wait for it to fire, and
-verify the notification arrives in Slack.
-
-Delete the test rule after confirming delivery.
-
----
-
-## Service Access Reference
-
-| Service | URL | Credentials |
-|---------|-----|------------|
-| Grafana | `http://10.0.10.32:3000` | admin / (set in compose env) |
-| Prometheus | `http://10.0.10.32:9090` | None |
-| Alertmanager | `http://10.0.10.32:9093` | None |
-| cAdvisor | `http://10.0.10.32:8080` | None |
-| Loki API | `http://10.0.10.32:3100` | None |
-| Node Exporter metrics | `http://10.0.10.32:9100/metrics` | None (LAN only) |
-
-> **Security:** Prometheus, cAdvisor, Node Exporter, Loki, and Alertmanager expose
-> sensitive system information with no authentication. Never proxy them externally.
-> Only Grafana should be accessible via Nginx Proxy Manager if you need remote access.
 
 ---
 
@@ -1040,16 +651,16 @@ Delete the test rule after confirming delivery.
 
 | Symptom | Likely cause | Resolution |
 |---------|-------------|------------|
-| Prometheus target DOWN | Container not reachable by name | Verify both containers share `monitoring-net`; check `docker network inspect monitoring-net` |
-| Node Exporter shows wrong filesystems | Mount-points-exclude regex too narrow | Adjust `--collector.filesystem.mount-points-exclude` flag |
-| Node Exporter missing NFS mounts | Host-side: NFS mount not present | `df -h /mnt/media` on the host; remount if missing |
-| Loki `ready` returns 503 | Config YAML syntax error | `docker logs loki --tail 30`; validate YAML |
-| Promtail not shipping Docker logs | Docker socket not mounted | Verify `/var/run/docker.sock` volume in compose file |
-| Grafana shows "No data" | Data source URL uses localhost | Use container names in data source URLs, not `localhost` |
-| cAdvisor shows no container metrics | Privilege or cgroup mount issue | Ensure `privileged: true` and all cgroup volumes are present |
-| Backup metric stale in Prometheus | Textfile directory not mounted | Check node-exporter container volume: `docker inspect node-exporter \| grep textfile` |
-| Alertmanager not receiving alerts | Prometheus alerting config wrong | Check `http://10.0.10.32:9090/config` for alertmanager URL |
-| Slack not receiving alerts | Wrong webhook URL | Test with: `curl -X POST -H 'Content-type: application/json' --data '{"text":"test"}' <webhook_url>` |
+| Prometheus shows docker-vm-node-exporter target as DOWN | Firewall blocking port 9100 from k3s nodes | `sudo ufw allow from 10.0.10.0/24 to any port 9100,8080 proto tcp` on the Docker host |
+| cAdvisor target DOWN but node-exporter UP | cAdvisor container not running or unhealthy | `docker logs cadvisor --tail 30`; check privileged mode is enabled |
+| No Docker logs in Loki | Promtail config has wrong Loki URL | `docker logs promtail --tail 30`; check the URL in `/srv/docker/appdata/promtail/promtail-config.yml` |
+| Promtail ready returns unhealthy | Promtail cannot parse config file | `docker logs promtail --tail 10`; validate YAML syntax in promtail-config.yml |
+| Promtail can't read container logs | Docker socket permission or wrong mount path | Verify `/run/docker.sock` is accessible: `ls -la /run/docker.sock`; check compose volume mount |
+| Logs appear in Loki but containers are unlabelled | Relabel configs not matching Docker labels | Verify containers are started by Docker Compose (labels only present on compose-managed containers) |
+| `node_` metrics missing NFS mount | NFS mount not present when node-exporter started | Verify mount: `df -h /mnt/media`; remount if missing; restart node-exporter |
+| Backup metric not present in Prometheus | Backup script has never run or textfile dir not mounted | Run backup script manually; check `ls /var/lib/node_exporter/textfile_collector/` |
+| node-exporter shows wrong total RAM | Container reading `/proc` from namespace instead of host | Verify compose has `pid: host` and correct procfs volume mounts |
+| cAdvisor shows no per-container metrics | cgroup mounts missing | Verify `/sys`, `/var/lib/docker`, `/dev/disk` volumes in compose |
 
 ---
 
@@ -1058,17 +669,19 @@ Delete the test rule after confirming delivery.
 This guide is complete when all of the following are true:
 
 ```
-✓ All 7 monitoring services running (prometheus, grafana, node-exporter, cadvisor, loki, promtail, alertmanager)
-✓ Prometheus targets page: node, cadvisor, prometheus, loki all showing UP
-✓ Grafana data sources: Prometheus and Loki both show "Data source is working"
-✓ Node Exporter Full dashboard (1860) showing real CPU, memory, disk data
-✓ Docker Container Metrics dashboard (893) showing per-container resource data
-✓ Loki receiving logs — Explore query {app="media-stack"} returns results
-✓ Backup metrics visible: docker_backup_last_success_timestamp present in Prometheus
-✓ At least one test alert fired and notification received in Slack
-✓ NFS mount metrics present: node_filesystem_avail_bytes for /mnt/media shows a value
-✓ Textfile collector directory exists at /var/lib/node_exporter/textfile_collector
+✓ node-exporter container running — curl http://localhost:9100/metrics returns node_ metrics
+✓ cAdvisor container running — curl http://localhost:8080/healthz returns "ok"
+✓ Promtail container running — curl http://localhost:9080/ready returns "ready"
+✓ Promtail logs show successful pushes to k3s Loki (no connection errors)
+✓ k3s Prometheus targets page: docker-vm-node-exporter shows State: UP
+✓ k3s Prometheus targets page: docker-vm-cadvisor shows State: UP
+✓ Grafana Explore (Loki): {job="docker"} returns log lines from running containers
+✓ Grafana Explore (Prometheus): node_memory_MemTotal_bytes{instance="10.0.10.32:9100"} returns host RAM
+✓ Textfile collector directory exists: /var/lib/node_exporter/textfile_collector/
+✓ Alert rules for docker host visible and loaded in k3s Prometheus /alerts page
 ```
+
+Do not move on to Guide 06 until every item above is confirmed.
 
 ---
 
@@ -1077,5 +690,5 @@ This guide is complete when all of the following are true:
 | | Guide |
 |---|---|
 | ← Previous | [04 — Media Stack & Reverse Proxy](./03_media_stack_and_reverse_proxy.md) |
-| Current | **05 — Monitoring & Logging** |
-| → Next | [06 — Backups & Disaster Recovery](./05_backups_and_disaster_recovery.md) |
+| Current | **05 — Monitoring Integration** |
+| → Next | [06 — Application Configuration](./06_application_configuration.md) |

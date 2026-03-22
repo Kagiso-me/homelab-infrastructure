@@ -74,7 +74,7 @@ Internet
 
 ### Design Choice: Single Control-Plane
 
-This cluster intentionally runs a **single control-plane node** (`tywin`). This is a documented trade-off captured in [ADR-005](decisions/ADR-005-single-control-plane.md).
+This cluster intentionally runs a **single control-plane node** (`tywin`). This is a documented trade-off captured in [ADR-005](../adr/ADR-005-single-control-plane.md).
 
 | Property | Detail |
 |---|---|

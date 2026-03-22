@@ -1,10 +1,10 @@
 
-# 06 — Backups & Disaster Recovery
+# 07 — Backups & Disaster Recovery
 ## Protecting the Platform from Catastrophic Failure
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 06 of 06
+**Guide:** 07 of 07
 
 > A backup strategy that has never been tested is not a backup strategy. It is a hope.
 >
@@ -53,14 +53,12 @@ Everything in `/srv/docker/appdata/` — the entire application state of the pla
 
 | Directory | Contents | Size (approx) |
 |-----------|---------|--------------|
-| `appdata/jellyfin/` | Metadata, watched status, user settings, artwork cache | 500MB–2GB |
+| `appdata/plex/` | Metadata, watched status, user settings, artwork cache | 500MB–2GB |
 | `appdata/sonarr/` | Series database, episode history, quality profiles | 50–200MB |
 | `appdata/radarr/` | Movie database, history, quality profiles | 50–200MB |
 | `appdata/prowlarr/` | Indexer configuration, history | 10–50MB |
 | `appdata/sabnzbd/` | Download history, settings, API keys | 10–50MB |
 | `appdata/overseerr/` | Request history, user accounts, settings | 10–50MB |
-| `appdata/grafana/` | Dashboards, alert rules, data source config | 50–100MB |
-| `appdata/prometheus/` | prometheus.yml config (TSDB is ephemeral — not worth backing up) | 1MB |
 | `appdata/npm/` | Proxy host configs, SSL certificates | 10–50MB |
 
 **Total: typically 1–5GB**, small enough to copy to TrueNAS in seconds.
@@ -70,7 +68,7 @@ Everything in `/srv/docker/appdata/` — the entire application state of the pla
 | Data | Location | Why it's safe |
 |------|---------|---------------|
 | Media library | `/mnt/media` (TrueNAS NFS) | Lives on TrueNAS — protected by ZFS snapshots. Never touches the Docker host disk. |
-| Prometheus TSDB | `/srv/docker/appdata/prometheus/data/` | Metrics are ephemeral. Historical data is nice but not critical. Prometheus rebuilds from live scrapes. Exclude it to keep backups small. |
+| Prometheus TSDB | n/a — not running on Docker host | Metrics scraped by k3s Prometheus. No local TSDB to back up. |
 | Download temp files | `/srv/downloads/incomplete/` | Temporary — safe to lose. SABnzbd will re-queue from NZB history. |
 | Installed packages | OS-level | Reproduced by re-running Ubuntu + Docker setup guides. |
 | Compose files | `/srv/docker/stacks/` | In Git — always current. |
@@ -125,11 +123,10 @@ if ! touch "${BACKUP_MOUNT}/.write_test" 2>/dev/null; then
 fi
 rm -f "${BACKUP_MOUNT}/.write_test"
 
-# ─── Create archive (exclude Prometheus TSDB — ephemeral, large, not needed) ──
+# ─── Create archive ───────────────────────────────────────────────────────────
 log "INFO  Creating archive: ${BACKUP_MOUNT}/${ARCHIVE_NAME}"
 
 tar \
-  --exclude="${APPDATA_DIR}/prometheus/data" \
   -czf "${BACKUP_MOUNT}/${ARCHIVE_NAME}" \
   "${APPDATA_DIR}" 2>>"${LOG_FILE}"
 
@@ -176,7 +173,7 @@ tail -20 /var/log/docker-backup.log
 The script:
 
 - Verifies the TrueNAS NFS mount is available and writable before doing anything
-- Creates a timestamped gzipped tar of `/srv/docker/appdata/` (excluding Prometheus TSDB)
+- Creates a timestamped gzipped tar of `/srv/docker/appdata/`
 - Applies 7-day retention — deletes archives older than 7 days
 - Logs all output with timestamps to `/var/log/docker-backup.log`
 - Writes Prometheus textfile metrics for backup age monitoring
@@ -233,6 +230,8 @@ The backup script writes Prometheus metrics to the node_exporter textfile collec
 Metrics:
 - `docker_backup_last_success_timestamp` — Unix timestamp of last successful backup
 - `docker_backup_size_bytes` — size of the most recent archive
+
+These metrics are scraped by the k3s Prometheus instance via `additionalScrapeConfigs` targeting the Docker host's node-exporter endpoint.
 
 ## Grafana alert rule
 
@@ -365,14 +364,13 @@ ARCHIVE=$(ls -t /mnt/archive/backups/docker/docker_appdata_*.tar.gz | head -1)
 echo "Restoring: ${ARCHIVE}"
 sudo tar -xzf "${ARCHIVE}" -C /
 sudo chown -R kagiso:docker /srv/docker/appdata
-sudo chown -R 472:472 /srv/docker/appdata/grafana
 ```
 
 Verify:
 
 ```bash
 ls /srv/docker/appdata/
-# Expected: sonarr  radarr  jellyfin  prowlarr  npm  grafana  ...
+# Expected: sonarr  radarr  plex  prowlarr  npm  ...
 ```
 
 **Step 5 — Clone repository and deploy compose stacks** (~10 min)
@@ -386,10 +384,10 @@ sudo chmod +x /srv/scripts/*.sh
 # Create Docker network
 docker network create media-net
 
-# Deploy in order: proxy first, then media, then monitoring
+# Deploy in order: proxy first, then media, then exporters
 docker compose -f /srv/docker/compose/proxy-stack.yml up -d
 docker compose -f /srv/docker/compose/media-stack.yml up -d
-docker compose -f /srv/docker/compose/monitoring-stack.yml up -d
+docker compose -f /srv/docker/compose/exporters-stack.yml up -d
 ```
 
 **Step 6 — Verify** (~10 min)
@@ -404,8 +402,7 @@ docker ps --filter "status=restarting"
 # API health checks
 curl -s http://10.0.10.32:8989/ping   # Sonarr → "OK"
 curl -s http://10.0.10.32:7878/ping   # Radarr → "OK"
-curl -s http://10.0.10.32:8096/health # Jellyfin → health JSON
-curl -s http://10.0.10.32:9090/-/healthy  # Prometheus → "Prometheus Server is Healthy."
+curl -s http://10.0.10.32:32400/web   # Plex → redirect to web UI
 ```
 
 **Step 7 — Reconfigure Nginx Proxy Manager**
@@ -444,7 +441,7 @@ Run this checklist monthly. Do not wait for a disaster to discover that backups 
     ls /mnt/archive/backups/docker/ | wc -l
 
 ✓ Prometheus backup metric is recent (timestamp within 25 hours):
-    curl -s 'http://10.0.10.32:9090/api/v1/query?query=docker_backup_last_success_timestamp'
+    (query docker_backup_last_success_timestamp in k3s Grafana)
 
 ✓ Grafana alert DockerBackupTooOld is configured and NOT firing
 
@@ -482,7 +479,7 @@ Backups are operational when:
 ✓ Cron job running at 02:00 daily
 ✓ At least one backup archive visible at `/mnt/archive/backups/docker/`
 ✓ Backup log at `/var/log/docker-backup.log` shows successful run
-✓ Prometheus metric `docker_backup_last_success_timestamp` visible in Grafana
+✓ Prometheus metric `docker_backup_last_success_timestamp` visible in k3s Grafana
 ✓ Grafana alert `DockerBackupTooOld` configured and tested
 ✓ TrueNAS ZFS snapshots configured for `tera/media`
 ✓ Restore procedure tested at least once on a non-production host
@@ -495,6 +492,6 @@ Backups are operational when:
 
 | | Guide |
 |---|---|
-| ← Previous | [05 — Monitoring & Logging](./04_monitoring_and_logging.md) |
-| Current | **06 — Backups & Disaster Recovery** |
+| ← Previous | [06 — Application Configuration](./06_application_configuration.md) |
+| Current | **07 — Backups & Disaster Recovery** |
 | → Next | *End of series — Docker platform fully deployed* |

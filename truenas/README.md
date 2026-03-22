@@ -82,5 +82,5 @@ See [docs/dataset-layout.md](docs/dataset-layout.md) for the full ZFS dataset st
 
 The Kubernetes guides that reference TrueNAS:
 
-- [Guide 08 — Cluster Backups](../docs/guides/08-Cluster-Backups.md) — etcd snapshots, Velero + MinIO setup
-- [Guide 12 — Storage Architecture](../docs/guides/12-Storage-Architecture.md) — NFS provisioner, StorageClass, PVC lifecycle
+- [Guide 10 — Backups & Disaster Recovery](../docs/guides/10-Backups-Disaster-Recovery.md) — etcd snapshots, Velero + MinIO setup
+- [Guide 08 — Storage Architecture](../docs/guides/08-Storage-Architecture.md) — NFS provisioner, StorageClass, PVC lifecycle

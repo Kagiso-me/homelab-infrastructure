@@ -12,12 +12,12 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 ### Proxmox Migration
 **Why now:** The Intel NUC running bare Docker is a single point of failure with no isolation between services. Converting to Proxmox gives a proper hypervisor with a `docker-vm` for media services and a `staging-k3s` VM for the GitOps promotion pipeline — both things needed before deploying real applications.
 **Depends on:** None (proceeding with 16GB, RAM upgrade to follow)
-**Linked:** [ADR-006](docs/architecture/decisions/ADR-006-proxmox-pivot.md) · [ops-log](docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md)
+**Linked:** [ADR-006](docs/adr/ADR-006-proxmox-pivot.md) · [ops-log](docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md)
 
 ### Cloudflare Tunnel
 **Why now:** Currently relying on DNS proxying which requires open ports on the router. Cloudflare Tunnel eliminates all inbound port exposure with zero performance trade-off.
 **Depends on:** Pi-hole (split DNS needed before tunnel is useful internally)
-**Linked:** [Guide 03](docs/guides/03-Networking-Platform.md)
+**Linked:** [Guide 05](docs/guides/05-Networking-MetalLB-Traefik.md)
 
 ### Pi-hole (Split DNS + Ad Blocking)
 **Why now:** Required for the split DNS model — internal services resolve `*.kagiso.me → 10.0.10.110` on LAN without being publicly exposed. Doubles as network-wide ad blocking.
@@ -126,6 +126,6 @@ With 32GB RAM, ~14GB of headroom exists beyond docker-vm and staging-k3s. Potent
 |------|------|--------|
 | 2026-03-16 | Initial infrastructure — 3-node k3s, FluxCD v2, SOPS/age, Prometheus + Grafana + Loki | [ops-log](docs/ops-log/2026-03-16-initial-infrastructure-setup.md) |
 | 2026-03-16 | Platform stack — MetalLB + cert-manager + Traefik v3 | [ops-log](docs/ops-log/2026-03-16-deploy-platform-stack.md) |
-| 2026-03-16 | Architecture pivot — Intel NUC to Proxmox hypervisor | [ops-log](docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md) · [ADR-006](docs/architecture/decisions/ADR-006-proxmox-pivot.md) |
+| 2026-03-16 | Architecture pivot — Intel NUC to Proxmox hypervisor | [ops-log](docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md) · [ADR-006](docs/adr/ADR-006-proxmox-pivot.md) |
 | 2026-03-16 | GitOps promotion pipeline — main → staging → prod automation | [Guide 04](docs/guides/04-Flux-GitOps.md) |
 | 2026-03-16 | Ops-log system and CHANGELOG automation | [ops-log README](docs/ops-log/README.md) |

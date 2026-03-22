@@ -44,7 +44,25 @@
       "Bash(find c:UsersktjeaOneDriveDocumentsReposhomelab-infrastructure -name *metallb* -o -name *speaker* -o -name *ip-pool*)",
       "Bash(grep -v \"kustomize.config\\\\|kustomize.toolkit\\\\|apps/v1\\\\|v1$\\\\|rbac.authorization\")",
       "Bash(grep -v \"kustomize.config\\\\|kustomize.toolkit\\\\|helm.toolkit\\\\|^Binary\\\\|apiVersion: v1$\\\\|apiVersion: apps/v1\\\\|apiVersion: rbac\\\\|apiVersion: batch\")",
-      "Bash(grep -r ANSIBLE_VAULT c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ansible --include=*.yml -l)"
+      "Bash(grep -r ANSIBLE_VAULT c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ansible --include=*.yml -l)",
+      "Bash(grep -E \"^-.*\\\\.md$\")",
+      "Bash(git mv:*)",
+      "Bash(ls *.md)",
+      "Bash(ls docs/guides/_OLD*)",
+      "Bash(grep -E \"\\\\.\\(yaml|yml\\)$\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(KUBECONFIG=~/.kube/prod-config kubectl get namespace cert-manager)",
+      "Bash(command -v kubectl)",
+      "Read(//usr/local/bin/**)",
+      "Bash(echo \"PATH=$PATH\")",
+      "Read(//c/Users/ktjea/.kube//**)",
+      "Read(//c/Users/ktjea/**)",
+      "Read(//c/ProgramData/**)",
+      "Bash(kubectl describe:*)",
+      "Bash(git pull:*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

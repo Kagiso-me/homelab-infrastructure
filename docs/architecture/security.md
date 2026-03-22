@@ -56,7 +56,7 @@ Cluster-admin access is limited to:
 
 ## Secret Management
 
-See [ADR-004](./decisions/ADR-004-sops-age-secrets.md) and [Guide 11: Secrets Management](../11-Secrets-Management.md).
+See [ADR-004](../adr/ADR-004-sops-age-secrets.md) and [Guide 03: Secrets Management](../guides/03-Secrets-Management.md).
 
 Summary:
 

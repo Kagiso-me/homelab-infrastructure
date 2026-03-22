@@ -341,8 +341,8 @@ Add the following lines at the end of the file (replace `10.0.10.80` with your T
 # hard:    retry indefinitely if NAS is temporarily unreachable
 # noatime: suppress access time writes for performance
 # rsize/wsize: optimise read/write block size for gigabit NFS
-10.0.10.80:/mnt/tera     /mnt/tera     nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
-10.0.10.80:/mnt/tera /mnt/tera nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
+10.0.10.80:/mnt/tera/media      /mnt/media      nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
+10.0.10.80:/mnt/tera/downloads  /mnt/downloads  nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
 ```
 
 ### NFS Mount Options Explained

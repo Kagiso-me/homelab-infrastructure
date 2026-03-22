@@ -90,7 +90,7 @@ Create in MinIO Console: **Access Keys → Create Access Key**
 | Access Key ID | Copy — goes into the SOPS-encrypted Kubernetes Secret |
 | Secret Access Key | Copy now — shown only once — save in password manager |
 
-Store in the cluster Secret (see [Guide 08](../../docs/guides/08-Cluster-Backups.md) — Step 5):
+Store in the cluster Secret (see [Guide 10](../../docs/guides/10-Backups-Disaster-Recovery.md) — Step 5):
 
 ```bash
 sops platform/backup/velero/minio-credentials.yaml

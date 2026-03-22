@@ -16,7 +16,7 @@
 # Step 3 — Replace the placeholder public key in the creation_rules below with
 #           the public key printed by age-keygen.
 #
-# Step 4 — Encrypt the three secret files in this repo (see guide 11 for details):
+# Step 4 — Encrypt the three secret files in this repo:
 #   sops --encrypt --in-place platform/backup/velero/minio-credentials.yaml
 #   sops --encrypt --in-place platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml
 #   sops --encrypt --in-place platform/observability/alertmanager-config/alertmanager-secret.yaml
@@ -26,7 +26,7 @@
 #     --namespace=flux-system \
 #     --from-file=age.agekey=age.key
 #
-# Full guide: docs/guides/11-Secrets-Management.md
+# Full guide: docs/guides/03-Secrets-Management.md
 #
 # To encrypt a file:   sops --encrypt --in-place path/to/secret.yaml
 # To edit a file:      sops path/to/secret.yaml
@@ -49,3 +49,9 @@ creation_rules:
   # Any .yaml file inside a secrets/ directory (anywhere in the repo)
   - path_regex: .*/secrets/.*\.yaml$
     age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+
+  # Velero MinIO credentials (filename does not contain "secret")
+  - path_regex: platform/backup/velero/minio-credentials\.yaml$
+    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+
+

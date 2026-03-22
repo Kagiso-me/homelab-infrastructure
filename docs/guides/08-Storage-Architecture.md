@@ -1,10 +1,10 @@
 
-# 12 — Storage Architecture
+# 08 — Storage Architecture
 ## Persistent Storage via TrueNAS NFS
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 12 of 14
+**Guide:** 08 of 13
 
 > Kubernetes workloads that need persistent state — databases, monitoring time-series data, media libraries — require storage that outlives pods.
 >
@@ -276,7 +276,7 @@ NFS does not have a block device to resize — the directory on TrueNAS is not s
 
 The NFS provisioner creates directories under `/mnt/core/k8s-volumes/`. Velero backs up PVC data by mounting volumes and copying files.
 
-For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s/etcd/` separately (see guide 08).
+For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s/etcd/` separately — see [Guide 10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) for the snapshot script and mount setup.
 
 The ZFS pool on TrueNAS provides:
 
@@ -311,7 +311,7 @@ Storage is considered operational when:
 
 - [Architecture: Storage](../architecture/storage.md) — detailed storage design reference
 - [Runbook: Backup Restoration](../runbooks/backup-restoration.md) — Velero restore procedures
-- [Guide 08: Cluster Backups](./08-Cluster-Backups.md) — backup strategy overview
+- [Guide 10: Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) — backup strategy overview
 
 ---
 
@@ -319,6 +319,6 @@ Storage is considered operational when:
 
 | | Guide |
 |---|---|
-| ← Previous | [11 — Secrets Management](./11-Secrets-Management.md) |
-| Current | **12 — Storage Architecture** |
-| → Next | *End of series — platform fully deployed* |
+| ← Previous | [07 — Namespaces & Cluster Identity](./07-Namespaces-Cluster-Identity.md) |
+| Current | **08 — Storage Architecture** |
+| → Next | [09 — Monitoring & Observability](./09-Monitoring-Observability.md) |

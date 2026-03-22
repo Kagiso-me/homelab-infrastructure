@@ -70,22 +70,6 @@
           - dnsutils
         state: present
 
-    # Pi-hole v6 serves its web UI via FTL's built-in web server on port 80.
-    # Lighttpd conflicts with FTL on port 80 — stop and remove it if present.
-    - name: "preflight | Stop lighttpd if present"
-      systemd:
-        name: lighttpd
-        state: stopped
-        enabled: false
-      ignore_errors: true
-
-    - name: "preflight | Remove lighttpd if installed"
-      apt:
-        name: lighttpd
-        state: absent
-        purge: true
-      ignore_errors: true
-
   # ============================================================================
   # PI-HOLE INSTALL
   # ============================================================================
@@ -164,6 +148,12 @@
           # in the Cloudflare Tunnel (cloudflared) ingress rules.
           address=/.{{ kagiso_domain }}/{{ traefik_ip }}
         mode: '0644'
+
+    # Pi-hole v6 does not read /etc/dnsmasq.d/ by default — misc.etc_dnsmasq_d
+    # must be explicitly enabled so FTL picks up the wildcard config above.
+    - name: "dns | Enable dnsmasq.d include in Pi-hole v6"
+      command: pihole-FTL --config misc.etc_dnsmasq_d true
+      changed_when: true
 
     # Full service restart (not 'pihole restartdns') to guarantee new dnsmasq.d
     # files are picked up by FTL.

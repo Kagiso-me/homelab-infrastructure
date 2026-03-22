@@ -1,10 +1,10 @@
 
-# 08 — Cluster Backups & Disaster Recovery
+# 10 — Backups & Disaster Recovery
 ## Protecting the Platform from Data Loss
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 08 of 14
+**Guide:** 10 of 13
 
 > Kubernetes makes deploying systems easy.
 >
@@ -545,9 +545,9 @@ The platform is now **recoverable after catastrophic failure**.
 
 # Next Guide
 
-➡ **[09 — Applications via GitOps](./09-Applications-GitOps.md)**
+➡ **[11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md)**
 
-The next guide explains how applications are deployed safely, reproducibly, and declaratively using Flux.
+The next guide covers how the platform upgrade controller manages k3s version upgrades across the cluster.
 
 ---
 
@@ -555,6 +555,6 @@ The next guide explains how applications are deployed safely, reproducibly, and 
 
 | | Guide |
 |---|---|
-| ← Previous | [07 — Monitoring & Observability](./07-Monitoring-Observability.md) |
-| Current | **08 — Cluster Backups & Disaster Recovery** |
-| → Next | [09 — Applications via GitOps](./09-Applications-GitOps.md) |
+| ← Previous | [09 — Monitoring & Observability](./09-Monitoring-Observability.md) |
+| Current | **10 — Backups & Disaster Recovery** |
+| → Next | [11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md) |

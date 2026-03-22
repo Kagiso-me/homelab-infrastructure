@@ -1,10 +1,10 @@
 
-# 09 — Applications via GitOps
+# 12 — Applications via GitOps
 ## Deploying Workloads the Platform Engineering Way
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 09 of 14
+**Guide:** 12 of 13
 
 > The final step in building the platform is enabling **application delivery**.
 >
@@ -411,17 +411,11 @@ At this point the platform is **fully operational**.
 
 ---
 
-# End of Platform Guide
+# Next Guide
 
-You now have a production-style Kubernetes platform with:
+➡ **[13 — Platform Operations & Lifecycle](./13-Platform-Operations-Lifecycle.md)**
 
-• infrastructure automation
-• GitOps workflows
-• observability
-• backup and recovery
-• secure ingress and TLS
-
-This platform can safely host applications while remaining **maintainable and reproducible**.
+The next guide covers day-2 operations: maintenance procedures, upgrade workflows, and incident response.
 
 ---
 
@@ -429,6 +423,6 @@ This platform can safely host applications while remaining **maintainable and re
 
 | | Guide |
 |---|---|
-| ← Previous | [08 — Cluster Backups & Disaster Recovery](./08-Cluster-Backups.md) |
-| Current | **09 — Applications via GitOps** |
-| → Next | [10 — Platform Operations & Lifecycle](./10-Platform-Operations-Lifecycle.md) |
+| ← Previous | [11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md) |
+| Current | **12 — Applications via GitOps** |
+| → Next | [13 — Platform Operations & Lifecycle](./13-Platform-Operations-Lifecycle.md) |

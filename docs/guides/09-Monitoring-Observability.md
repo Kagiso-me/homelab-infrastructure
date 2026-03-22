@@ -1,9 +1,9 @@
-# 07 — Monitoring & Observability
+# 09 — Monitoring & Observability
 ## Full-Stack Visibility Across the Entire Homelab
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
-**Guide:** 07 of 14
+**Guide:** 09 of 13
 
 > A system that cannot be observed cannot be operated. You don't know it's
 > broken until a user tells you — and by then the data that would explain
@@ -932,7 +932,7 @@ If these return empty, the textfile collector on the relevant hosts is not writi
 
 > **Runbooks are living documents** — the files listed below are the intended location
 > once written. Until then, use the inline guidance in the alert annotations and the
-> triage procedure in [Guide 10 — Platform Operations](./10-Platform-Operations-Lifecycle.md).
+> triage procedure in [Guide 13 — Platform Operations & Lifecycle](./13-Platform-Operations-Lifecycle.md).
 
 Intended runbook locations:
 
@@ -1021,6 +1021,6 @@ This guide is complete when all of the following are true:
 
 | | Guide |
 |---|---|
-| ← Previous | [06 — Platform Namespaces & Layout](./06-Platform-Namespaces.md) |
-| Current | **07 — Monitoring & Observability** |
-| → Next | [08 — Cluster Backups & Disaster Recovery](./08-Cluster-Backups.md) |
+| ← Previous | [08 — Storage Architecture](./08-Storage-Architecture.md) |
+| Current | **09 — Monitoring & Observability** |
+| → Next | [10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |

@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐☆☆☆☆☆☆ (4/10)
-**Guide:** 01 of 14
+**Guide:** 01 of 13
 
 > This phase prepares both **the cluster nodes** and the **automation host** that will manage them.
 >

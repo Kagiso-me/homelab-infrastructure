@@ -16,6 +16,15 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** patch Traefik LoadBalancer IP to staging pool (10.0.10.190) `8223510`
+- **[MAINTENANCE]** trigger promotion pipeline test `2b46bbd`
+- **[DEPLOY]** add kubectl commands and read permissions for cert-manager namespace `cb8adee`
+- **[CONFIG]** enable CRDs subchart for v1.16 compatibility `2623c83`
+- **[MAINTENANCE]** encrypt grafana admin secret `0b3e3b7`
+- **[MAINTENANCE]** encrypt velero minio credentials and add sops rule for minio-credentials `c2f7df9`
+- **[CONFIG]** (doc)complete documentation rework. Fixed sequence, added new guides, and updated existing ones to reflect the latest changes in the platform architecture and operations. This commit also includes updates to the README and roadmap to align with the new documentation structure. `1588e6a`
+- **[CONFIG]** update cert-manager HelmRelease to disable ServiceMonitor during bootstrap `83f6fd1`
+- **[DEPLOY]** add ansible vault with Flux GitHub SSH credentials `219c65f`
 - **[MAINTENANCE]** configure SOPS encryption rules with age public key `1138c4f`
 - **[DEPLOY]** add configuration steps for RPi as Tailscale exit node fix(ansible): update Pi-hole DNS restart method and add readiness check `bb04425`
 - **[DEPLOY]** add initial ansible.cfg configuration file `4d48f94`

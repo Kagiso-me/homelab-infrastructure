@@ -13,7 +13,7 @@ name: Promote to Production
 #   STAGING_KUBECONFIG  — kubeconfig for staging cluster (server = 10.0.10.31:6443)
 #   PROD_KUBECONFIG     — kubeconfig for prod cluster    (server = 10.0.10.11:6443)
 #
-# Self-hosted runner: install on bran (10.0.10.10) — see docs/adr/ADR-005-self-hosted-runners.md
+# Self-hosted runner: install on bran (10.0.10.10) — see docs/adr/ADR-007-self-hosted-runners.md
 # See docs/guides/04-Flux-GitOps.md for full setup instructions.
 
 on:
@@ -85,8 +85,10 @@ jobs:
       - name: Wait for staging to sync this commit
         run: |
           EXPECTED_SHA=$(git rev-parse HEAD)
+          echo "Triggering immediate Flux source reconcile..."
+          flux reconcile source git flux-system -n flux-system --timeout=60s || true
           echo "Waiting for staging to sync commit ${EXPECTED_SHA}..."
-          timeout 120 bash -c "
+          timeout 180 bash -c "
             until kubectl get gitrepository flux-system -n flux-system \
               -o jsonpath='{.status.artifact.revision}' 2>/dev/null \
               | grep -q '${EXPECTED_SHA}'; do
