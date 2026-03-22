@@ -23,6 +23,7 @@ on:
       - "apps/**"
       - "platform/**"
       - "clusters/staging/**"
+      - "clusters/prod/**"
 
 jobs:
   # ─── Stage 1: Manifest validation ─────────────────────────────────────────
