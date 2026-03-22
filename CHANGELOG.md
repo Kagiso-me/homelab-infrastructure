@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** add platform-networking-config kustomization for MetalLB IPAddressPool `6dbadb4`
 - **[CONFIG]** track encrypted minio-credentials, unignore via gitignore exception `fa7fde0`
 - **[CONFIG]** restore letsencrypt-staging issuer, access staging by IP only `6523dd8`
 - **[CONFIG]** patch Traefik LoadBalancer IP to staging pool (10.0.10.190) `8223510`
