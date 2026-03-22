@@ -65,3 +65,9 @@ spec:
 
     # Default backup storage location name used by the Schedule CRD
     defaultBackupStorageLocation: truenas-minio
+
+    # Pin kubectl image — bitnami/kubectl:1.34 does not exist yet (k3s runs 1.34.x)
+    kubectl:
+      image:
+        repository: docker.io/bitnami/kubectl
+        tag: "1.33"
