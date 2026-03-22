@@ -17,6 +17,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 
 ## 2026-03
 - **[CONFIG]** disable upgradeCRDs job, CRDs managed by Helm install.crds: CreateReplace `0caab65`
+- **[FIX]** scope promotion pipeline pod health checks to Flux-managed namespaces only — cluster-wide check was blocking promotion on unrelated crashing pods (e.g. `system-upgrade-controller`)
 
 - **[DEPLOY]** Promotion pipeline commissioned end-to-end; prod Grafana live at `https://grafana.kagiso.me` with trusted TLS — fixes spanned NFS `nfs-common` missing on staging node, Grafana `initChownData` NFS root squash, Loki `RetriesExceeded`, MetalLB IP pool missing on prod, Cloudflare secret missing on prod, and three CI pipeline bugs (SHA mismatch, sync timeout, missing trigger paths) → [details](docs/ops-log/2026-03-22-promotion-pipeline-and-prod-grafana.md)
 

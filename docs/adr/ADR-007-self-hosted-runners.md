@@ -65,6 +65,12 @@ no manual intervention needed in normal operation.
 - The runner agent systemd service must be configured to start on boot
 - Pre-installed tools (kubectl, flux CLI, kubeconform, kustomize) must be present on bran
 
+**Learned in practice:**
+- Pod health checks must be scoped to Flux-managed namespaces only (`flux-system`, `ingress`,
+  `cert-manager`, `monitoring`, `storage`, `velero`, `metallb-system`). A cluster-wide `-A`
+  check caused promotion to block on unrelated crashing pods (e.g. `system-upgrade-controller`)
+  that have nothing to do with the changes being promoted.
+
 ## Runner Setup
 
 Install the GitHub Actions runner on `bran` (10.0.10.10):
