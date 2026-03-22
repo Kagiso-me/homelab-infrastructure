@@ -310,7 +310,7 @@ kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f
 # Create the secret from your age private key
 kubectl create secret generic sops-age \
   --namespace=flux-system \
-  --from-file=age.agekey=~/age.key
+  --from-file=age.agekey=$HOME/age.key
 ```
 
 **For prod** (set your kubeconfig to prod):
@@ -322,7 +322,7 @@ kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f
 
 kubectl create secret generic sops-age \
   --namespace=flux-system \
-  --from-file=age.agekey=~/age.key
+  --from-file=age.agekey=$HOME/age.key
 ```
 
 Verify for each cluster:
