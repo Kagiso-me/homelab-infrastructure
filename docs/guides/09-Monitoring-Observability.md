@@ -264,9 +264,9 @@ platform/observability/kube-prometheus-stack/helmrelease.yaml
 The HelmRelease pins to chart version `67.x` and configures the following:
 
 **Prometheus:**
-- Retention: `15d` with a 15GB size cap (stored on NFS)
+- Retention: `15d` with a 15GB size cap
 - `serviceMonitorSelectorNilUsesHelmValues: false` — Prometheus scrapes ServiceMonitors from all namespaces, not just the ones Helm created
-- Storage: 20Gi PVC on `nfs-truenas`
+- Storage: 20Gi PVC on **`local-path`** (k3s built-in local provisioner — see [ADR-009](../adr/ADR-009-prometheus-local-storage.md) for why NFS cannot be used here)
 
 **Grafana:**
 - Admin credentials loaded from `grafana-admin` Secret (SOPS-encrypted, see Guide 11)
@@ -295,7 +295,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: nfs-truenas
+          storageClassName: local-path   # NOT nfs-truenas — see ADR-009
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:

@@ -16,7 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
-- **[CONFIG]** move TSDB to local-path storage `4a2e4b7`
+- **[FIX]** move Prometheus TSDB from `nfs-truenas` to `local-path` storage — NFS produces "stale NFS file handle" errors on any TrueNAS blip, silently dropping all metrics while targets appear healthy; local disk eliminates the root cause entirely. Removed `--storage.tsdb.no-lockfile` workaround (NFS-only). Grafana and Alertmanager remain on NFS (low write frequency, not affected). → [ADR-009](docs/adr/ADR-009-prometheus-local-storage.md)
 - **[MAINTENANCE]** trigger pipeline to promote system-upgrade-controller fix `1b13c52`
 - **[CONFIG]** add required name and namespace env vars to system-upgrade-controller `9414dbf`
 - **[CONFIG]** disable upgradeCRDs job, CRDs managed by Helm install.crds: CreateReplace `0caab65`
