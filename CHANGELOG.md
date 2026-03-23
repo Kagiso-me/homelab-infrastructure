@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** move TSDB to local-path storage `4a2e4b7`
 - **[MAINTENANCE]** trigger pipeline to promote system-upgrade-controller fix `1b13c52`
 - **[CONFIG]** add required name and namespace env vars to system-upgrade-controller `9414dbf`
 - **[CONFIG]** disable upgradeCRDs job, CRDs managed by Helm install.crds: CreateReplace `0caab65`
