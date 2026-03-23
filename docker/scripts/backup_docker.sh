@@ -3,7 +3,7 @@
 # backup_docker.sh — Docker appdata backup
 #
 # Backs up /srv/docker/appdata to NFS-mounted TrueNAS destination.
-# Writes Prometheus textfile metrics on completion.
+# Writes Prometheus textfile metrics on completion (or failure).
 #
 # Usage: sudo bash backup_docker.sh
 # Cron:  0 2 * * * root /srv/docker/scripts/backup_docker.sh
@@ -23,6 +23,9 @@ TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
 TEXTFILE_METRIC="${TEXTFILE_DIR}/docker_backup.prom"
 DATE=$(date +%Y-%m-%d_%H%M%S)
 ARCHIVE="${BACKUP_DEST}/docker_appdata_${DATE}.tar.gz"
+JOB="docker-appdata"
+
+START_TIME=$(date +%s)
 
 # -----------------------------------------------------------------------------
 # Logging helper
@@ -30,10 +33,36 @@ ARCHIVE="${BACKUP_DEST}/docker_appdata_${DATE}.tar.gz"
 log() {
   local level="$1"
   shift
-  local msg="$*"
-  local ts
-  ts=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "${ts} [${level}] ${msg}" | tee -a "${LOG_FILE}"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') [${level}] $*" | tee -a "${LOG_FILE}"
+}
+
+# -----------------------------------------------------------------------------
+# Write Prometheus textfile metrics
+# -----------------------------------------------------------------------------
+write_metrics() {
+  local status="$1" ts="$2" size="$3" duration="$4" failures="$5"
+  mkdir -p "${TEXTFILE_DIR}"
+  local tmp
+  tmp=$(mktemp "${TEXTFILE_METRIC}.XXXXXX")
+  cat > "${tmp}" <<METRICS
+# HELP backup_job_status 1 = last run succeeded, 0 = failed.
+# TYPE backup_job_status gauge
+backup_job_status{job="${JOB}"} ${status}
+# HELP backup_last_success_timestamp Unix timestamp of last successful backup.
+# TYPE backup_last_success_timestamp gauge
+backup_last_success_timestamp{job="${JOB}"} ${ts}
+# HELP backup_size_bytes Size of last backup archive in bytes.
+# TYPE backup_size_bytes gauge
+backup_size_bytes{job="${JOB}"} ${size}
+# HELP backup_duration_seconds Duration of last backup run in seconds.
+# TYPE backup_duration_seconds gauge
+backup_duration_seconds{job="${JOB}"} ${duration}
+# HELP backup_failures_total Cumulative count of failed backup runs.
+# TYPE backup_failures_total counter
+backup_failures_total{job="${JOB}"} ${failures}
+METRICS
+  mv "${tmp}" "${TEXTFILE_METRIC}"
+  chmod 644 "${TEXTFILE_METRIC}"
 }
 
 # -----------------------------------------------------------------------------
@@ -42,43 +71,21 @@ log() {
 on_error() {
   local exit_code=$?
   local line_no="${BASH_LINENO[0]}"
-  log "ERROR" "Backup failed at line ${line_no} with exit code ${exit_code}."
-  # Write failure indicator — keep last success timestamp unchanged, size 0
-  if [[ -f "${TEXTFILE_METRIC}" ]]; then
-    local last_ts
-    last_ts=$(grep 'docker_backup_last_success_timestamp' "${TEXTFILE_METRIC}" | awk '{print $2}' || echo 0)
-    write_metrics "${last_ts}" "0"
-  fi
+  log "ERROR" "Backup failed at line ${line_no} (exit ${exit_code})"
+  local prev_ts prev_failures duration
+  prev_ts=$(grep "backup_last_success_timestamp{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  prev_failures=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  duration=$(( $(date +%s) - START_TIME ))
+  write_metrics 0 "${prev_ts}" 0 "${duration}" "$(( prev_failures + 1 ))"
   exit "${exit_code}"
 }
 trap on_error ERR
 
-# -----------------------------------------------------------------------------
-# Write Prometheus textfile metrics
-# -----------------------------------------------------------------------------
-write_metrics() {
-  local ts="$1"
-  local size_bytes="$2"
-  mkdir -p "${TEXTFILE_DIR}"
-  # Write atomically via temp file
-  local tmp
-  tmp=$(mktemp "${TEXTFILE_METRIC}.XXXXXX")
-  cat > "${tmp}" <<EOF
-# HELP docker_backup_last_success_timestamp Unix timestamp of the last successful Docker appdata backup.
-# TYPE docker_backup_last_success_timestamp gauge
-docker_backup_last_success_timestamp ${ts}
-# HELP docker_backup_size_bytes Size in bytes of the most recent Docker appdata backup archive.
-# TYPE docker_backup_size_bytes gauge
-docker_backup_size_bytes ${size_bytes}
-EOF
-  mv "${tmp}" "${TEXTFILE_METRIC}"
-  chmod 644 "${TEXTFILE_METRIC}"
-}
+log "INFO" "Starting Docker appdata backup."
 
 # -----------------------------------------------------------------------------
 # Verify NFS mount
 # -----------------------------------------------------------------------------
-log "INFO" "Verifying NFS mount at ${NFS_MOUNTPOINT} ..."
 if ! mountpoint -q "${NFS_MOUNTPOINT}"; then
   log "ERROR" "${NFS_MOUNTPOINT} is not mounted. Aborting backup."
   exit 2
@@ -93,7 +100,6 @@ mkdir -p "${BACKUP_DEST}"
 # -----------------------------------------------------------------------------
 # Run backup
 # -----------------------------------------------------------------------------
-log "INFO" "Starting Docker appdata backup."
 log "INFO" "Source      : ${BACKUP_SOURCE}"
 log "INFO" "Destination : ${ARCHIVE}"
 
@@ -108,13 +114,8 @@ tar \
   --exclude="${BACKUP_SOURCE}/*/transcodes" \
   "${BACKUP_SOURCE}"
 
-# -----------------------------------------------------------------------------
-# Report backup size
-# -----------------------------------------------------------------------------
 BACKUP_SIZE_BYTES=$(stat --format="%s" "${ARCHIVE}")
-BACKUP_SIZE_HUMAN=$(du -sh "${ARCHIVE}" | cut -f1)
-log "INFO" "Backup completed successfully."
-log "INFO" "Archive size: ${BACKUP_SIZE_HUMAN} (${BACKUP_SIZE_BYTES} bytes)"
+log "INFO" "Archive size: $(du -sh "${ARCHIVE}" | cut -f1) (${BACKUP_SIZE_BYTES} bytes)"
 log "INFO" "Archive path: ${ARCHIVE}"
 
 # -----------------------------------------------------------------------------
@@ -133,7 +134,10 @@ log "INFO" "Retention sweep complete. Deleted ${DELETED_COUNT} archive(s)."
 # Write Prometheus metrics
 # -----------------------------------------------------------------------------
 SUCCESS_TS=$(date +%s)
-write_metrics "${SUCCESS_TS}" "${BACKUP_SIZE_BYTES}"
+DURATION=$(( SUCCESS_TS - START_TIME ))
+# Preserve existing failure count — only incremented on error, never reset on success
+PREV_FAILURES=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+write_metrics 1 "${SUCCESS_TS}" "${BACKUP_SIZE_BYTES}" "${DURATION}" "${PREV_FAILURES}"
 log "INFO" "Prometheus metrics written to ${TEXTFILE_METRIC}"
 
 log "INFO" "Backup job finished."

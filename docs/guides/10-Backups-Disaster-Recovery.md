@@ -154,13 +154,13 @@ sudo mkdir -p /mnt/backups/velero
 
 # k3s etcd Snapshot Backup Script
 
-Create the script on the control-plane node (`tywin`).
+Create the script on the control-plane node (`tywin`). The script takes a consistent snapshot, enforces retention, and writes Prometheus textfile metrics inline — no separate metrics script is needed.
 
 ```bash
-cat > /usr/local/bin/k3s-snapshot.sh << 'EOF'
+cat > /usr/local/bin/k3s-snapshot.sh << 'SCRIPT'
 #!/bin/bash
-# k3s-snapshot.sh — creates a point-in-time consistent etcd snapshot
-# Run as root on the control-plane node.
+# k3s-snapshot.sh — point-in-time etcd snapshot with Prometheus metrics.
+# Run as root on the control-plane node (tywin).
 # Do NOT use tar on /var/lib/rancher/k3s/server/db while k3s is running.
 
 set -euo pipefail
@@ -169,26 +169,72 @@ BACKUP_DIR=/mnt/backups/etcd
 DATE=$(date +%Y-%m-%d_%H%M%S)
 SNAPSHOT_NAME="k3s-snapshot-${DATE}.db"
 RETENTION_DAYS=7
+LOG_FILE=/var/log/k3s-snapshot.log
+TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+TEXTFILE_METRIC="${TEXTFILE_DIR}/etcd_backup.prom"
+JOB="etcd"
 
-# Verify the NFS mount is available before proceeding
+START_TIME=$(date +%s)
+
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "${LOG_FILE}"; }
+
+write_metrics() {
+  local status="$1" ts="$2" size="$3" duration="$4" failures="$5"
+  mkdir -p "${TEXTFILE_DIR}"
+  local tmp
+  tmp=$(mktemp "${TEXTFILE_METRIC}.XXXXXX")
+  cat > "${tmp}" <<METRICS
+# HELP backup_job_status 1 = last run succeeded, 0 = failed.
+# TYPE backup_job_status gauge
+backup_job_status{job="${JOB}"} ${status}
+# HELP backup_last_success_timestamp Unix timestamp of last successful backup.
+# TYPE backup_last_success_timestamp gauge
+backup_last_success_timestamp{job="${JOB}"} ${ts}
+# HELP backup_size_bytes Size of last backup archive in bytes.
+# TYPE backup_size_bytes gauge
+backup_size_bytes{job="${JOB}"} ${size}
+# HELP backup_duration_seconds Duration of last backup run in seconds.
+# TYPE backup_duration_seconds gauge
+backup_duration_seconds{job="${JOB}"} ${duration}
+# HELP backup_failures_total Cumulative count of failed backup runs.
+# TYPE backup_failures_total counter
+backup_failures_total{job="${JOB}"} ${failures}
+METRICS
+  mv "${tmp}" "${TEXTFILE_METRIC}"
+  chmod 644 "${TEXTFILE_METRIC}"
+}
+
+on_error() {
+  local prev_ts prev_failures
+  prev_ts=$(grep "backup_last_success_timestamp{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  prev_failures=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  write_metrics 0 "${prev_ts}" 0 "$(( $(date +%s) - START_TIME ))" "$(( prev_failures + 1 ))"
+  log "ERROR: Snapshot failed — failure count is now $(( prev_failures + 1 ))"
+  exit 1
+}
+trap on_error ERR
+
 if ! mountpoint -q /mnt/backups; then
-  echo "ERROR: /mnt/backups is not mounted. Aborting backup." >&2
+  log "ERROR: /mnt/backups is not mounted. Aborting."
   exit 1
 fi
 
 mkdir -p "${BACKUP_DIR}"
+log "Creating snapshot: ${SNAPSHOT_NAME}"
 
-# Create a consistent point-in-time snapshot
 k3s etcd-snapshot save \
   --name "${SNAPSHOT_NAME}" \
   --dir "${BACKUP_DIR}"
 
-# Prune snapshots older than retention period
 find "${BACKUP_DIR}" -name "k3s-snapshot-*.db" -mtime +${RETENTION_DAYS} -delete
 
-echo "Snapshot complete: ${BACKUP_DIR}/${SNAPSHOT_NAME}"
-echo "Snapshot size: $(du -sh ${BACKUP_DIR}/${SNAPSHOT_NAME} | cut -f1)"
-EOF
+END_TIME=$(date +%s)
+SNAPSHOT_SIZE=$(stat -c %s "${BACKUP_DIR}/${SNAPSHOT_NAME}")
+PREV_FAILURES=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+write_metrics 1 "${END_TIME}" "${SNAPSHOT_SIZE}" "$(( END_TIME - START_TIME ))" "${PREV_FAILURES}"
+
+log "Snapshot complete: ${SNAPSHOT_NAME} ($(du -sh ${BACKUP_DIR}/${SNAPSHOT_NAME} | cut -f1))"
+SCRIPT
 
 chmod +x /usr/local/bin/k3s-snapshot.sh
 ```
@@ -212,6 +258,71 @@ echo "0 2 * * * root /usr/local/bin/k3s-snapshot.sh >> /var/log/k3s-snapshot.log
 | Velero monthly backups | 6 months |
 
 Storage usage is bounded. For a small homelab cluster, etcd snapshots are typically 10–50 MB each.
+
+---
+
+# Docker Appdata Backup
+
+The Docker host (`10.0.10.32`) runs Plex, SABnzbd, Sonarr, Radarr, and supporting services. Their configuration, databases, and metadata live in `/srv/docker/appdata`. This directory is not part of the Kubernetes cluster and is not covered by Velero — it needs its own backup.
+
+The backup script lives at `docker/scripts/backup_docker.sh` in this repository.
+
+## Step 1 — Verify the NFS destination exists
+
+The Docker host mounts the same TrueNAS NFS share at `/mnt/archive/backups`. Confirm the `docker` subdirectory exists on TrueNAS:
+
+```bash
+# On TrueNAS (via SSH or shell)
+ls /mnt/archive/backups/docker
+```
+
+If missing, create it:
+
+```bash
+mkdir -p /mnt/archive/backups/docker
+```
+
+## Step 2 — Deploy the script to the Docker host
+
+```bash
+# From your laptop, copy the script to the Docker host
+scp docker/scripts/backup_docker.sh kagiso@10.0.10.32:/srv/docker/scripts/backup_docker.sh
+ssh kagiso@10.0.10.32 "sudo chmod 700 /srv/docker/scripts/backup_docker.sh"
+```
+
+The script:
+- Archives `/srv/docker/appdata` to `/mnt/archive/backups/docker/docker_appdata_<timestamp>.tar.gz`
+- Excludes logs, cache, and Plex transcodes (large, expendable)
+- Enforces a 7-day retention policy
+- Writes all five Prometheus textfile metrics with `job="docker-appdata"` (see [Backup Monitoring](#backup-monitoring))
+
+## Step 3 — Schedule via cron
+
+```bash
+echo "0 2 * * * root /srv/docker/scripts/backup_docker.sh" \
+  | sudo tee /etc/cron.d/docker-backup
+```
+
+Verify:
+
+```bash
+sudo crontab -l
+# or
+cat /etc/cron.d/docker-backup
+```
+
+## Step 4 — Run a manual backup to verify
+
+```bash
+sudo /srv/docker/scripts/backup_docker.sh
+```
+
+Check the log and confirm the archive appeared on TrueNAS:
+
+```bash
+tail -20 /var/log/docker-backup.log
+ls -lh /mnt/archive/backups/docker/
+```
 
 ---
 
@@ -368,8 +479,6 @@ Common causes: wrong endpoint URL, wrong credentials, bucket does not exist, Min
 
 ---
 
----
-
 # Velero Backup Schedule
 
 Velero schedules are defined as `Schedule` resources in Git and reconciled by Flux.
@@ -396,57 +505,21 @@ spec:
 
 # Backup Monitoring
 
-Backups must be observable. Failures must alert before the next backup window.
+Each backup script writes five Prometheus textfile metrics directly on completion. No separate metrics script or polling cron job is needed.
 
-The backup monitoring script exports metrics for Prometheus via the node exporter textfile collector.
+| Metric | Description |
+|--------|-------------|
+| `backup_job_status{job="..."}` | `1` = last run succeeded, `0` = failed |
+| `backup_last_success_timestamp{job="..."}` | Unix timestamp of last successful run |
+| `backup_size_bytes{job="..."}` | Size of last archive in bytes |
+| `backup_duration_seconds{job="..."}` | Duration of last run in seconds |
+| `backup_failures_total{job="..."}` | Cumulative failure count (never reset on success) |
 
-```bash
-cat > /usr/local/bin/backup-metrics.sh << 'EOF'
-#!/bin/bash
-# Exports backup health metrics for Prometheus textfile collector
+Job labels in use: `etcd`, `docker-appdata`, `rpi-keys`.
 
-METRICS_FILE=/var/lib/node_exporter/textfile_collector/backup.prom
-BACKUP_DIR=/mnt/backups/etcd
+Metrics are written to `/var/lib/node_exporter/textfile_collector/` and scraped by node-exporter on each host. Alert rules are defined in `docker/config/prometheus/alerts/backups.yml` — they fire generically across all jobs, so adding a new backup target requires no new alert rules.
 
-# Find the most recent snapshot
-LATEST=$(ls -t ${BACKUP_DIR}/k3s-snapshot-*.db 2>/dev/null | head -1)
-
-if [ -n "${LATEST}" ]; then
-  MTIME=$(stat -c %Y "${LATEST}")
-  SIZE=$(stat -c %s "${LATEST}")
-  echo "backup_last_success_timestamp ${MTIME}" > "${METRICS_FILE}"
-  echo "backup_size_bytes ${SIZE}" >> "${METRICS_FILE}"
-else
-  echo "backup_last_success_timestamp 0" > "${METRICS_FILE}"
-  echo "backup_size_bytes 0" >> "${METRICS_FILE}"
-fi
-EOF
-
-chmod +x /usr/local/bin/backup-metrics.sh
-echo "*/15 * * * * root /usr/local/bin/backup-metrics.sh" \
-  | sudo tee /etc/cron.d/backup-metrics
-```
-
-Grafana panels to create:
-
-```
-Last successful backup time
-Hours since last backup (alert if > 26h)
-Backup size trend
-Velero backup phase (from Velero metrics)
-```
-
-Alert rule example (Prometheus):
-
-```yaml
-- alert: BackupTooOld
-  expr: time() - backup_last_success_timestamp > 90000  # 25 hours
-  for: 5m
-  labels:
-    severity: critical
-  annotations:
-    summary: "etcd backup has not succeeded in over 25 hours"
-```
+The **Backup Overview** dashboard (provisioned automatically in Grafana under the Backups folder) shows all jobs in a single view: status, age, sizes, duration trends, and failure counts.
 
 ---
 
@@ -531,11 +604,14 @@ Target recovery time: **90–120 minutes** from disk replacement to all workload
 
 Backups are considered operational when:
 
-✓ NFS share mounted and accessible at `/mnt/backups`
-✓ etcd snapshot script installed and scheduled via cron
+✓ NFS share mounted and accessible at `/mnt/backups` on tywin
+✓ etcd snapshot script installed at `/usr/local/bin/k3s-snapshot.sh` and scheduled via `/etc/cron.d/k3s-snapshot`
 ✓ snapshots appearing in `/mnt/backups/etcd/` daily
+✓ Docker backup script deployed to `10.0.10.32` and scheduled via cron
+✓ Docker appdata archives appearing in `/mnt/archive/backups/docker/` daily
 ✓ Velero deployed and backup schedules reconciled by Flux
-✓ backup metrics visible in Grafana
+✓ `backup_job_status{job="etcd"} 1` and `backup_job_status{job="docker-appdata"} 1` visible in Prometheus
+✓ Backup Overview dashboard showing all jobs green in Grafana
 ✓ backup age alert firing correctly in a test scenario
 ✓ restoration runbook tested successfully
 

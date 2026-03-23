@@ -109,12 +109,26 @@ spec:
 
     - name: external.backups
       rules:
-        - alert: EtcdBackupStale
-          expr: (time() - node_directory_size_bytes{job="node-truenas", path="/mnt/archive/backups/k8s/etcd"} > bool 0) == 0 or (time() - 86400) > node_filefd_maximum{job="node-truenas"}
-          for: 2h
+        - alert: EtcdBackupDirectoryEmpty
+          # Filesystem-side check: the etcd backup destination on TrueNAS
+          # reports zero bytes, indicating no snapshots have been written.
+          # This is complementary to the textfile-metric alerts in the
+          # Docker-hosted Prometheus (backups.yml) — it catches the case
+          # where backups stopped reaching the destination even if the
+          # source script appears healthy.
+          expr: >
+            node_directory_size_bytes{
+              job="node-truenas",
+              path="/mnt/archive/backups/k8s/etcd"
+            } == 0
+          for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "etcd backup on TrueNAS may be stale"
-            description: "No recent etcd snapshot detected in archive/backups/k8s/etcd."
-            runbook: "https://wiki.homelab/runbooks/etcd-backup-stale"
+            summary: "etcd backup directory on TrueNAS is empty"
+            description: >
+              The directory /mnt/archive/backups/k8s/etcd on TrueNAS is
+              reporting zero bytes. No etcd snapshots appear to have been
+              written to the destination. Verify the backup cron job on tywin
+              is running and that the NFS/SMB mount is reachable from tywin.
+            runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"

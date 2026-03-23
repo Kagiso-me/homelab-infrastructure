@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # backup_rpi.sh — Raspberry Pi key material backup to TrueNAS NFS
 # Author: Kagiso Tjeane
-# Schedule: daily at 01:00 via cron
+# Schedule: daily at 01:00 via cron (sudo crontab)
 # See: raspberry-pi/docs/03_backup.md
 #
 # What is backed up:
 #   ~/.kube/config              — kubeconfig for k3s cluster
-#   ~/.config/sops/age/keys.txt — age private key (CRITICAL)
+#   ~/.config/sops/age/keys.txt — age private key (CRITICAL — unrecoverable if lost)
 #   ~/.ssh/id_ed25519           — SSH private key
 #   ~/.ssh/id_ed25519.pub       — SSH public key
 #   ~/.ssh/config               — SSH host aliases
@@ -30,18 +30,62 @@ RETENTION_DAYS=30
 TIMESTAMP=$(date +"%Y-%m-%d_%H%M%S")
 ARCHIVE_NAME="rpi_backup_${TIMESTAMP}.tar.gz.gpg"
 LOG_FILE="/var/log/rpi-backup.log"
-# Passphrase file — readable only by root
-# Must be created during initial setup (see above)
 PASSPHRASE_FILE="/root/.rpi_backup_passphrase"
+TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
+TEXTFILE_METRIC="${TEXTFILE_DIR}/rpi_backup.prom"
+JOB="rpi-keys"
 
-# ── Logging helper ───────────────────────────────────────────────────────────
+START_TIME=$(date +%s)
+
+# ── Logging helper ────────────────────────────────────────────────────────────
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "${LOG_FILE}"
 }
 
+# ── Prometheus metrics writer ─────────────────────────────────────────────────
+write_metrics() {
+  local status="$1" ts="$2" size="$3" duration="$4" failures="$5"
+  mkdir -p "${TEXTFILE_DIR}"
+  local tmp
+  tmp=$(mktemp "${TEXTFILE_METRIC}.XXXXXX")
+  cat > "${tmp}" <<METRICS
+# HELP backup_job_status 1 = last run succeeded, 0 = failed.
+# TYPE backup_job_status gauge
+backup_job_status{job="${JOB}"} ${status}
+# HELP backup_last_success_timestamp Unix timestamp of last successful backup.
+# TYPE backup_last_success_timestamp gauge
+backup_last_success_timestamp{job="${JOB}"} ${ts}
+# HELP backup_size_bytes Size of last backup archive in bytes.
+# TYPE backup_size_bytes gauge
+backup_size_bytes{job="${JOB}"} ${size}
+# HELP backup_duration_seconds Duration of last backup run in seconds.
+# TYPE backup_duration_seconds gauge
+backup_duration_seconds{job="${JOB}"} ${duration}
+# HELP backup_failures_total Cumulative count of failed backup runs.
+# TYPE backup_failures_total counter
+backup_failures_total{job="${JOB}"} ${failures}
+METRICS
+  mv "${tmp}" "${TEXTFILE_METRIC}"
+  chmod 644 "${TEXTFILE_METRIC}"
+}
+
+# ── Error handler — write failure metrics and exit ────────────────────────────
+on_error() {
+  local exit_code=$?
+  local line_no="${BASH_LINENO[0]}"
+  log "ERROR: Backup failed at line ${line_no} (exit ${exit_code})"
+  local prev_ts prev_failures duration
+  prev_ts=$(grep "backup_last_success_timestamp{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  prev_failures=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+  duration=$(( $(date +%s) - START_TIME ))
+  write_metrics 0 "${prev_ts}" 0 "${duration}" "$(( prev_failures + 1 ))"
+  exit "${exit_code}"
+}
+trap on_error ERR
+
 log "=== RPi backup starting ==="
 
-# ── Pre-flight checks ────────────────────────────────────────────────────────
+# ── Pre-flight checks ─────────────────────────────────────────────────────────
 if [[ ! -f "${PASSPHRASE_FILE}" ]]; then
   log "ERROR: Passphrase file not found at ${PASSPHRASE_FILE}"
   log "Run: echo 'your-passphrase' | sudo tee ${PASSPHRASE_FILE} && sudo chmod 600 ${PASSPHRASE_FILE}"
@@ -53,18 +97,16 @@ if ! command -v gpg &>/dev/null; then
   exit 1
 fi
 
-# ── Mount NFS share ──────────────────────────────────────────────────────────
+# ── Mount NFS share ───────────────────────────────────────────────────────────
 log "Mounting NFS share ${NFS_SERVER}:${NFS_SHARE} → ${MOUNT_POINT}"
 mkdir -p "${MOUNT_POINT}"
-
 if mountpoint -q "${MOUNT_POINT}"; then
   log "NFS share already mounted — proceeding."
 else
-  mount -t nfs "${NFS_SERVER}:${NFS_SHARE}" "${MOUNT_POINT}" \
-    -o rw,noatime,vers=4
+  mount -t nfs "${NFS_SERVER}:${NFS_SHARE}" "${MOUNT_POINT}" -o rw,noatime,vers=4
 fi
 
-# ── Create encrypted archive ─────────────────────────────────────────────────
+# ── Create encrypted archive ──────────────────────────────────────────────────
 log "Creating encrypted archive: ${ARCHIVE_NAME}"
 
 tar --create \
@@ -87,38 +129,24 @@ tar --create \
     --passphrase-file "${PASSPHRASE_FILE}" \
     --output "${MOUNT_POINT}/${ARCHIVE_NAME}"
 
-ARCHIVE_SIZE=$(du -sh "${MOUNT_POINT}/${ARCHIVE_NAME}" | cut -f1)
-# Capture byte size BEFORE unmounting (used for Prometheus metric below)
 ARCHIVE_BYTES=$(stat -c %s "${MOUNT_POINT}/${ARCHIVE_NAME}")
-log "Archive written: ${MOUNT_POINT}/${ARCHIVE_NAME} (${ARCHIVE_SIZE})"
+log "Archive written: ${MOUNT_POINT}/${ARCHIVE_NAME} ($(du -sh "${MOUNT_POINT}/${ARCHIVE_NAME}" | cut -f1))"
 
-# ── Enforce retention ────────────────────────────────────────────────────────
+# ── Enforce retention ─────────────────────────────────────────────────────────
 DELETED=$(find "${MOUNT_POINT}" -name "rpi_backup_*.tar.gz.gpg" \
   -mtime +${RETENTION_DAYS} -print -delete 2>>"${LOG_FILE}" | wc -l)
+[ "${DELETED}" -gt 0 ] && log "Pruned ${DELETED} archive(s) older than ${RETENTION_DAYS} days"
 
-if [ "${DELETED}" -gt 0 ]; then
-  log "Pruned ${DELETED} archive(s) older than ${RETENTION_DAYS} days"
-fi
-
-# ── Unmount NFS share ────────────────────────────────────────────────────────
+# ── Unmount NFS share ─────────────────────────────────────────────────────────
 umount "${MOUNT_POINT}"
 log "NFS share unmounted."
 
-# ── Prometheus metrics ───────────────────────────────────────────────────────
-METRICS_DIR="/var/lib/node_exporter/textfile_collector"
-if [ -d "${METRICS_DIR}" ]; then
-  MTIME=$(date +%s)
-  SIZE="${ARCHIVE_BYTES}"
-  TMPFILE="${METRICS_DIR}/.rpi_backup.prom.tmp"
-  cat > "${TMPFILE}" <<EOF
-# HELP rpi_backup_last_success_timestamp Unix timestamp of the last successful RPi backup
-# TYPE rpi_backup_last_success_timestamp gauge
-rpi_backup_last_success_timestamp ${MTIME}
-# HELP rpi_backup_size_bytes Size of the most recent RPi backup archive in bytes
-# TYPE rpi_backup_size_bytes gauge
-rpi_backup_size_bytes ${SIZE}
-EOF
-  mv "${TMPFILE}" "${METRICS_DIR}/rpi_backup.prom"
-fi
+# ── Write Prometheus metrics ──────────────────────────────────────────────────
+SUCCESS_TS=$(date +%s)
+DURATION=$(( SUCCESS_TS - START_TIME ))
+# Preserve existing failure count — only incremented on error, never reset on success
+PREV_FAILURES=$(grep "backup_failures_total{job=\"${JOB}\"}" "${TEXTFILE_METRIC}" 2>/dev/null | awk '{print $NF}' || echo 0)
+write_metrics 1 "${SUCCESS_TS}" "${ARCHIVE_BYTES}" "${DURATION}" "${PREV_FAILURES}"
+log "Prometheus metrics written to ${TEXTFILE_METRIC}"
 
 log "=== RPi backup complete ==="

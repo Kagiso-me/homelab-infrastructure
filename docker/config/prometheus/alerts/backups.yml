@@ -1,17 +1,26 @@
 ---
 # Backup monitoring alert rules
 #
-# This file covers all backup jobs across the homelab. Backup health is tracked
-# via textfile metrics written by backup scripts and read by node-exporter, plus
-# Velero's native Prometheus metrics.
+# All backup jobs write a standard set of textfile metrics to the
+# node-exporter textfile collector directory on the relevant host. These
+# metrics use a consistent label scheme (job=<name>) to enable generic
+# alerting and dashboarding.
 #
 # Textfile metric conventions (written by backup scripts):
 #
-#   backup_last_success_timestamp     — Unix timestamp of last successful etcd snapshot
-#   backup_size_bytes                 — Size of last etcd snapshot in bytes
-#   docker_backup_last_success_timestamp — Unix timestamp of last Docker appdata backup
-#   docker_backup_size_bytes          — Size of last Docker backup archive in bytes
-#   rpi_backup_last_success_timestamp — Unix timestamp of last RPi key material backup
+#   backup_job_status{job="..."}              1 = last run succeeded, 0 = failed
+#   backup_last_success_timestamp{job="..."}  Unix timestamp of last successful run
+#   backup_size_bytes{job="..."}              Size of last backup archive in bytes
+#   backup_duration_seconds{job="..."}        Duration of last backup run in seconds
+#   backup_failures_total{job="..."}          Cumulative count of failed backup runs
+#
+# Expected job labels:
+#   job="etcd"           — daily etcd snapshots (cron on tywin, 10.0.10.11)
+#   job="docker-appdata" — daily Docker media stack volumes (10.0.10.32)
+#   job="rpi-keys"       — RPi key material backup (10.0.10.10, 48h cadence)
+#
+# Adding a new backup target only requires the script to write the five
+# metrics above with the correct job= label. No new alert rules are needed.
 #
 # Velero metrics (native, no textfile needed):
 #   velero_backup_success_total
@@ -20,78 +29,140 @@
 #   velero_backup_storage_location_phase
 #
 # Severity routing via Alertmanager:
-#   warning  -> #homelab-alerts
-#   critical -> #homelab-critical
+#   warning  -> #homelab-alerts (Discord)
+#   critical -> #homelab-critical (Discord)
 
 groups:
 
   # ---------------------------------------------------------------------------
-  # etcd snapshots — Kubernetes control plane backup
+  # Generic backup job alerts
   #
-  # A cron job on tywin (10.0.10.11) takes daily etcd snapshots and writes
-  # textfile metrics to the node-exporter textfile directory. These metrics
-  # are scraped as part of the node-k8s-nodes job.
-  # Threshold: 25h (90000s) to allow for slight timing drift of a daily job.
+  # These rules fire generically across all jobs that write the standardised
+  # textfile metrics. Adding a new backup target requires no new alert rules.
   # ---------------------------------------------------------------------------
-  - name: backups.etcd
+  - name: backups.jobs
     rules:
 
-      - alert: EtcdBackupMissing
-        # absent() fires when the metric has never been seen or has disappeared
-        # from the TSDB (e.g., the textfile was deleted or the script stopped
-        # writing metrics entirely).
-        expr: absent(backup_last_success_timestamp)
-        labels:
-          severity: critical
-        annotations:
-          summary: "etcd backup metric is missing — backup script may be broken"
-          description: >
-            The metric backup_last_success_timestamp is not present in
-            Prometheus at all. This means either the backup script has never
-            run successfully, the textfile collector file was deleted, or
-            node-exporter is not reading the textfile directory. The etcd
-            database is not being backed up.
-            SSH to tywin and inspect: /etc/cron.d/etcd-backup and the textfile
-            collector directory (commonly /var/lib/node_exporter/textfile_collector/).
-          runbook: "https://wiki.homelab/runbooks/etcd-backup-missing"
-
-      - alert: EtcdBackupTooOld
-        expr: time() - backup_last_success_timestamp > 90000
+      - alert: BackupJobFailed
+        # Fires when a backup script explicitly reports failure (status == 0).
+        # for: 5m avoids noise from transient failures that self-resolve.
+        expr: backup_job_status == 0
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "etcd backup is more than 25 hours old"
+          summary: "Backup job {{ $labels.job }} reported failure"
           description: >
-            The last successful etcd snapshot was taken
-            {{ $value | humanizeDuration }} ago, which exceeds the 25-hour
-            threshold. The daily backup cron job may have failed silently.
-            Check cron logs on tywin and verify snapshot files exist in the
-            backup destination.
-          runbook: "https://wiki.homelab/runbooks/etcd-backup-too-old"
+            The backup_job_status metric for job {{ $labels.job }} has been 0
+            (failure) for at least 5 minutes. The most recent backup attempt did
+            not complete successfully. Check the backup script logs on the relevant
+            host and verify the destination has a recent archive.
+          runbook: "https://wiki.homelab/runbooks/backup-job-failed"
 
-      - alert: EtcdBackupSizeSuspicious
-        expr: backup_size_bytes < 1000000
+      - alert: DailyBackupStale
+        # 90000s = 25h — 1 hour of slack on top of the expected 24h cadence.
+        # RPi is excluded here and covered by the looser RpiBackupStale rule.
+        expr: >
+          time() - backup_last_success_timestamp{job!="rpi-keys"} > 90000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup {{ $labels.job }} is {{ $value | humanizeDuration }} old"
+          description: >
+            Backup job {{ $labels.job }} has not completed a successful run in over
+            25 hours. The backup script may have failed silently without updating
+            backup_job_status, or the cron job may have been misconfigured. Check
+            cron logs on the relevant host and confirm the destination has an
+            archive from today.
+          runbook: "https://wiki.homelab/runbooks/backup-stale"
+
+      - alert: RpiBackupStale
+        # 172800s = 48h — RPi key material changes infrequently.
+        # Severity warning (not critical) — the RPi is not a data-producing host.
+        expr: >
+          time() - backup_last_success_timestamp{job="rpi-keys"} > 172800
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "etcd snapshot size is suspiciously small ({{ $value | humanize1024 }}B)"
+          summary: "RPi key material backup is {{ $value | humanizeDuration }} old"
           description: >
-            The last etcd snapshot is {{ $value | humanize1024 }}B, which is
-            smaller than 1 MB. A healthy etcd database for even a minimal
-            Kubernetes cluster should produce snapshots well above 1 MB. This
-            likely indicates a corrupt or incomplete snapshot, or the backup
-            script wrote a zero-byte or error file. Verify the snapshot manually
-            with: etcdutl snapshot status <snapshot-file>
-          runbook: "https://wiki.homelab/runbooks/etcd-backup-suspicious-size"
+            The rpi-keys backup has not completed successfully in over 48 hours.
+            The RPi (10.0.10.10) stores SSH keys, GPG keys, kubeconfig, and
+            cluster management scripts. An out-of-date backup means recent key
+            rotations would be lost if the SD card fails.
+          runbook: "https://wiki.homelab/runbooks/backup-stale"
+
+      - alert: EtcdBackupMetricsMissing
+        # Fires when the metric disappears entirely — more severe than a stale
+        # timestamp because we cannot measure the gap at all.
+        expr: absent(backup_last_success_timestamp{job="etcd"})
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "etcd backup metrics missing from Prometheus"
+          description: >
+            No backup_last_success_timestamp{job="etcd"} series present in
+            Prometheus. The etcd backup cron job on tywin (10.0.10.11) is likely
+            not running, or the textfile metric was deleted. The etcd database is
+            not being protected. Inspect: /etc/cron.d/etcd-backup and the
+            node-exporter textfile collector directory on tywin.
+          runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"
+
+      - alert: DockerBackupMetricsMissing
+        expr: absent(backup_last_success_timestamp{job="docker-appdata"})
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Docker appdata backup metrics missing from Prometheus"
+          description: >
+            No backup_last_success_timestamp{job="docker-appdata"} series present.
+            The Docker backup cron job on 10.0.10.32 is likely not running. Media
+            container configuration, Sonarr/Radarr databases, and Plex metadata
+            are not being backed up.
+          runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"
+
+      - alert: RpiBackupMetricsMissing
+        expr: absent(backup_last_success_timestamp{job="rpi-keys"})
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPi key backup metrics missing from Prometheus"
+          description: >
+            No backup_last_success_timestamp{job="rpi-keys"} series present.
+            The RPi backup script on 10.0.10.10 may have never run successfully
+            or its textfile metric was removed. SSH keys and kubeconfig are not
+            being backed up.
+          runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"
+
+      - alert: BackupSizeSuspicious
+        # Per-job minimum thresholds. No threshold for rpi-keys as its size
+        # varies too much depending on key rotation cadence.
+        expr: |
+          (backup_size_bytes{job="etcd"} < 1000000)
+          or
+          (backup_size_bytes{job="docker-appdata"} < 10000000)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup size for {{ $labels.job }} is suspiciously small ({{ $value | humanize1024 }}B)"
+          description: >
+            The backup_size_bytes for {{ $labels.job }} is below its expected
+            minimum (etcd: 1 MB; docker-appdata: 10 MB). The backup script may
+            have produced an incomplete or corrupt archive. Inspect the backup
+            file on the destination and verify with the appropriate tool
+            (etcdutl snapshot status, tar -tzf, etc.).
+          runbook: "https://wiki.homelab/runbooks/backup-suspicious-size"
 
   # ---------------------------------------------------------------------------
-  # Velero backups — Kubernetes PVC data
+  # Velero — Kubernetes PVC backups
   #
-  # Velero runs inside the cluster and exposes Prometheus metrics via its
-  # /metrics endpoint. The kube-prometheus-stack scrapes these; this external
-  # Prometheus may receive them via federation or remote-write.
+  # Velero exposes its own Prometheus metrics natively; no textfile needed.
   # Threshold: 25h (90000s) for daily scheduled backups.
   # ---------------------------------------------------------------------------
   - name: backups.velero
@@ -109,10 +180,8 @@ groups:
           description: >
             Velero backup schedule {{ $labels.schedule }} has accumulated
             {{ printf `velero_backup_failure_total{schedule="%s"}` $labels.schedule | query | first | value }}
-            failure(s) and zero successful backups. PVC data is not being
-            protected. Investigate with:
-            velero backup get --selector schedule={{ $labels.schedule }}
-            velero backup logs <failing-backup-name>
+            failure(s) and zero successful backups. PVC data is not being protected.
+            Investigate with: velero backup get --selector schedule={{ $labels.schedule }}
           runbook: "https://wiki.homelab/runbooks/velero-backup-failed"
 
       - alert: VeleroBackupTooOld
@@ -120,13 +189,12 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Velero last successful backup for schedule {{ $labels.schedule }} is more than 25 hours old"
+          summary: "Velero schedule {{ $labels.schedule }} last succeeded {{ $value | humanizeDuration }} ago"
           description: >
-            The most recent successful Velero backup for schedule
-            {{ $labels.schedule }} completed {{ $value | humanizeDuration }} ago,
-            which exceeds the 25-hour threshold. PVC snapshots for this schedule
-            are out of date. Check for failed backup runs and inspect the Velero
-            controller logs.
+            The most recent successful Velero backup for schedule {{ $labels.schedule }}
+            completed {{ $value | humanizeDuration }} ago, exceeding the 25-hour
+            threshold. PVC snapshots are out of date. Check for failed backup runs
+            and inspect Velero controller logs.
           runbook: "https://wiki.homelab/runbooks/velero-backup-too-old"
 
       - alert: VeleroBackupStorageUnavailable
@@ -136,111 +204,10 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Velero backup storage location {{ $labels.backupstoragelocation }} is unavailable"
+          summary: "Velero storage location {{ $labels.backupstoragelocation }} is unavailable"
           description: >
-            The Velero BackupStorageLocation {{ $labels.backupstoragelocation }}
-            has been reporting phase=Unavailable for more than 5 minutes. Velero
-            cannot write new backups and cannot read existing ones. Check
-            connectivity to the object storage backend and verify credentials:
-            kubectl describe backupstoragelocation -n velero {{ $labels.backupstoragelocation }}
+            The Velero BackupStorageLocation {{ $labels.backupstoragelocation }} has been
+            reporting phase=Unavailable for more than 5 minutes. Velero cannot write new
+            backups or read existing ones. Check connectivity to the object storage
+            backend: kubectl describe backupstoragelocation -n velero {{ $labels.backupstoragelocation }}
           runbook: "https://wiki.homelab/runbooks/velero-storage-unavailable"
-
-  # ---------------------------------------------------------------------------
-  # Docker appdata backups — Docker media server (10.0.10.32)
-  #
-  # A daily backup script archives Docker container volumes/appdata and writes
-  # textfile metrics. Scraped via the node-docker-host job.
-  # Threshold: 25h (90000s). Size threshold: 10 MB — a full appdata backup
-  # covering Jellyfin, Sonarr, Radarr, etc. should be substantially larger.
-  # ---------------------------------------------------------------------------
-  - name: backups.docker
-    rules:
-
-      - alert: DockerBackupMissing
-        expr: absent(docker_backup_last_success_timestamp)
-        labels:
-          severity: critical
-        annotations:
-          summary: "Docker appdata backup metric is missing — backup script may be broken"
-          description: >
-            The metric docker_backup_last_success_timestamp is not present in
-            Prometheus. The Docker appdata backup script on the media server
-            (10.0.10.32) may have never run, or its textfile metric has been
-            deleted. Media container configuration and databases are not being
-            backed up.
-            Check: /etc/cron.d/docker-backup and the node-exporter textfile
-            collector directory on 10.0.10.32.
-          runbook: "https://wiki.homelab/runbooks/docker-backup-missing"
-
-      - alert: DockerBackupTooOld
-        expr: time() - docker_backup_last_success_timestamp > 90000
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Docker appdata backup is more than 25 hours old"
-          description: >
-            The last successful Docker appdata backup completed
-            {{ $value | humanizeDuration }} ago, exceeding the 25-hour threshold.
-            Media application data (Jellyfin library metadata, Sonarr/Radarr
-            databases, etc.) is not being protected. Investigate the backup
-            cron job on 10.0.10.32.
-          runbook: "https://wiki.homelab/runbooks/docker-backup-too-old"
-
-      - alert: DockerBackupSizeSuspicious
-        expr: docker_backup_size_bytes < 10000000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Docker appdata backup size is suspiciously small ({{ $value | humanize1024 }}B)"
-          description: >
-            The last Docker appdata backup is only {{ $value | humanize1024 }}B,
-            which is less than 10 MB. A full backup of the Docker appdata
-            directory covering all media-stack containers should be significantly
-            larger. This may indicate the backup script ran but failed to include
-            all directories, or produced a corrupt archive. Inspect the backup
-            file manually on the destination.
-          runbook: "https://wiki.homelab/runbooks/docker-backup-suspicious-size"
-
-  # ---------------------------------------------------------------------------
-  # Raspberry Pi key material backups (10.0.10.10)
-  #
-  # The RPi control hub holds SSH keys, GPG keys, kubeconfig, and cluster
-  # management scripts. A periodic backup job archives these to TrueNAS or
-  # cloud storage and writes textfile metrics.
-  # Threshold: 48h (172800s) — this is less frequent than daily backups.
-  # Severity is warning (not critical) as the RPi is not a data-producing
-  # host; its key material changes infrequently.
-  # ---------------------------------------------------------------------------
-  - name: backups.rpi
-    rules:
-
-      - alert: RpiBackupMissing
-        expr: absent(rpi_backup_last_success_timestamp)
-        labels:
-          severity: warning
-        annotations:
-          summary: "RPi key material backup metric is missing"
-          description: >
-            The metric rpi_backup_last_success_timestamp is not present in
-            Prometheus. The Raspberry Pi backup script on 10.0.10.10 may have
-            never run successfully or the textfile metric has been removed.
-            SSH keys, GPG keys, and kubeconfig material on the RPi are not
-            being backed up.
-          runbook: "https://wiki.homelab/runbooks/rpi-backup-missing"
-
-      - alert: RpiBackupTooOld
-        expr: time() - rpi_backup_last_success_timestamp > 172800
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "RPi key material backup is more than 48 hours old"
-          description: >
-            The last successful RPi key material backup completed
-            {{ $value | humanizeDuration }} ago, exceeding the 48-hour threshold.
-            While the RPi's key material changes infrequently, an out-of-date
-            backup means recent key rotations or config changes would be lost
-            if the SD card fails.
-          runbook: "https://wiki.homelab/runbooks/rpi-backup-too-old"
