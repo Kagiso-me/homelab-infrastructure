@@ -742,13 +742,13 @@ No manual Promtail configuration is needed for k8s pods. For Docker host contain
 Alertmanager is deployed by kube-prometheus-stack. Its routing configuration is stored in:
 
 ```
-platform/observability/alertmanager-config/alertmanager-config.yaml
+platform/observability/observability-config/alertmanager-config.yaml
 ```
 
 Credentials (Slack API URL, webhook URL, watchdog webhook URL) are in the SOPS-encrypted secret:
 
 ```
-platform/observability/alertmanager-config/alertmanager-secret.yaml
+platform/observability/observability-config/alertmanager-secret.yaml
 ```
 
 ### Routing Logic
