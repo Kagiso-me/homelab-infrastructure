@@ -745,22 +745,23 @@ Alertmanager is deployed by kube-prometheus-stack. Its routing configuration is 
 platform/observability/observability-config/alertmanager-config.yaml
 ```
 
-Credentials (Slack API URL, webhook URL, watchdog webhook URL) are in the SOPS-encrypted secret:
+Credentials (Discord webhook URLs, watchdog webhook URL) are in the SOPS-encrypted secret:
 
 ```
 platform/observability/observability-config/alertmanager-secret.yaml
 ```
+
+Discord is used instead of Slack — see [ADR-010](../adr/ADR-010-discord-over-slack.md) for the rationale. Discord's `/slack` endpoint accepts Slack-formatted payloads, so Alertmanager's `slackConfigs` receiver type is used unchanged.
 
 ### Routing Logic
 
 ```
 All alerts
 ├── alertname = "Watchdog"  →  watchdog-webhook receiver (healthchecks.io)
-├── severity = "critical"   →  slack-critical receiver
-│                               ├── Slack #homelab-critical
-│                               └── Generic webhook (additional delivery)
-└── (default)               →  slack-alerts receiver
-                                └── Slack #homelab-alerts
+├── severity = "critical"   →  discord-critical receiver
+│                               └── Discord #homelab-critical
+└── (default)               →  discord-alerts receiver
+                                └── Discord #homelab-alerts
 ```
 
 **Group behaviour:**
@@ -770,9 +771,18 @@ All alerts
 - `repeatInterval: 4h` — re-notify every 4h for unresolved warning alerts
 - `repeatInterval: 1h` — re-notify every 1h for unresolved critical alerts
 
-### Slack Message Format
+### Discord Webhook Setup
 
-Critical alerts include a `runbook_url` annotation that surfaces directly in the Slack message via the template in the AlertmanagerConfig. When writing alert rules, always populate `runbook_url` with the path to the relevant runbook.
+Each receiver has its own webhook URL bound to a specific Discord channel — routing is determined by the URL, not the `channel` field (which Discord ignores).
+
+1. In your Discord server, create two channels: `#homelab-alerts` and `#homelab-critical`
+2. For each: right-click → **Edit Channel → Integrations → Webhooks → New Webhook**
+3. Copy the webhook URL and **append `/slack`** to it
+4. Store both URLs in the SOPS-encrypted secret (see below)
+
+### Discord Message Format
+
+Critical alerts include a `runbook_url` annotation that surfaces directly in the Discord message via the template in the AlertmanagerConfig. When writing alert rules, always populate `runbook_url` with the path to the relevant runbook.
 
 ---
 
@@ -802,6 +812,23 @@ The Watchdog alert is an always-firing alert that acts as a heartbeat for the en
 2. Copy the ping URL (format: `https://hc-ping.com/<uuid>`)
 3. Store the URL in the SOPS-encrypted `alertmanager-secret` under key `watchdog-webhook-url`
 4. The `watchdog-webhook` receiver in the AlertmanagerConfig sends a POST to this URL every time the Watchdog fires (every ~5 minutes based on the global `repeatInterval` override)
+
+### Creating the Encrypted Secret
+
+Once you have both Discord webhook URLs and the healthchecks.io ping URL:
+
+```bash
+kubectl create secret generic alertmanager-secret \
+  --namespace monitoring \
+  --from-literal=discord-alerts-url='https://discord.com/api/webhooks/REPLACE/REPLACE/slack' \
+  --from-literal=discord-critical-url='https://discord.com/api/webhooks/REPLACE/REPLACE/slack' \
+  --from-literal=watchdog-webhook-url='https://hc-ping.com/REPLACE' \
+  --dry-run=client -o yaml \
+  | sops --encrypt --input-type yaml --output-type yaml /dev/stdin \
+  > platform/observability/observability-config/alertmanager-secret.yaml
+```
+
+Commit the encrypted file. The plaintext values are never committed.
 
 If healthchecks.io stops receiving the heartbeat, it will alert you via its own configured notification channel. This is the one alert your monitoring system cannot deliver about itself.
 

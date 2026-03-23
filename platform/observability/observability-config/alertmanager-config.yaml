@@ -1,7 +1,12 @@
-# AlertmanagerConfig — routes alerts to Slack and a generic webhook.
-# Credentials (webhook URLs, Slack API URL) are stored in alertmanager-secret.yaml (SOPS-encrypted).
+# AlertmanagerConfig — routes alerts to Discord via Slack-compatible webhooks.
+# Credentials (Discord webhook URLs, watchdog URL) are stored in alertmanager-secret.yaml (SOPS-encrypted).
 # This config applies to alerts in the 'monitoring' namespace only
 # (AlertmanagerConfig is namespace-scoped).
+#
+# Discord webhooks use the /slack suffix to accept Slack-formatted payloads.
+# Each receiver uses a separate webhook URL bound to its own Discord channel.
+# The `channel` field is required by Alertmanager but ignored by Discord.
+# See ADR-010 for why Discord was chosen over Slack.
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
@@ -11,7 +16,7 @@ metadata:
     alertmanagerConfig: homelab
 spec:
   route:
-    receiver: slack-alerts
+    receiver: discord-alerts
     groupBy:
       - alertname
       - namespace
@@ -19,25 +24,25 @@ spec:
     groupInterval: 5m
     repeatInterval: 4h
     routes:
-      # Critical alerts go to a dedicated Slack channel and the webhook
-      - receiver: slack-critical
+      # Critical alerts go to a dedicated Discord channel
+      - receiver: discord-critical
         matchers:
           - name: severity
             value: critical
         repeatInterval: 1h
-      # Watchdog (always-on heartbeat) sent to webhook only — keeps alerting pipeline verified
+      # Watchdog (always-on heartbeat) sent to healthchecks.io only
       - receiver: watchdog-webhook
         matchers:
           - name: alertname
             value: Watchdog
 
   receivers:
-    - name: slack-alerts
+    - name: discord-alerts
       slackConfigs:
         - apiURL:
             name: alertmanager-secret
-            key: slack-api-url
-          channel: "#homelab-alerts"
+            key: discord-alerts-url
+          channel: "#homelab-alerts"   # required field, ignored by Discord
           sendResolved: true
           title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}'
           text: >-
@@ -48,12 +53,12 @@ spec:
             *Description:* {{ .Annotations.description }}
             {{ end }}
 
-    - name: slack-critical
+    - name: discord-critical
       slackConfigs:
         - apiURL:
             name: alertmanager-secret
-            key: slack-api-url
-          channel: "#homelab-critical"
+            key: discord-critical-url
+          channel: "#homelab-critical"  # required field, ignored by Discord
           sendResolved: true
           title: ':fire: CRITICAL: {{ .CommonLabels.alertname }}'
           text: >-
@@ -63,11 +68,6 @@ spec:
             *Description:* {{ .Annotations.description }}
             *Runbook:* {{ .Annotations.runbook_url }}
             {{ end }}
-      webhookConfigs:
-        - urlSecret:
-            name: alertmanager-secret
-            key: webhook-url
-          sendResolved: true
 
     - name: watchdog-webhook
       webhookConfigs:
