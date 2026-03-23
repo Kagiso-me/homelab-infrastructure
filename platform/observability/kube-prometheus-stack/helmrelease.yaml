@@ -50,18 +50,15 @@ spec:
     # ----- Prometheus -----
     prometheus:
       prometheusSpec:
-        # Disable TSDB lockfile — NFS does not support fcntl file locking.
-        # Without this flag Prometheus crashes on every start with
-        # "lock DB directory: resource temporarily unavailable".
-        additionalArgs:
-          - name: storage.tsdb.no-lockfile
-            value: ""
         retention: 15d
         retentionSize: "15GB"
         storageSpec:
           volumeClaimTemplate:
             spec:
-              storageClassName: nfs-truenas
+              # local-path (k3s built-in) — Prometheus writes to WAL every few seconds.
+              # NFS causes stale file handle errors on any server blip, silently
+              # dropping all metrics. Local disk is the only reliable choice for TSDB.
+              storageClassName: local-path
               accessModes: ["ReadWriteOnce"]
               resources:
                 requests:
