@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** use bitnamilegacy image registry `c54710f`
 - **[CONFIG]** switch Bitnami HelmRepository back to HTTPS `521f9c4`
 - **[CONFIG]** switch Bitnami HelmRepository to OCI `389277b`
 - **[CONFIG]** move backup dashboard from Docker provisioning to k8s ConfigMap `5d38ad9`
