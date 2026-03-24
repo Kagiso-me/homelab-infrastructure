@@ -1,0 +1,58 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: redis
+  namespace: databases
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: redis
+      version: "20.x"
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # Single instance — no Sentinel or Cluster needed for homelab scale.
+    architecture: standalone
+
+    auth:
+      enabled: true
+      existingSecret: redis-secret
+      existingSecretPasswordKey: redis-password
+
+    master:
+      # Pin to control plane alongside PostgreSQL — both data services on tywin.
+      # local-path PV is node-local; pod must always land on the same node.
+      # See ADR-011.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+      persistence:
+        enabled: true
+        storageClass: local-path
+        size: 1Gi
+
+      resources:
+        requests:
+          memory: 128Mi
+          cpu: 100m

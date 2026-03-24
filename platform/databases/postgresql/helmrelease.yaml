@@ -1,0 +1,61 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: postgresql
+  namespace: databases
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: postgresql
+      version: "16.x"
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    auth:
+      # Admin credentials loaded from SOPS-encrypted Secret.
+      existingSecret: postgresql-secret
+      secretKeys:
+        adminPasswordKey: postgres-password
+
+    primary:
+      # Pin to control plane — central data services live on tywin.
+      # See ADR-011. Toleration required for the NoSchedule taint k3s applies
+      # to control-plane nodes. local-path PV is node-local, so the pod must
+      # always land on the same node to access its data.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+      persistence:
+        enabled: true
+        # local-path — NFS is unsuitable for WAL-heavy database workloads.
+        # See ADR-009 and ADR-011.
+        storageClass: local-path
+        size: 8Gi
+
+      # No memory limit — OOM-killing a database is worse than letting it
+      # use available RAM. Request ensures the scheduler accounts for it.
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 250m

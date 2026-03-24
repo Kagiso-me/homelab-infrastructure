@@ -18,6 +18,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ## 2026-03
 - **[CONFIG]** move backup dashboard from Docker provisioning to k8s ConfigMap `5d38ad9`
 - **[DEPLOY]** standardise metrics to job-label scheme, add dashboard and Docker backup guide `6382b0c`
+- **[DEPLOY]** add central PostgreSQL and Redis to platform — both pinned to control plane with local-path storage; shared across all apps (Nextcloud, Authentik, etc.); per-app databases provisioned via psql on deploy → [ADR-011](docs/adr/ADR-011-central-databases.md)
 - **[CONFIG]** pivot alert notifications from Slack to Discord — unlimited message history on free tier, 2-minute webhook setup vs Slack app registration, identical Alertmanager config (Discord `/slack` endpoint accepts same payload). → [ADR-010](docs/adr/ADR-010-discord-over-slack.md)
 - **[FIX]** move Prometheus TSDB from `nfs-truenas` to `local-path` storage — NFS produces "stale NFS file handle" errors on any TrueNAS blip, silently dropping all metrics while targets appear healthy; local disk eliminates the root cause entirely. Removed `--storage.tsdb.no-lockfile` workaround (NFS-only). Grafana and Alertmanager remain on NFS (low write frequency, not affected). → [ADR-009](docs/adr/ADR-009-prometheus-local-storage.md)
 - **[MAINTENANCE]** trigger pipeline to promote system-upgrade-controller fix `1b13c52`
