@@ -23,6 +23,10 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/redis
+
     # Single instance — no Sentinel or Cluster needed for homelab scale.
     architecture: standalone
 

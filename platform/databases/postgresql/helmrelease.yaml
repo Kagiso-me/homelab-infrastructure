@@ -23,6 +23,10 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/postgresql
+
     auth:
       # Admin credentials loaded from SOPS-encrypted Secret.
       existingSecret: postgresql-secret
