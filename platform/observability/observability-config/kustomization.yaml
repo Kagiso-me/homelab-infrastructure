@@ -4,3 +4,4 @@ resources:
   - alertmanager-config.yaml
   - alertmanager-secret.yaml
   - prometheus-rules.yaml
+  - grafana-dashboard-backup-overview.yaml
