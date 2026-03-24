@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** switch Bitnami HelmRepository to OCI `389277b`
 - **[CONFIG]** move backup dashboard from Docker provisioning to k8s ConfigMap `5d38ad9`
 - **[DEPLOY]** standardise metrics to job-label scheme, add dashboard and Docker backup guide `6382b0c`
 - **[DEPLOY]** add central PostgreSQL and Redis to platform — both pinned to control plane with local-path storage; shared across all apps (Nextcloud, Authentik, etc.); per-app databases provisioned via psql on deploy → [ADR-011](docs/adr/ADR-011-central-databases.md)
