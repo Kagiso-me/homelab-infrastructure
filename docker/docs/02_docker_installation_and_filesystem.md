@@ -1,9 +1,9 @@
-# 03 — Docker Installation & Filesystem Setup
+# 02 — Docker Installation & Filesystem Setup
 ## Container Runtime, Daemon Configuration, Directory Layout, and NFS Mounts
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐☆☆☆☆☆☆ (4/10)
-**Guide:** 03 of 06
+**Guide:** 02 of 06
 
 > A clean filesystem structure is not an aesthetic preference — it is an operational requirement.
 >
@@ -15,7 +15,7 @@
 
 At this point the host is:
 
-- running Ubuntu Server `10.0.10.32`
+- running Ubuntu Server at `10.0.10.32`
 - hardened with SSH keys, UFW, and Fail2Ban
 - receiving automatic security patches
 
@@ -63,7 +63,7 @@ graph TD
 
 Docker allows applications to run in **isolated containers**: self-contained units with their own filesystem, process space, and network interface.
 
-Instead of installing Sonarr, Radarr, and Jellyfin directly onto the host — creating a tangle of conflicting dependencies — each service runs in its own container, managed independently.
+Instead of installing Sonarr, Radarr, and Plex directly onto the host — creating a tangle of conflicting dependencies — each service runs in its own container, managed independently.
 
 | Without Docker | With Docker |
 |----------------|-------------|
@@ -241,7 +241,7 @@ Every container stores its persistent configuration and databases in `/srv/docke
 Create the full set of appdata directories:
 
 ```bash
-mkdir -p /srv/docker/appdata/jellyfin
+mkdir -p /srv/docker/appdata/plex
 mkdir -p /srv/docker/appdata/sonarr
 mkdir -p /srv/docker/appdata/radarr
 mkdir -p /srv/docker/appdata/lidarr
@@ -268,7 +268,7 @@ Backing up `/srv/docker/appdata` is equivalent to backing up the entire applicat
 
 - Sonarr's series database, history, and quality profiles
 - Radarr's movie database and download history
-- Jellyfin's metadata cache and user accounts
+- Plex's metadata cache and user accounts
 - Prometheus's retention database
 - NPM's proxy host configuration and TLS certificates
 
@@ -286,14 +286,14 @@ The media library and completed downloads live on **TrueNAS**, not on the Docker
 ```mermaid
 graph LR
     subgraph TrueNAS ["TrueNAS — NFS Server"]
-        T1["tera/media\nexports /mnt/tera"]
-        T2["tera/downloads\nexports /mnt/tera"]
+        T1["tera/media\nexports /mnt/tera/media"]
+        T2["tera/downloads\nexports /mnt/tera/downloads"]
     end
 
     subgraph DockerHost ["Docker Host — 10.0.10.32"]
-        M1["/mnt/tera"]
-        M2["/mnt/tera"]
-        Jellyfin["Jellyfin container"]
+        M1["/mnt/media"]
+        M2["/mnt/downloads"]
+        Plex["Plex container"]
         Sonarr["Sonarr container"]
         Radarr["Radarr container"]
         SABnzbd["SABnzbd container"]
@@ -301,7 +301,7 @@ graph LR
 
     T1 -->|NFS| M1
     T2 -->|NFS| M2
-    M1 --> Jellyfin
+    M1 --> Plex
     M1 --> Sonarr
     M1 --> Radarr
     M2 --> Sonarr
@@ -321,8 +321,8 @@ sudo apt install nfs-common -y
 ### Create the Mount Points
 
 ```bash
-sudo mkdir -p /mnt/tera
-sudo mkdir -p /mnt/tera
+sudo mkdir -p /mnt/media
+sudo mkdir -p /mnt/downloads
 ```
 
 ### Configure Persistent Mounts via /etc/fstab
@@ -366,15 +366,16 @@ sudo mount -a
 Verify both mounts are active:
 
 ```bash
-df -h | grep -E "core.archive.tera"
+df -h | grep -E "media|downloads"
 ```
 
-Expected output shows both `/mnt/tera` and `/mnt/tera` mounted from the TrueNAS IP.
+Expected output shows both `/mnt/media` and `/mnt/downloads` mounted from the TrueNAS IP.
 
 Test write access from the Docker host:
 
 ```bash
-touch /mnt/tera/.mounttest && echo "Write OK" && rm /mnt/tera/.mounttest
+touch /mnt/media/.mounttest && echo "Write OK" && rm /mnt/media/.mounttest
+touch /mnt/downloads/.mounttest && echo "Write OK" && rm /mnt/downloads/.mounttest
 ```
 
 If TrueNAS NFS export permissions require it, ensure the `kagiso` UID matches the NFS export's allowed UID on TrueNAS.
@@ -388,13 +389,13 @@ SABnzbd downloads to local NVMe for speed. Once complete, Sonarr and Radarr impo
 ```mermaid
 graph TD
     SAB["SABnzbd\ndownloading"] -->|writes to| Inc["/srv/downloads/incomplete/\nLocal NVMe — fast writes"]
-    Inc -->|completed + unpacked| Comp["/mnt/tera/complete/\nTrueNAS NFS"]
+    Inc -->|completed + unpacked| Comp["/mnt/downloads/complete/\nTrueNAS NFS"]
     Comp -->|hardlink import| Sonarr["Sonarr\nimports TV"]
     Comp -->|hardlink import| Radarr["Radarr\nimports Movies"]
-    Sonarr -->|organized| Media["/mnt/tera/tv/"]
-    Radarr -->|organized| MediaM["/mnt/tera/movies/"]
-    Media --> Jellyfin["Jellyfin\nscans library"]
-    MediaM --> Jellyfin
+    Sonarr -->|organized| Media["/mnt/media/tv/"]
+    Radarr -->|organized| MediaM["/mnt/media/movies/"]
+    Media --> Plex["Plex\nscans library"]
+    MediaM --> Plex
 
     style Inc fill:#276749,color:#fff
     style Comp fill:#744210,color:#fff
@@ -450,7 +451,7 @@ ls /srv/docker/appdata/
 ls /srv/docker/stacks/
 
 # NFS mounts
-df -h | grep -E "core.archive.tera"
+df -h | grep -E "media|downloads"
 mount | grep nfs
 
 # Docker network
@@ -475,8 +476,8 @@ This guide is complete when all of the following are confirmed:
 - [ ] `docker info` confirms the `json-file` logging driver is active
 - [ ] `/srv/docker/appdata/` contains all 13 service subdirectories
 - [ ] `/srv/docker/stacks/` exists and is owned by `kagiso`
-- [ ] `/mnt/tera` is mounted from TrueNAS and writable
-- [ ] `/mnt/tera` is mounted from TrueNAS and writable
+- [ ] `/mnt/media` is mounted from TrueNAS and writable
+- [ ] `/mnt/downloads` is mounted from TrueNAS and writable
 - [ ] Mounts persist across reboot (confirmed by rebooting and running `df -h`)
 - [ ] `media-net` appears in `docker network ls`
 
@@ -486,6 +487,6 @@ This guide is complete when all of the following are confirmed:
 
 | | Guide |
 |---|---|
-| ← Previous | [02 — Host Installation & Hardening](./01_host_installation_and_hardening.md) |
-| Current | **03 — Docker Installation & Filesystem Setup** |
-| → Next | [04 — Media Stack & Reverse Proxy](./03_media_stack_and_reverse_proxy.md) |
+| ← Previous | [01 — Host Installation & Hardening](./01_host_installation_and_hardening.md) |
+| Current | **02 — Docker Installation & Filesystem Setup** |
+| → Next | [03 — Media Stack & Reverse Proxy](./03_media_stack_and_reverse_proxy.md) |

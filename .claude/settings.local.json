@@ -62,7 +62,19 @@
       "Read(//c/ProgramData/**)",
       "Bash(kubectl describe:*)",
       "Bash(git pull:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(kubectl get:*)",
+      "Bash(KUBECONFIG=~/.kube/prod-config kubectl get servicemonitor kube-prometheus-stack-kubelet -n monitoring -o yaml)",
+      "Bash(find /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure -name *.json -type f)",
+      "Bash(find /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure -type f \\\\\\(-name *.json -o -name *dashboard* \\\\\\))",
+      "Bash(find /c/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure -type f \\\\\\(-name prometheus.yml -o -name prometheus-rules.yaml -o -name *.yml -path */alerts/* \\\\\\))",
+      "Bash(flux reconcile:*)",
+      "Bash(ssh kagiso@10.0.10.11 \"flux reconcile kustomization observability-config --with-source -n flux-system\")",
+      "Bash(ssh kagiso@bran \"flux get kustomizations -n flux-system\")",
+      "Bash(ssh ktjea@bran \"flux reconcile kustomization platform-databases -n flux-system --with-source && kubectl get helmrelease -n databases\")",
+      "Bash(ssh bran.local \"flux reconcile kustomization platform-databases -n flux-system --with-source && kubectl get helmrelease -n databases\")",
+      "Bash(ssh -i ~/.ssh/kagiso-homelab-2025 kagiso@10.0.10.10 \"echo connected\")",
+      "Bash(ssh-add ~/.ssh/kagiso-homelab-2025)"
     ]
   }
 }
