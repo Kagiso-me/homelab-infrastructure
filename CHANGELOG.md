@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** switch to shared Redis instance `255e766`
 - **[DEPLOY]** add app-health rules and Authentik dashboard `f0a8c98`
 - **[CONFIG]** switch to shared PostgreSQL, keep bundled Redis `88f1bf5`
 - **[MAINTENANCE]** encrypt secret `28bdc3d`
