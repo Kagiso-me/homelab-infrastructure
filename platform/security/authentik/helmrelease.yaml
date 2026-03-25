@@ -35,10 +35,6 @@ spec:
     - kind: Secret
       name: authentik-secret
       valuesKey: redis-password
-      targetPath: redis.auth.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: redis-password
       targetPath: authentik.redis.password
   values:
     authentik:
@@ -55,7 +51,7 @@ spec:
         user: authentik
         # password injected via valuesFrom
       redis:
-        host: authentik-redis-master
+        host: redis-master.databases.svc.cluster.local
         # password injected via valuesFrom
 
     global:
@@ -91,16 +87,6 @@ spec:
     postgresql:
       enabled: false
 
-    # Bundled Redis — standalone mode, password-protected.
+    # Bundled Redis disabled — using the shared central Redis instance.
     redis:
-      enabled: true
-      global:
-        security:
-          allowInsecureImages: true
-      image:
-        registry: docker.io
-        repository: bitnamilegacy/redis
-      architecture: standalone
-      auth:
-        enabled: true
-        # password injected via valuesFrom
+      enabled: false
