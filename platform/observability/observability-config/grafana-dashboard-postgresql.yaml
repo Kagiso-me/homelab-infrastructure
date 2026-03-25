@@ -170,6 +170,54 @@ data:
           },
           "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
           "targets": [{"expr": "rate(pg_stat_database_deadlocks{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m])", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Block I/O Latency",
+          "description": "Time spent reading and writing disk blocks. High values indicate storage pressure.",
+          "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {"unit": "ms", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+          },
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (datname) (rate(pg_stat_database_blk_read_time{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "read {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "sum by (datname) (rate(pg_stat_database_blk_write_time{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "write {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Pod CPU Usage",
+          "description": "Actual CPU usage vs configured request (250m). Use to right-size resource requests.",
+          "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {"unit": "cores", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+          },
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"databases\", pod=~\"postgresql.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"postgresql.*\", container=\"postgresql\", resource=\"cpu\"}", "legendFormat": "postgresql (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Pod Memory Usage",
+          "description": "Actual memory working set vs configured request (256Mi). Use to right-size resource requests.",
+          "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+          },
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"databases\", pod=~\"postgresql.*\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"postgresql.*\", container=\"postgresql\", resource=\"memory\"}", "legendFormat": "postgresql (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         }
       ]
     }

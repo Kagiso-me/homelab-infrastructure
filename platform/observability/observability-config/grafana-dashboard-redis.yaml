@@ -171,6 +171,38 @@ data:
           },
           "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
           "targets": [{"expr": "rate(redis_commands_duration_seconds_total{job=~\".*redis.*\"}[5m]) / rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m]) * 1e6", "legendFormat": "avg latency", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Pod CPU Usage",
+          "description": "Actual CPU usage vs configured request (100m). Use to right-size resource requests.",
+          "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {"unit": "cores", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+          },
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"databases\", pod=~\"redis.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"redis.*\", container=\"redis\", resource=\"cpu\"}", "legendFormat": "redis (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Pod Memory Usage",
+          "description": "Actual memory working set vs configured request (128Mi). Use to right-size resource requests.",
+          "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+          },
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"databases\", pod=~\"redis.*\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"redis.*\", container=\"redis\", resource=\"memory\"}", "legendFormat": "redis (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         }
       ]
     }
