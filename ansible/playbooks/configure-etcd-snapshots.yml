@@ -23,7 +23,7 @@
   become: true
 
   vars_files:
-    - ../vault.yml
+    - ../../vars/vault.yml
 
   tasks:
     - name: Ensure /etc/rancher/k3s directory exists
