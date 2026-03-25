@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add latency and resource panels to database dashboards `35c5178`
 - **[CONFIG]** correct datasource variable for Grafana dashboard templating `6da24c3`
 - **[DEPLOY]** metrics, dashboards, backup, and etcd snapshot offloading `2434907`
 - **[CONFIG]** allow bitnamilegacy image for Redis `4eb0f10`
