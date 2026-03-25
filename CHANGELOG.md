@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** simplify etcd snapshot command — S3 flags already in config.yaml `cb6ccb0`
 - **[CONFIG]** correct vault path to ../vars/vault.yml `7334af3`
 - **[CONFIG]** correct vault path in configure-etcd-snapshots playbook `6f070ce`
 - **[DEPLOY]** add latency and resource panels to database dashboards `35c5178`
