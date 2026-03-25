@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add Velero metrics section to backup overview dashboard `6753f7d`
 - **[CONFIG]** correct node-agent pod volume path for this k3s installation `67f9fd1`
 - **[CONFIG]** track .env.example so it's available after clone `08a7f29`
 - **[CONFIG]** use deployNodeAgent: true to enable node-agent DaemonSet `12bc330`
