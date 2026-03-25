@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add 6-hourly databases backup schedule `250cba2`
 - **[DEPLOY]** add Velero metrics section to backup overview dashboard `6753f7d`
 - **[CONFIG]** correct node-agent pod volume path for this k3s installation `67f9fd1`
 - **[CONFIG]** track .env.example so it's available after clone `08a7f29`
