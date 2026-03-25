@@ -560,6 +560,228 @@ data:
           ],
           "title": "Total Failures by Job",
           "type": "bargauge"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30},
+          "id": 10,
+          "title": "Velero Cluster Backups",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 90000},
+                  {"color": "red", "value": 108000}
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 31},
+          "id": 11,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "time() - velero_backup_last_successful_timestamp{schedule=\"daily-cluster-backup\"}",
+              "instant": true,
+              "legendFormat": "age",
+              "refId": "A"
+            }
+          ],
+          "title": "Last Backup Age",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 6, "y": 31},
+          "id": 12,
+          "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "increase(velero_backup_success_total{schedule=\"daily-cluster-backup\"}[7d])",
+              "instant": true,
+              "legendFormat": "successes",
+              "refId": "A"
+            }
+          ],
+          "title": "Successes (7d)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [{"type": "value", "options": {"0": {"text": "None", "color": "green"}}}],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "red", "value": 1}
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 10, "y": 31},
+          "id": 13,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "increase(velero_backup_failure_total{schedule=\"daily-cluster-backup\"}[7d]) or vector(0)",
+              "instant": true,
+              "legendFormat": "failures",
+              "refId": "A"
+            }
+          ],
+          "title": "Failures (7d)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "yellow", "value": 2},
+                  {"color": "green", "value": 3}
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 14, "y": 31},
+          "id": 14,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "kube_daemonset_status_number_ready{namespace=\"velero\", daemonset=\"node-agent\"}",
+              "instant": true,
+              "legendFormat": "ready",
+              "refId": "A"
+            }
+          ],
+          "title": "Node-Agent Pods Ready",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 90000},
+                  {"color": "red", "value": 108000}
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 31},
+          "id": 15,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "time() - kube_cronjob_status_last_schedule_time{namespace=\"databases\", cronjob=\"postgresql-backup\"}",
+              "instant": true,
+              "legendFormat": "age",
+              "refId": "A"
+            }
+          ],
+          "title": "pg_dump Last Run",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "fillOpacity": 10},
+              "unit": "s"
+            }
+          },
+          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 35},
+          "id": 16,
+          "options": {
+            "legend": {"displayMode": "list", "placement": "bottom"},
+            "tooltip": {"mode": "multi"}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "velero_backup_duration_seconds_sum{schedule=\"daily-cluster-backup\"} / velero_backup_duration_seconds_count{schedule=\"daily-cluster-backup\"}",
+              "legendFormat": "avg duration",
+              "refId": "A"
+            }
+          ],
+          "title": "Velero Backup Duration Trend",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 35},
+          "id": 17,
+          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "velero_backup_total",
+              "instant": true,
+              "legendFormat": "backups",
+              "refId": "A"
+            }
+          ],
+          "title": "Backup Objects in Storage",
+          "type": "stat"
         }
       ],
       "refresh": "5m",
