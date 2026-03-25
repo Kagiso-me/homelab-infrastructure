@@ -31,10 +31,6 @@ spec:
     - kind: Secret
       name: authentik-secret
       valuesKey: postgresql-password
-      targetPath: postgresql.auth.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: postgresql-password
       targetPath: authentik.postgresql.password
     - kind: Secret
       name: authentik-secret
@@ -50,7 +46,11 @@ spec:
         enabled: false
       log_level: info
       postgresql:
-        host: authentik-postgresql
+        # Uses the shared central PostgreSQL in the databases namespace.
+        # The 'authentik' database and user must be created before first deploy —
+        # see platform/security/authentik/README instructions.
+        host: postgresql.databases.svc.cluster.local
+        port: 5432
         name: authentik
         user: authentik
         # password injected via valuesFrom
@@ -87,22 +87,9 @@ spec:
           enabled: true
           interval: 30s
 
-    # Bundled PostgreSQL — isolated from the shared database cluster.
-    # Authentik is auth infrastructure; it must not share a lifecycle with
-    # application databases.
+    # Bundled PostgreSQL disabled — using the shared central PostgreSQL instance.
     postgresql:
-      enabled: true
-      global:
-        security:
-          allowInsecureImages: true
-      image:
-        registry: docker.io
-        repository: bitnamilegacy/postgresql
-        tag: "17"
-      auth:
-        username: authentik
-        database: authentik
-        # password injected via valuesFrom
+      enabled: false
 
     # Bundled Redis — standalone mode, password-protected.
     redis:
