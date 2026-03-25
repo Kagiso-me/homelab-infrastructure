@@ -36,7 +36,7 @@ By the end of this guide the host will have:
 ```mermaid
 graph TD
     subgraph DockerHost ["Docker Host — 10.0.10.32"]
-        Stacks["/srv/docker/stacks/\nCompose files"]
+        Stacks["/srv/docker/compose/\nCompose files"]
         AppData["/srv/docker/appdata/\nContainer config + DBs"]
         Incomplete["/srv/downloads/incomplete/\nIn-progress downloads\n(local NVMe)"]
         Docker["Docker Engine\ncontainerd runtime"]
@@ -207,7 +207,7 @@ The directory structure is the backbone of the platform. Predictable paths preve
 ### Create the Base Directories
 
 ```bash
-sudo mkdir -p /srv/docker/stacks
+sudo mkdir -p /srv/docker/compose
 sudo mkdir -p /srv/docker/appdata
 sudo mkdir -p /srv/scripts
 sudo mkdir -p /srv/downloads/incomplete
@@ -227,10 +227,37 @@ sudo chown -R kagiso:kagiso /srv/downloads
 
 | Directory | Purpose |
 |-----------|---------|
-| `/srv/docker/stacks/` | Docker Compose files — one subdirectory per stack |
+| `/srv/docker/compose/` | Docker Compose files — one subdirectory per stack |
 | `/srv/docker/appdata/` | Container configuration, databases, and application state |
 | `/srv/scripts/` | Automation and maintenance scripts |
 | `/srv/downloads/incomplete/` | In-progress SABnzbd downloads on local NVMe |
+
+### Deploy the Compose Files
+
+The compose files and the `.env.example` template live in the `homelab-infrastructure` Git
+repository. Clone the repo and copy them into place:
+
+```bash
+git clone https://github.com/Kagiso-me/homelab-infrastructure.git ~/homelab-infrastructure
+cp ~/homelab-infrastructure/docker/compose/*.yml /srv/docker/compose/
+cp ~/homelab-infrastructure/docker/compose/.env.example /srv/docker/compose/
+```
+
+Verify the files are in place:
+
+```bash
+ls /srv/docker/compose/
+```
+
+Expected output:
+
+```
+.env.example  media-stack.yml  monitoring-stack.yml  proxy-stack.yml
+```
+
+> The `.env.example` template is the source of truth for all configurable values. Guide 04
+> will instruct you to copy it to `.env` and fill in secrets before deploying any stack.
+> Never commit `.env` — it is gitignored by design.
 
 ---
 
@@ -448,7 +475,7 @@ docker info | grep -A 5 "Logging Driver"
 
 # Filesystem layout
 ls /srv/docker/appdata/
-ls /srv/docker/stacks/
+ls /srv/docker/compose/    # should show media-stack.yml, proxy-stack.yml, monitoring-stack.yml, .env.example
 
 # NFS mounts
 df -h | grep -E "media|downloads"
@@ -475,7 +502,7 @@ This guide is complete when all of the following are confirmed:
 - [ ] `/etc/docker/daemon.json` exists with log rotation configured
 - [ ] `docker info` confirms the `json-file` logging driver is active
 - [ ] `/srv/docker/appdata/` contains all 13 service subdirectories
-- [ ] `/srv/docker/stacks/` exists and is owned by `kagiso`
+- [ ] `/srv/docker/compose/` contains `media-stack.yml`, `proxy-stack.yml`, `monitoring-stack.yml`, and `.env.example`
 - [ ] `/mnt/media` is mounted from TrueNAS and writable
 - [ ] `/mnt/downloads` is mounted from TrueNAS and writable
 - [ ] Mounts persist across reboot (confirmed by rebooting and running `df -h`)
