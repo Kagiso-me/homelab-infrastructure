@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[MAINTENANCE]** encrypt secret `28bdc3d`
 - **[DEPLOY]** add Authentik SSO identity provider `4f279f5`
 - **[DEPLOY]** add 6-hourly databases backup schedule `250cba2`
 - **[DEPLOY]** add Velero metrics section to backup overview dashboard `6753f7d`
