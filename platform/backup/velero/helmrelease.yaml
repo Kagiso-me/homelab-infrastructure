@@ -64,6 +64,10 @@ spec:
     nodeAgent:
       enabled: true
       podVolumePath: /var/lib/rancher/k3s/agent/kubelet/pods
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
 
     # Deploy a ServiceMonitor so Prometheus scrapes Velero metrics
     metrics:
