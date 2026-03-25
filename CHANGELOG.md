@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** metrics, dashboards, backup, and etcd snapshot offloading `2434907`
 - **[CONFIG]** allow bitnamilegacy image for Redis `4eb0f10`
 - **[CONFIG]** use bitnamilegacy image registry `c54710f`
 - **[CONFIG]** switch Bitnami HelmRepository back to HTTPS `521f9c4`
