@@ -55,18 +55,20 @@
           etcd-s3-secret-key: "{{ vault_minio_secret_key }}"
       notify: Restart k3s
 
+    - name: Restart k3s to load new config before snapshot
+      systemd:
+        name: k3s
+        state: restarted
+
+    - name: Wait for k3s API to be ready
+      wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 60
+
     - name: Trigger an immediate snapshot to verify S3 connectivity
-      command: >
-        k3s etcd-snapshot save
-        --name on-demand-verify
-        --s3
-        --s3-endpoint http://10.0.10.80:9000
-        --s3-insecure
-        --s3-bucket k3s-etcd-snapshots
-        --s3-region minio
-        --s3-folder snapshots
-        --etcd-s3-access-key {{ vault_minio_access_key }}
-        --etcd-s3-secret-key {{ vault_minio_secret_key }}
+      # S3 settings are in config.yaml — no flags needed here
+      command: k3s etcd-snapshot save --name on-demand-verify
       register: snapshot_result
       changed_when: true
 
