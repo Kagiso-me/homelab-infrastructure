@@ -7,3 +7,5 @@ resources:
   - grafana-dashboard-backup-overview.yaml
   - grafana-dashboard-postgresql.yaml
   - grafana-dashboard-redis.yaml
+  - grafana-dashboard-authentik.yaml
+  - prometheus-rules-apps.yaml

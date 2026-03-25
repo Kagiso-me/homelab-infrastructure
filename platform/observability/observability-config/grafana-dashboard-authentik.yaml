@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-authentik
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Apps"
+data:
+  authentik.json: |
+    {
+      "title": "Authentik",
+      "uid": "authentik-overview",
+      "description": "Authentik SSO — login activity, users, request latency, and pod resources",
+      "tags": ["apps", "authentik", "sso"],
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-3h", "to": "now"},
+      "timepicker": {},
+      "graphTooltip": 1,
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "refresh": 1,
+            "current": {},
+            "hide": 0
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Server Status",
+          "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "up{job=~\".*authentik.*\"}", "legendFormat": "status", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Total Users",
+          "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "authentik_users{namespace=\"auth\"}", "legendFormat": "users", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Login Success Rate (5m)",
+          "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0, "max": 1,
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.8}, {"color": "green", "value": 0.95}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "rate(authentik_login_requests_total{successful=\"true\",namespace=\"auth\"}[5m]) / (rate(authentik_login_requests_total{namespace=\"auth\"}[5m]) + 0.001)", "legendFormat": "success rate", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Failed Logins (1h)",
+          "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "mappings": [{"type": "value", "options": {"0": {"text": "None", "color": "green"}}}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "increase(authentik_login_requests_total{successful=\"false\",namespace=\"auth\"}[1h]) or vector(0)", "legendFormat": "failures", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Active Sessions",
+          "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "authentik_active_users{namespace=\"auth\"}", "legendFormat": "sessions", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Worker Tasks (Error)",
+          "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "mappings": [{"type": "value", "options": {"0": {"text": "OK", "color": "green"}}}],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "authentik_system_tasks_total{status=\"error\",namespace=\"auth\"} or vector(0)", "legendFormat": "errors", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Login Rate",
+          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "rate(authentik_login_requests_total{successful=\"true\",namespace=\"auth\"}[5m])", "legendFormat": "successful", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "rate(authentik_login_requests_total{successful=\"false\",namespace=\"auth\"}[5m])", "legendFormat": "failed", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "HTTP Request Latency (p50 / p95 / p99)",
+          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "s", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "histogram_quantile(0.50, rate(authentik_http_requests_duration_seconds_bucket{namespace=\"auth\"}[5m]))", "legendFormat": "p50", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "histogram_quantile(0.95, rate(authentik_http_requests_duration_seconds_bucket{namespace=\"auth\"}[5m]))", "legendFormat": "p95", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
+            {"expr": "histogram_quantile(0.99, rate(authentik_http_requests_duration_seconds_bucket{namespace=\"auth\"}[5m]))", "legendFormat": "p99", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Pod CPU Usage",
+          "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "cores", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"auth\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{container}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Pod Memory Usage",
+          "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"auth\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{container}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        }
+      ]
+    }

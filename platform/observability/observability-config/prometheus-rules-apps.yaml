@@ -1,0 +1,131 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app-health
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # Generic rules — applied to all workloads in app namespaces.
+    # These fire for any pod regardless of which app it belongs to.
+    - name: apps.pods
+      rules:
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{
+              namespace=~"auth|apps",
+              condition="true"
+            } == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} is not ready"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been unready for 5 minutes."
+            runbook: "https://wiki.homelab/runbooks/pod-not-ready"
+
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace=~"auth|apps"
+            }[30m]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} has restarted {{ $value | humanize }} times in 30 minutes."
+            runbook: "https://wiki.homelab/runbooks/pod-crash-looping"
+
+        - alert: PodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{
+              namespace=~"auth|apps",
+              reason="OOMKilled"
+            } == 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} was OOM killed"
+            description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was killed due to out-of-memory. Consider increasing memory limits."
+            runbook: "https://wiki.homelab/runbooks/oom-killed"
+
+        - alert: DeploymentUnavailable
+          expr: |
+            kube_deployment_status_replicas_unavailable{
+              namespace=~"auth|apps"
+            } > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} has unavailable replicas"
+            description: "{{ $value }} replica(s) of {{ $labels.namespace }}/{{ $labels.deployment }} have been unavailable for 5 minutes."
+            runbook: "https://wiki.homelab/runbooks/deployment-unavailable"
+
+    - name: apps.resources
+      rules:
+        - alert: ContainerHighMemory
+          expr: |
+            (
+              container_memory_working_set_bytes{namespace=~"auth|apps", container!=""}
+              / container_spec_memory_limit_bytes{namespace=~"auth|apps", container!=""}
+            ) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+            description: "Container {{ $labels.container }} is using {{ $value | humanizePercentage }} of its memory limit."
+            runbook: "https://wiki.homelab/runbooks/high-memory"
+
+        - alert: ContainerHighCPU
+          expr: |
+            (
+              rate(container_cpu_usage_seconds_total{namespace=~"auth|apps", container!=""}[5m])
+              / container_spec_cpu_quota{namespace=~"auth|apps", container!=""} * container_spec_cpu_period{namespace=~"auth|apps", container!=""}
+            ) > 0.80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+            description: "Container {{ $labels.container }} is using {{ $value | humanizePercentage }} of its CPU limit for 15 minutes."
+            runbook: "https://wiki.homelab/runbooks/high-cpu"
+
+    # Authentik-specific alerts
+    - name: authentik
+      rules:
+        - alert: AuthentikDown
+          expr: up{job=~".*authentik.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Authentik is unreachable"
+            description: "Authentik server metrics endpoint has been unreachable for 2 minutes. SSO for all apps is degraded."
+            runbook: "https://wiki.homelab/runbooks/authentik-down"
+
+        - alert: AuthentikHighLoginFailures
+          expr: |
+            rate(authentik_login_requests_total{successful="false"}[15m]) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Elevated Authentik login failures"
+            description: "More than 0.5 failed logins/sec over the last 15 minutes. Possible brute-force attack."
+            runbook: "https://wiki.homelab/runbooks/authentik-login-failures"
+
+        - alert: AuthentikWorkerBacklog
+          expr: authentik_system_tasks_total{status="error"} > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Authentik worker tasks failing"
+            description: "{{ $value }} Authentik background task(s) are in error state."
+            runbook: "https://wiki.homelab/runbooks/authentik-worker"
