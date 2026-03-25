@@ -46,7 +46,7 @@
           etcd-snapshot-schedule-cron: "0 */6 * * *"
           etcd-snapshot-retention: 7
           etcd-s3: true
-          etcd-s3-endpoint: "http://10.0.10.80:9000"
+          etcd-s3-endpoint: "10.0.10.80:9000"
           etcd-s3-insecure: true
           etcd-s3-bucket: "k3s-etcd-snapshots"
           etcd-s3-region: "minio"
