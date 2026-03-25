@@ -1,6 +1,8 @@
 # Secrets & credentials
 *.env
 .env*
+!.env.example
+!docker/compose/.env.example
 *secrets*
 *credentials*
 !platform/backup/velero/minio-credentials.yaml
