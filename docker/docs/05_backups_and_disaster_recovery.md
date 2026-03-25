@@ -4,7 +4,7 @@
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
-**Guide:** 07 of 06
+**Guide:** 07 of 07
 
 > A backup strategy that has never been tested is not a backup strategy. It is a hope.
 >

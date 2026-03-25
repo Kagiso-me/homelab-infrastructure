@@ -135,7 +135,7 @@ Individual service restore < 15 minutes
 Media library (NAS data)  → never lost (ZFS + backups)
 ```
 
-Recovery procedures are documented in Guide 07 and tested against real failure scenarios.
+Recovery procedures are documented in Guide 05 and tested against real failure scenarios.
 
 ---
 
@@ -263,7 +263,7 @@ Even if files are deleted through the mount, they are recoverable from the most 
 
 # Series Overview
 
-This series is divided into seven guides, each building on the previous.
+This series is divided into six guides, each building on the previous.
 
 | Guide | Title | Description |
 |-------|-------|-------------|
@@ -272,8 +272,7 @@ This series is divided into seven guides, each building on the previous.
 | **03 of 06** | Docker Installation & Filesystem | Docker setup, daemon config, directory layout, NFS mounts |
 | **04 of 06** | Media Stack & Reverse Proxy | Plex, Sonarr, Radarr, SABnzbd, Overseerr, Nginx Proxy Manager |
 | **05 of 06** | Monitoring & Logging | node-exporter, cAdvisor, Promtail — scraped by k3s Prometheus |
-| **06 of 06** | Application Configuration | Per-app recommended settings — Plex, Sonarr, Radarr, Bazarr, and the full stack |
-| **07 of 06** | Backups & Disaster Recovery | Restic, restore procedures, tested recovery runbooks |
+| **06 of 06** | Application Configuration | Per-app settings for every service; Intel iGPU passthrough for Plex hardware transcoding |
 
 ---
 
