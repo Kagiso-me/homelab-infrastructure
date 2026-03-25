@@ -47,6 +47,14 @@ spec:
             s3ForcePathStyle: "true"
             insecureSkipTLSVerify: "true"
 
+      # No volume snapshots — file-based backup via node-agent (restic) only.
+      # Without this, the chart creates a VolumeSnapshotLocation with null
+      # provider/credential which fails CRD validation.
+      volumeSnapshotLocation: []
+
+      # Use file-system backup for all PVCs by default
+      defaultVolumesToFsBackup: true
+
     credentials:
       # Credentials are stored in a SOPS-encrypted Secret (minio-credentials.yaml)
       existingSecret: velero-minio-credentials
