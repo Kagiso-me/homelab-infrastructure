@@ -60,12 +60,11 @@ spec:
       existingSecret: velero-minio-credentials
 
     # Node-agent (formerly restic) for file-system backup of PVC data.
-    # k3s stores kubelet pod data at a non-standard path — must be overridden.
-    # Deploy the node-agent DaemonSet for file-system based PVC backups
     deployNodeAgent: true
 
     nodeAgent:
-      podVolumePath: /var/lib/rancher/k3s/agent/kubelet/pods
+      podVolumePath: /var/lib/kubelet/pods
+      privileged: true
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
