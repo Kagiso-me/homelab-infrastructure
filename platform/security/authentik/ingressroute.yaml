@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: authentik
+  namespace: auth
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`auth.kagiso.me`)
+      kind: Rule
+      services:
+        - name: authentik-server
+          port: 80
+  tls: {}

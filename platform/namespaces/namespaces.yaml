@@ -30,6 +30,13 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: auth
+  labels:
+    app.kubernetes.io/managed-by: flux
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: apps
   labels:
     app.kubernetes.io/managed-by: flux

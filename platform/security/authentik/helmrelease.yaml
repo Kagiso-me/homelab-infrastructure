@@ -1,0 +1,119 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: auth
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: authentik
+      version: ">=2024.8.0"
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  # Inject secrets as Helm values — keeps credentials out of this file.
+  valuesFrom:
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: secret_key
+      targetPath: authentik.secret_key
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: postgresql-password
+      targetPath: postgresql.auth.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: postgresql-password
+      targetPath: authentik.postgresql.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: redis-password
+      targetPath: redis.auth.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: redis-password
+      targetPath: authentik.redis.password
+  values:
+    authentik:
+      error_reporting:
+        enabled: false
+      log_level: info
+      postgresql:
+        host: authentik-postgresql
+        name: authentik
+        user: authentik
+        # password injected via valuesFrom
+      redis:
+        host: authentik-redis-master
+        # password injected via valuesFrom
+
+    global:
+      # Bootstrap admin account — only applied on first startup.
+      # Change password via UI after first login.
+      env:
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: bootstrap-password
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: bootstrap-email
+        - name: AUTHENTIK_BOOTSTRAP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secret
+              key: bootstrap-token
+
+    server:
+      # Disable built-in ingress — Traefik IngressRoute is used instead.
+      ingress:
+        enabled: false
+      metrics:
+        serviceMonitor:
+          enabled: true
+          interval: 30s
+
+    # Bundled PostgreSQL — isolated from the shared database cluster.
+    # Authentik is auth infrastructure; it must not share a lifecycle with
+    # application databases.
+    postgresql:
+      enabled: true
+      global:
+        security:
+          allowInsecureImages: true
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/postgresql
+        tag: "17"
+      auth:
+        username: authentik
+        database: authentik
+        # password injected via valuesFrom
+
+    # Bundled Redis — standalone mode, password-protected.
+    redis:
+      enabled: true
+      global:
+        security:
+          allowInsecureImages: true
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/redis
+      architecture: standalone
+      auth:
+        enabled: true
+        # password injected via valuesFrom

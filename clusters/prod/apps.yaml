@@ -16,6 +16,7 @@ spec:
   dependsOn:
     - name: platform-observability
     - name: platform-storage
+    - name: platform-authentik
   decryption:
     provider: sops
     secretRef:
