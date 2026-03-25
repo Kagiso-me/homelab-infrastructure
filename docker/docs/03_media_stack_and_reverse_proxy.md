@@ -1,10 +1,10 @@
-
+﻿
 # 04 — Media Stack & Reverse Proxy
 ## Deploying the Full Media Automation Pipeline
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐☆☆☆ (7/10)
-**Guide:** 04 of 07
+**Guide:** 04 of 06
 
 > The media stack is the reason this Docker host exists.
 >

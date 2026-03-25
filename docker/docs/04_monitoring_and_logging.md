@@ -1,9 +1,9 @@
-# 05 — Monitoring Integration
+﻿# 05 — Monitoring Integration
 ## Connecting the Docker Host to the k3s Observability Stack
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐☆☆☆☆☆☆☆ (3/10)
-**Guide:** 05 of 07
+**Guide:** 05 of 06
 
 > A platform that cannot be observed cannot be operated.
 >

@@ -46,7 +46,18 @@ Personal website and portfolio hosted on GitHub Pages.
 [→ Open project](OPS-kagiso-me.github.io/)
 
 </td>
-<td width="50%" valign="top"></td>
+<td width="50%" valign="top">
+
+### 🎨 Canvas
+`DEV` &nbsp;&nbsp; 🟡 Planning
+
+Self-hosted visual project board. Freeform canvas with notes, tasks, images, links, and checklists. Built to plan and track creative projects and ideas — like Milanote but yours.
+
+**Stack:** SvelteKit · Fastify · SQLite
+
+[→ Open project](DEV-canvas/)
+
+</td>
 </tr>
 </table>
 

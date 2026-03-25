@@ -1,9 +1,9 @@
-# 01 — Platform Philosophy
+﻿# 01 — Platform Philosophy
 ## Building a Reliable Docker Homelab
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐☆☆☆☆☆☆☆☆ (2/10)
-**Guide:** 01 of 07
+**Guide:** 01 of 06
 
 > This series documents the design, deployment, and operation of a production‑grade Docker homelab platform.
 >
@@ -267,13 +267,13 @@ This series is divided into seven guides, each building on the previous.
 
 | Guide | Title | Description |
 |-------|-------|-------------|
-| **01 of 07** | Platform Philosophy | Architecture, principles, and series overview (this document) |
-| **02 of 07** | Host Installation & Hardening | Ubuntu Server install, static IP, SSH keys, UFW, Fail2Ban |
-| **03 of 07** | Docker Installation & Filesystem | Docker setup, daemon config, directory layout, NFS mounts |
-| **04 of 07** | Media Stack & Reverse Proxy | Plex, Sonarr, Radarr, SABnzbd, Overseerr, Nginx Proxy Manager |
-| **05 of 07** | Monitoring & Logging | node-exporter, cAdvisor, Promtail — scraped by k3s Prometheus |
-| **06 of 07** | Application Configuration | Per-app recommended settings — Plex, Sonarr, Radarr, Bazarr, and the full stack |
-| **07 of 07** | Backups & Disaster Recovery | Restic, restore procedures, tested recovery runbooks |
+| **01 of 06** | Platform Philosophy | Architecture, principles, and series overview (this document) |
+| **02 of 06** | Host Installation & Hardening | Ubuntu Server install, static IP, SSH keys, UFW, Fail2Ban |
+| **03 of 06** | Docker Installation & Filesystem | Docker setup, daemon config, directory layout, NFS mounts |
+| **04 of 06** | Media Stack & Reverse Proxy | Plex, Sonarr, Radarr, SABnzbd, Overseerr, Nginx Proxy Manager |
+| **05 of 06** | Monitoring & Logging | node-exporter, cAdvisor, Promtail — scraped by k3s Prometheus |
+| **06 of 06** | Application Configuration | Per-app recommended settings — Plex, Sonarr, Radarr, Bazarr, and the full stack |
+| **07 of 06** | Backups & Disaster Recovery | Restic, restore procedures, tested recovery runbooks |
 
 ---
 
