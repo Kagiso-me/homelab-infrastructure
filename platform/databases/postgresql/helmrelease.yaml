@@ -23,9 +23,22 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    global:
+      security:
+        allowInsecureImages: true
+
     image:
       registry: docker.io
       repository: bitnamilegacy/postgresql
+
+    metrics:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/postgres-exporter
+      serviceMonitor:
+        enabled: true
+        interval: 30s
 
     auth:
       # Admin credentials loaded from SOPS-encrypted Secret.

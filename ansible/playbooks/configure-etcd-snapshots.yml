@@ -1,0 +1,81 @@
+---
+# Configure k3s embedded etcd to snapshot directly to MinIO (S3-compatible).
+#
+# Prerequisites:
+#   1. Create a bucket named 'k3s-etcd-snapshots' on MinIO (10.0.10.80:9000)
+#   2. Add to ansible/vault.yml:
+#        vault_minio_access_key: <your-minio-access-key>
+#        vault_minio_secret_key: <your-minio-secret-key>
+#
+# Run:
+#   ansible-playbook ansible/playbooks/configure-etcd-snapshots.yml \
+#     -i ansible/inventory.ini \
+#     --vault-password-file ~/.vault_pass
+#
+# After running: verify with
+#   ssh tywin "sudo k3s etcd-snapshot list --s3 \
+#     --s3-endpoint http://10.0.10.80:9000 \
+#     --s3-bucket k3s-etcd-snapshots \
+#     --s3-insecure"
+
+- name: Configure k3s etcd S3 snapshots on control plane
+  hosts: tywin
+  become: true
+
+  vars_files:
+    - ../vault.yml
+
+  tasks:
+    - name: Ensure /etc/rancher/k3s directory exists
+      file:
+        path: /etc/rancher/k3s
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Write k3s config for etcd S3 snapshots
+      copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          # etcd snapshot configuration — managed by Ansible
+          # Snapshots every 6 hours, 7 retained, stored in MinIO
+          etcd-snapshot-schedule-cron: "0 */6 * * *"
+          etcd-snapshot-retention: 7
+          etcd-s3: true
+          etcd-s3-endpoint: "http://10.0.10.80:9000"
+          etcd-s3-insecure: true
+          etcd-s3-bucket: "k3s-etcd-snapshots"
+          etcd-s3-region: "minio"
+          etcd-s3-folder: "snapshots"
+          etcd-s3-access-key: "{{ vault_minio_access_key }}"
+          etcd-s3-secret-key: "{{ vault_minio_secret_key }}"
+      notify: Restart k3s
+
+    - name: Trigger an immediate snapshot to verify S3 connectivity
+      command: >
+        k3s etcd-snapshot save
+        --name on-demand-verify
+        --s3
+        --s3-endpoint http://10.0.10.80:9000
+        --s3-insecure
+        --s3-bucket k3s-etcd-snapshots
+        --s3-region minio
+        --s3-folder snapshots
+        --etcd-s3-access-key {{ vault_minio_access_key }}
+        --etcd-s3-secret-key {{ vault_minio_secret_key }}
+      register: snapshot_result
+      changed_when: true
+
+    - name: Show snapshot result
+      debug:
+        msg: "{{ snapshot_result.stdout_lines }}"
+
+  handlers:
+    - name: Restart k3s
+      systemd:
+        name: k3s
+        state: restarted

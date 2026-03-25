@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - helmrelease.yaml
   - secret.yaml
+  - backup-secret.yaml
+  - cronjob-backup.yaml

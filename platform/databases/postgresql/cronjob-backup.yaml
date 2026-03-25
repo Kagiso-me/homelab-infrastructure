@@ -1,0 +1,86 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup
+  namespace: databases
+spec:
+  # 01:00 daily — after etcd snapshot (02:00) staggers I/O, before Velero (03:00)
+  schedule: "0 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: dump
+              image: docker.io/bitnamilegacy/postgresql:17
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgresql-secret
+                      key: postgres-password
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  FILENAME="dump-$(date +%Y%m%d-%H%M%S).sql.gz"
+                  echo "Starting pg_dumpall → /backup/${FILENAME}"
+                  pg_dumpall \
+                    -h postgresql.databases.svc.cluster.local \
+                    -U postgres \
+                    | gzip > /backup/${FILENAME}
+                  echo "Dump complete: $(du -sh /backup/${FILENAME} | cut -f1)"
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          containers:
+            - name: upload
+              image: amazon/aws-cli:latest
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: db-backup-credentials
+                      key: access-key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: db-backup-credentials
+                      key: secret-key
+                - name: AWS_DEFAULT_REGION
+                  value: minio
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  ENDPOINT="http://10.0.10.80:9000"
+                  BUCKET="s3://db-backups/postgresql"
+
+                  echo "Uploading to MinIO..."
+                  aws s3 sync /backup ${BUCKET}/ --endpoint-url ${ENDPOINT}
+
+                  # Retain last 7 dumps — delete older ones
+                  COUNT=$(aws s3 ls ${BUCKET}/ --endpoint-url ${ENDPOINT} | wc -l)
+                  if [ "${COUNT}" -gt 7 ]; then
+                    aws s3 ls ${BUCKET}/ --endpoint-url ${ENDPOINT} \
+                      | sort \
+                      | head -n $((COUNT - 7)) \
+                      | awk '{print $4}' \
+                      | xargs -I{} aws s3 rm ${BUCKET}/{} --endpoint-url ${ENDPOINT}
+                    echo "Pruned $((COUNT - 7)) old dump(s)"
+                  fi
+
+                  echo "Backup complete"
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              emptyDir: {}

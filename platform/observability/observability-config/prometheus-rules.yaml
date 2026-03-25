@@ -107,6 +107,71 @@ spec:
             description: "Memory usage on {{ $labels.instance }} has been above 90% for 10 minutes."
             runbook: "https://wiki.homelab/runbooks/high-memory"
 
+    - name: databases
+      rules:
+        - alert: PostgreSQLDown
+          expr: pg_up{job=~".*postgresql.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL is unreachable"
+            description: "postgres_exporter cannot connect to PostgreSQL. All apps depending on the shared database are affected."
+            runbook: "https://wiki.homelab/runbooks/postgresql-down"
+
+        - alert: PostgreSQLHighConnections
+          expr: |
+            sum(pg_stat_database_numbackends{job=~".*postgresql.*"})
+            / sum(pg_settings_max_connections{job=~".*postgresql.*"}) > 0.80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL connection usage above 80%"
+            description: "{{ $value | humanizePercentage }} of max_connections in use. Risk of connection exhaustion."
+            runbook: "https://wiki.homelab/runbooks/postgresql-high-connections"
+
+        - alert: RedisDown
+          expr: redis_up{job=~".*redis.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis is unreachable"
+            description: "redis_exporter cannot connect to Redis. Session and cache services are degraded."
+            runbook: "https://wiki.homelab/runbooks/redis-down"
+
+        - alert: RedisHighMemory
+          expr: redis_memory_used_bytes{job=~".*redis.*"} / redis_memory_max_bytes{job=~".*redis.*"} > 0.90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Redis memory usage above 90%"
+            description: "Redis is using {{ $value | humanizePercentage }} of its configured maxmemory. Eviction may begin."
+            runbook: "https://wiki.homelab/runbooks/redis-high-memory"
+
+        - alert: DatabaseBackupJobFailed
+          expr: kube_job_status_failed{namespace="databases", job_name=~"postgresql-backup.*"} > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL backup job failed"
+            description: "The postgresql-backup CronJob has a failed run. Check logs: kubectl logs -n databases -l job-name=<job>"
+            runbook: "https://wiki.homelab/runbooks/backup-job-failed"
+
+        - alert: DatabaseBackupNotRun
+          expr: |
+            (time() - kube_cronjob_status_last_schedule_time{namespace="databases", cronjob="postgresql-backup"}) > 90000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL backup has not run in 25 hours"
+            description: "The postgresql-backup CronJob last ran {{ $value | humanizeDuration }} ago."
+            runbook: "https://wiki.homelab/runbooks/backup-job-failed"
+
     - name: external.backups
       rules:
         - alert: EtcdBackupDirectoryEmpty

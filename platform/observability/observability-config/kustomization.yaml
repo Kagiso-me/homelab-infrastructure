@@ -5,3 +5,5 @@ resources:
   - alertmanager-secret.yaml
   - prometheus-rules.yaml
   - grafana-dashboard-backup-overview.yaml
+  - grafana-dashboard-postgresql.yaml
+  - grafana-dashboard-redis.yaml

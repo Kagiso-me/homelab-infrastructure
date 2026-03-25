@@ -31,6 +31,15 @@ spec:
       registry: docker.io
       repository: bitnamilegacy/redis
 
+    metrics:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/redis-exporter
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+
     # Single instance — no Sentinel or Cluster needed for homelab scale.
     architecture: standalone
 
