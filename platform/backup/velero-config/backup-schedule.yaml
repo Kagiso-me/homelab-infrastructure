@@ -18,3 +18,21 @@ spec:
     snapshotVolumes: false
     defaultVolumesToFsBackup: true    # use file system backup for PVC data
     labelSelector: {}
+---
+# 6-hourly database backup — higher RPO for the namespace that holds live data.
+# kopia deduplication means only changed blocks are uploaded after the first run.
+# Offset from the daily backup (03:00) to avoid simultaneous TrueNAS I/O.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: frequent-databases-backup
+  namespace: velero
+spec:
+  schedule: "0 1,7,13,19 * * *"
+  template:
+    includedNamespaces:
+      - databases
+    storageLocation: truenas-minio
+    ttl: 48h              # keep 8 backups (2 days at 6h cadence)
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: true
