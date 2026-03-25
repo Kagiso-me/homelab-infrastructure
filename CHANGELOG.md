@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** track .env.example so it's available after clone `08a7f29`
 - **[CONFIG]** use deployNodeAgent: true to enable node-agent DaemonSet `12bc330`
 - **[CONFIG]** add control-plane toleration to node-agent DaemonSet `7383ee7`
 - **[CONFIG]** disable VolumeSnapshotLocation and enable defaultVolumesToFsBackup `8832401`
