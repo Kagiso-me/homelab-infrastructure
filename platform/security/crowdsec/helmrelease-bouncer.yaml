@@ -31,9 +31,7 @@ spec:
       targetPath: bouncer.crowdsec_bouncer_api_key
   values:
     bouncer:
-      crowdsecLapiScheme: http
-      # LAPI service: {{ .Release.Name }}-service where Release.Name = crowdsec
-      crowdsecLapiHost: crowdsec-service.crowdsec.svc.cluster.local:8080
-      # stream mode: bouncer caches decisions locally so brief LAPI downtime
-      # does not block traffic — operates from local cache until LAPI recovers.
-      crowdsecMode: stream
+      # LAPI service: crowdsec-service (Release.Name=crowdsec + chart naming convention)
+      crowdsec_agent_host: http://crowdsec-service.crowdsec.svc.cluster.local:8080
+      # stream mode: caches decisions locally, brief LAPI downtime does not block traffic
+      crowdsec_bouncer_mode: stream

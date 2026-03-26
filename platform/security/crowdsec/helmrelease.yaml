@@ -63,16 +63,19 @@ spec:
       env:
         - name: COLLECTIONS
           value: "crowdsecurity/traefik crowdsecurity/linux"
-      # Read logs from Traefik pods (parses HTTP access logs for threat detection)
-      # and Authentik pods (detects brute-force login attempts).
-      # Chart v0.22+ uses additionalAcquisition (singular) not acquisitions.
+      # Read pod logs from the host filesystem — works with any container runtime
+      # without needing socket access. k3s writes logs to /var/log/pods/.
       additionalAcquisition:
-        - namespace: ingress
-          podName: traefik-*
-          program: traefik
-        - namespace: auth
-          podName: authentik-server-*
-          program: authentik
+        - source: file
+          filenames:
+            - /var/log/pods/ingress_traefik-*/*/*.log
+          labels:
+            type: traefik
+        - source: file
+          filenames:
+            - /var/log/pods/auth_authentik-server-*/*/*.log
+          labels:
+            type: authentik
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
