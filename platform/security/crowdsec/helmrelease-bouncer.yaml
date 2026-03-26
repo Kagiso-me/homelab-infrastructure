@@ -32,6 +32,6 @@ spec:
   values:
     bouncer:
       # LAPI service: crowdsec-service (Release.Name=crowdsec + chart naming convention)
-      crowdsec_agent_host: http://crowdsec-service.crowdsec.svc.cluster.local:8080
+      crowdsec_agent_host: crowdsec-service.crowdsec.svc.cluster.local:8080
       # stream mode: caches decisions locally, brief LAPI downtime does not block traffic
       crowdsec_bouncer_mode: stream
