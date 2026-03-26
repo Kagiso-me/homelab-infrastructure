@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** remove http:// scheme from crowdsec_agent_host — bouncer prepends it `9e74e5f`
 - **[CONFIG]** correct bouncer service name and port in ForwardAuth middleware `e5baedf`
 - **[DEPLOY]** add comprehensive homelab overview Grafana dashboard `16537a1`
 - **[CONFIG]** use file source for acquisitions and snake_case bouncer values `bef2ca4`
