@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add Nextcloud deployment `b5f450b`
 - **[MAINTENANCE]** add Resend SMTP API key to secret `e6dca39`
 - **[DEPLOY]** configure Resend SMTP for transactional email `c8ef514`
 - **[CONFIG]** use job labels for external node queries in overview dashboard `61ad074`
