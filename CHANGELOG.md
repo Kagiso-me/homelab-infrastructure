@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** increase install timeout and probe delays for first-run DB setup `fda90d0`
 - **[CONFIG]** disable chart defaultConfigs for redis and reverse-proxy to prevent duplicate YAML keys `b674304`
 - **[CONFIG]** use cloud.kagiso.me hostname `24375b8`
 - **[CONFIG]** rename config keys to avoid collision with chart defaults `ddc3afb`
