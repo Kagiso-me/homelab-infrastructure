@@ -1,0 +1,124 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nextcloud
+  namespace: apps
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: nextcloud
+      version: ">=4.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: nextcloud
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  # Inject secrets as Helm values — keeps credentials out of this file.
+  valuesFrom:
+    - kind: Secret
+      name: nextcloud-secret
+      valuesKey: admin-password
+      targetPath: nextcloud.password
+    - kind: Secret
+      name: nextcloud-secret
+      valuesKey: postgresql-password
+      targetPath: externalDatabase.password
+    - kind: Secret
+      name: nextcloud-secret
+      valuesKey: smtp-password
+      targetPath: nextcloud.mail.smtp.password
+  values:
+    nextcloud:
+      host: nextcloud.kagiso.me
+      username: admin
+      # password injected via valuesFrom
+
+      # Redis password injected as env var; used in redis.config.php via getenv()
+      extraEnv:
+        - name: REDIS_HOST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nextcloud-secret
+              key: redis-password
+
+      configs:
+        # Reverse-proxy settings — required when running behind Traefik.
+        # trusted_proxies must cover the pod network so X-Forwarded-For is trusted.
+        reverse-proxy.config.php: |-
+          <?php
+          $CONFIG = array (
+            'overwriteprotocol' => 'https',
+            'overwritehost' => 'nextcloud.kagiso.me',
+            'trusted_proxies' => array('10.42.0.0/16'),
+            'forwarded_for_headers' => array('HTTP_X_FORWARDED_FOR'),
+          );
+        # Redis caching — use dbindex 1 to avoid key collisions with Authentik (uses 0).
+        redis.config.php: |-
+          <?php
+          $CONFIG = array (
+            'memcache.local' => '\OC\Memcache\APCu',
+            'memcache.distributed' => '\OC\Memcache\Redis',
+            'memcache.locking' => '\OC\Memcache\Redis',
+            'redis' => array(
+              'host' => 'redis-master.databases.svc.cluster.local',
+              'port' => 6379,
+              'password' => getenv('REDIS_HOST_PASSWORD'),
+              'dbindex' => 1,
+              'timeout' => 1.5,
+            ),
+          );
+
+      mail:
+        enabled: true
+        fromAddress: noreply
+        domain: kagiso.me
+        smtp:
+          host: smtp.resend.com
+          port: 587
+          secure: tls
+          authtype: LOGIN
+          name: resend
+          # password (Resend API key) injected via valuesFrom
+
+    # Bundled database disabled — using the shared central PostgreSQL instance.
+    # The 'nextcloud' database and user must be created before first deploy —
+    # see apps/base/nextcloud/README instructions.
+    internalDatabase:
+      enabled: false
+
+    externalDatabase:
+      enabled: true
+      type: postgresql
+      host: postgresql.databases.svc.cluster.local
+      database: nextcloud
+      user: nextcloud
+      # password injected via valuesFrom
+
+    # Bundled Redis disabled — using the shared central Redis instance.
+    redis:
+      enabled: false
+
+    persistence:
+      enabled: true
+      storageClass: nfs-truenas
+      accessMode: ReadWriteMany
+      size: 50Gi
+
+    # Disable built-in ingress — Traefik IngressRoute is used instead.
+    ingress:
+      enabled: false
+
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s
