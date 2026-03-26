@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** use HelmRepository apiVersion v1 for cluster compatibility `116021b`
 - **[MAINTENANCE]** re-encrypt CrowdSec bouncer API key `738832f`
 - **[MAINTENANCE]** encrypt CrowdSec bouncer API key `6293d2f`
 - **[MAINTENANCE]** encrypt CrowdSec bouncer API key `bd34cab`
