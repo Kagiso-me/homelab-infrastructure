@@ -74,7 +74,22 @@
       "Bash(ssh ktjea@bran \"flux reconcile kustomization platform-databases -n flux-system --with-source && kubectl get helmrelease -n databases\")",
       "Bash(ssh bran.local \"flux reconcile kustomization platform-databases -n flux-system --with-source && kubectl get helmrelease -n databases\")",
       "Bash(ssh -i ~/.ssh/kagiso-homelab-2025 kagiso@10.0.10.10 \"echo connected\")",
-      "Bash(ssh-add ~/.ssh/kagiso-homelab-2025)"
+      "Bash(ssh-add ~/.ssh/kagiso-homelab-2025)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(git -C \"c:\\\\Users\\\\ktjea\\\\OneDrive\\\\Documents\\\\Repos\\\\homelab-infrastructure\" remote get-url origin)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(powershell -Command \":*)",
+      "Bash(powershell -File /tmp/edit_guide06.ps1)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ktjea\\\\edit_guide06.ps1\")",
+      "Bash(mkdir -p c:/Users/ktjea/OneDrive/Documents/Repos/studio/canvas/docs)",
+      "Bash(mkdir -p c:/Users/ktjea/OneDrive/Documents/Repos/studio/canvas/src)",
+      "Bash(git -C c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure status)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ktjea\\\\fix_plan.ps1\")",
+      "Bash(powershell.exe -Command \":*)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ktjea\\\\splice_section10.ps1\")",
+      "Bash(git stash:*)"
     ]
   }
 }
