@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** run as www-data with NET_BIND_SERVICE to avoid NFS chown failures `47ce1c4`
 - **[DEPLOY]** overhaul Grafana dashboards and add Backblaze B2 monitoring `a17479b`
 - **[CONFIG]** increase install timeout and probe delays for first-run DB setup `fda90d0`
 - **[CONFIG]** disable chart defaultConfigs for redis and reverse-proxy to prevent duplicate YAML keys `b674304`
