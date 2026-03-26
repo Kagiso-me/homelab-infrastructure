@@ -1,0 +1,39 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik-bouncer
+  namespace: crowdsec
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: crowdsec-traefik-bouncer
+      version: ">=0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: crowdsec
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  # Inject the bouncer API key from the SOPS-encrypted secret.
+  # The key must match BOUNCER_KEY_traefik registered in the LAPI helmrelease.
+  valuesFrom:
+    - kind: Secret
+      name: crowdsec-secret
+      valuesKey: bouncer-api-key
+      targetPath: bouncer.crowdsecLapiKey
+  values:
+    bouncer:
+      crowdsecLapiScheme: http
+      # LAPI service: {{ .Release.Name }}-service where Release.Name = crowdsec
+      crowdsecLapiHost: crowdsec-service.crowdsec.svc.cluster.local:8080
+      # stream mode: bouncer caches decisions locally so brief LAPI downtime
+      # does not block traffic — operates from local cache until LAPI recovers.
+      crowdsecMode: stream

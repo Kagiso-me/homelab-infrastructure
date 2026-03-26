@@ -295,6 +295,35 @@ spec:
   dependsOn:
     - name: platform-upgrade
 ---
+# CrowdSec — community threat intelligence + Traefik ForwardAuth bouncer.
+# Deploys LAPI (decision engine), agent (log parser DaemonSet), and bouncer.
+# Must be deployed before apps so traffic flows through the ForwardAuth check.
+# Also must deploy before platform-networking applies the global entrypoint
+# middleware — see platform/networking/traefik/helmrelease.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-crowdsec
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/security/crowdsec
+  prune: true
+  wait: true
+  dependsOn:
+    - name: platform-namespaces
+    - name: platform-networking
+    - name: platform-storage
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
 # Authentik — SSO / identity provider for all cluster applications.
 # Must be fully ready before any app that delegates authentication to it.
 # Depends on namespaces (auth ns), networking-tls (IngressRoute + cert), storage.

@@ -1,0 +1,82 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: crowdsec
+      version: ">=0.9.0"
+      sourceRef:
+        kind: HelmRepository
+        name: crowdsec
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    # k3s uses containerd, not docker
+    container_runtime: containerd
+
+    lapi:
+      replicas: 1
+      # Pre-register the Traefik bouncer with a known API key so the
+      # bouncer can authenticate without a manual cscli step.
+      env:
+        - name: BOUNCER_KEY_traefik
+          valueFrom:
+            secretKeyRef:
+              name: crowdsec-secret
+              key: bouncer-api-key
+      persistentVolume:
+        # Stores CrowdSec decisions database (SQLite)
+        data:
+          enabled: true
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-truenas
+          size: 1Gi
+        # Stores hub collections, parsers, and scenarios
+        config:
+          enabled: true
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-truenas
+          size: 100Mi
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+
+    agent:
+      # Install hub collections at agent startup.
+      # crowdsecurity/traefik parses Traefik access logs.
+      # crowdsecurity/linux covers SSH, syslog, kernel events.
+      env:
+        - name: COLLECTIONS
+          value: "crowdsecurity/traefik crowdsecurity/linux"
+      # Read logs from Traefik pods (parses HTTP access logs for threat detection)
+      # and Authentik pods (detects brute-force login attempts).
+      acquisitions:
+        - namespace: ingress
+          podName: traefik-*
+          program: traefik
+        - namespace: auth
+          podName: authentik-server-*
+          program: authentik
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true

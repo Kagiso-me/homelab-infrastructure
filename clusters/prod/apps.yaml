@@ -17,6 +17,7 @@ spec:
     - name: platform-observability
     - name: platform-storage
     - name: platform-authentik
+    - name: platform-crowdsec
   decryption:
     provider: sops
     secretRef:

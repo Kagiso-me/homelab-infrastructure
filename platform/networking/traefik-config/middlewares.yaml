@@ -31,3 +31,21 @@ spec:
     regex: ^(https?://[^/]+/[^?]*)/$
     replacement: ${1}
     permanent: true
+---
+# CrowdSec ForwardAuth — checks each request against the CrowdSec decision list
+# before routing to the backend. Applied globally to the websecure entrypoint via
+# platform/networking/traefik/helmrelease.yaml (ports.websecure.middlewares).
+#
+# The bouncer runs in stream mode and caches decisions locally, so brief LAPI
+# downtime does not block traffic. Reference from IngressRoute (cross-namespace):
+#   middlewares:
+#     - name: ingress-crowdsec-bouncer@kubernetescrd
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: crowdsec-bouncer
+  namespace: ingress
+spec:
+  forwardAuth:
+    address: http://traefik-bouncer.crowdsec.svc.cluster.local:8080/api/v1/forwardAuth
+    trustForwardHeader: true
