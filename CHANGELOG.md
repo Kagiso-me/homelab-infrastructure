@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** configure Resend SMTP for transactional email `c8ef514`
 - **[CONFIG]** use job labels for external node queries in overview dashboard `61ad074`
 - **[DEPLOY]** add CrowdSec security dashboard with geo threat map `7098963`
 - **[CONFIG]** remove http:// scheme from crowdsec_agent_host — bouncer prepends it `9e74e5f`
