@@ -8,4 +8,5 @@ resources:
   - grafana-dashboard-postgresql.yaml
   - grafana-dashboard-redis.yaml
   - grafana-dashboard-authentik.yaml
+  - grafana-dashboard-crowdsec.yaml
   - prometheus-rules-apps.yaml

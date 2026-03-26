@@ -1,0 +1,236 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-crowdsec
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Security"
+data:
+  crowdsec.json: |
+    {
+      "title": "CrowdSec",
+      "uid": "crowdsec-security",
+      "description": "CrowdSec — active bans, decisions, attack scenarios, and threat geo origins",
+      "tags": ["security", "crowdsec"],
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "1m",
+      "time": {"from": "now-24h", "to": "now"},
+      "timepicker": {},
+      "graphTooltip": 1,
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "refresh": 1,
+            "current": {},
+            "hide": 0
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Active Bans",
+          "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 100}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "sum(cs_active_decisions)", "legendFormat": "bans", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "New Decisions (1h)",
+          "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "increase(cs_active_decisions[1h])", "legendFormat": "new decisions", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Alerts (24h)",
+          "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "increase(cs_buckets_overflow_total[24h])", "legendFormat": "alerts", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "LAPI Status",
+          "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "up{job=~\".*crowdsec.*lapi.*\"}", "legendFormat": "lapi", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Agents Online",
+          "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "count(up{job=~\".*crowdsec.*agent.*\"} == 1)", "legendFormat": "agents", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Bouncer Auth Requests (1h)",
+          "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
+          "targets": [{"expr": "increase(gin_requests_total{job=~\".*bouncer.*\"}[1h]) or vector(0)", "legendFormat": "bouncer requests", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Active Bans Over Time",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "sum(cs_active_decisions)", "legendFormat": "active bans", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "New Decisions Rate",
+          "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "rate(cs_buckets_overflow_total[5m])", "legendFormat": "decisions/s", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Parser Success Rate",
+          "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "rate(cs_parsers_hits_ok_total[5m])", "legendFormat": "{{parser}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 10,
+          "type": "barchart",
+          "title": "Top Attack Scenarios",
+          "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10}}},
+          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "targets": [
+            {"expr": "topk(10, sum by (name) (cs_buckets_overflow_total))", "legendFormat": "{{name}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 11,
+          "type": "geomap",
+          "title": "Threat Origins",
+          "gridPos": {"x": 0, "y": 32, "w": 24, "h": 12},
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "options": {
+            "view": {"id": "zero", "lat": 20, "lon": 0, "zoom": 1.5},
+            "controls": {"showZoom": true, "mouseWheelZoom": true, "showAttribution": true, "showScale": false},
+            "basemap": {"type": "default", "name": "Basemap"},
+            "layers": [
+              {
+                "type": "choropleth",
+                "name": "Countries",
+                "config": {
+                  "style": {
+                    "colorScale": "interpolateOrRd",
+                    "colorField": {"fixed": "Value"},
+                    "opacity": 0.6,
+                    "fillOpacity": 0.7
+                  }
+                },
+                "location": {
+                  "mode": "lookup",
+                  "lookupField": "country",
+                  "gazetteer": "public/gazetteer/countries.json"
+                }
+              }
+            ],
+            "tooltip": {"mode": "details"}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {"hideFrom": {"legend": false, "tooltip": false, "viz": false}},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "yellow", "value": null}, {"color": "orange", "value": 5}, {"color": "red", "value": 25}]},
+              "color": {"mode": "thresholds"}
+            }
+          },
+          "targets": [
+            {"expr": "sum by (country) (cs_active_decisions{country!=\"\"})", "legendFormat": "{{country}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 12,
+          "type": "text",
+          "title": "",
+          "gridPos": {"x": 0, "y": 44, "w": 24, "h": 3},
+          "options": {
+            "mode": "markdown",
+            "content": "**Note:** The geo map requires CrowdSec to be performing GeoIP enrichment. If the map is empty, the `country` label may not be present in `cs_active_decisions` — this is normal on first deploy. The map will populate as the community blocklist downloads and active decisions are made."
+          }
+        }
+      ]
+    }
