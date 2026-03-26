@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** correct bouncer service name and port in ForwardAuth middleware `e5baedf`
 - **[DEPLOY]** add comprehensive homelab overview Grafana dashboard `16537a1`
 - **[CONFIG]** use file source for acquisitions and snake_case bouncer values `bef2ca4`
 - **[CONFIG]** correct acquisitions key and bouncer API key value path `679cce4`
