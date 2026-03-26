@@ -65,7 +65,8 @@ spec:
           value: "crowdsecurity/traefik crowdsecurity/linux"
       # Read logs from Traefik pods (parses HTTP access logs for threat detection)
       # and Authentik pods (detects brute-force login attempts).
-      acquisitions:
+      # Chart v0.22+ uses additionalAcquisition (singular) not acquisitions.
+      additionalAcquisition:
         - namespace: ingress
           podName: traefik-*
           program: traefik

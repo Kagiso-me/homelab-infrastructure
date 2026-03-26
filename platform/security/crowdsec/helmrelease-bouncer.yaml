@@ -28,7 +28,7 @@ spec:
     - kind: Secret
       name: crowdsec-secret
       valuesKey: bouncer-api-key
-      targetPath: bouncer.crowdsecLapiKey
+      targetPath: bouncer.crowdsec_bouncer_api_key
   values:
     bouncer:
       crowdsecLapiScheme: http
