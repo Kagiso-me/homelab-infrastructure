@@ -50,10 +50,14 @@ spec:
               name: nextcloud-secret
               key: redis-password
 
+      # Disable chart's auto-generated redis/proxy configs — we provide our own below.
+      defaultConfigs:
+        redis.config.php: false
+        reverse-proxy.config.php: false
+
       configs:
         # Reverse-proxy settings — required when running behind Traefik.
         # trusted_proxies must cover the pod network so X-Forwarded-For is trusted.
-        # z- prefix ensures these load after chart defaults (alphabetical order).
         z-reverse-proxy.config.php: |-
           <?php
           $CONFIG = array (
