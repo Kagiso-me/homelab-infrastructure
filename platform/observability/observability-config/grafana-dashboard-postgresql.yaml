@@ -15,7 +15,7 @@ data:
       "description": "PostgreSQL performance — connections, transactions, cache hit ratio, locks, and database sizes",
       "tags": ["databases", "postgresql"],
       "schemaVersion": 38,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {"from": "now-3h", "to": "now"},
       "timepicker": {},
@@ -35,10 +35,19 @@ data:
       },
       "panels": [
         {
+          "id": 100,
+          "type": "row",
+          "title": "Status",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+          "panels": []
+        },
+        {
           "id": 1,
           "type": "stat",
           "title": "PostgreSQL Status",
-          "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+          "description": "Whether the PostgreSQL exporter is reachable by Prometheus.",
+          "gridPos": {"x": 0, "y": 1, "w": 4, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
@@ -46,158 +55,323 @@ data:
                 {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
               ],
               "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
-          "targets": [{"expr": "pg_up{job=~\".*postgresql.*\"}", "legendFormat": "status", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "background",
+            "textMode": "auto",
+            "graphMode": "none",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "pg_up{job=~\".*postgresql.*\"}", "legendFormat": "status", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 2,
           "type": "stat",
           "title": "Active Connections",
-          "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+          "description": "Total active client connections across all non-system databases.",
+          "gridPos": {"x": 4, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
+              "unit": "short",
+              "decimals": 0,
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 80}]},
               "color": {"mode": "thresholds"},
-              "unit": "short"
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "area"},
-          "targets": [{"expr": "sum(pg_stat_database_numbackends{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"})", "legendFormat": "connections", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "value",
+            "textMode": "auto",
+            "graphMode": "area",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "sum(pg_stat_database_numbackends{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"})", "legendFormat": "connections", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 3,
           "type": "gauge",
           "title": "Cache Hit Ratio",
-          "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+          "description": "Fraction of disk block reads satisfied from shared_buffers. Below 95% suggests insufficient shared_buffers.",
+          "gridPos": {"x": 9, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
-              "min": 0, "max": 1,
+              "min": 0,
+              "max": 1,
               "unit": "percentunit",
               "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.9}, {"color": "green", "value": 0.95}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true},
-          "targets": [{"expr": "sum(pg_stat_database_blks_hit{job=~\".*postgresql.*\"}) / (sum(pg_stat_database_blks_hit{job=~\".*postgresql.*\"}) + sum(pg_stat_database_blks_read{job=~\".*postgresql.*\"}) + 1)", "legendFormat": "hit ratio", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {"expr": "sum(pg_stat_database_blks_hit{job=~\".*postgresql.*\"}) / (sum(pg_stat_database_blks_hit{job=~\".*postgresql.*\"}) + sum(pg_stat_database_blks_read{job=~\".*postgresql.*\"}) + 1)", "legendFormat": "hit ratio", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 4,
           "type": "stat",
           "title": "Transactions / sec",
-          "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+          "description": "Combined commit and rollback rate across all non-system databases.",
+          "gridPos": {"x": 14, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
               "unit": "ops",
+              "decimals": 1,
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "fixed", "fixedColor": "#5794F2"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "area"},
-          "targets": [{"expr": "sum(rate(pg_stat_database_xact_commit{job=~\".*postgresql.*\"}[5m])) + sum(rate(pg_stat_database_xact_rollback{job=~\".*postgresql.*\"}[5m]))", "legendFormat": "tps", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "value",
+            "textMode": "auto",
+            "graphMode": "area",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "sum(rate(pg_stat_database_xact_commit{job=~\".*postgresql.*\"}[5m])) + sum(rate(pg_stat_database_xact_rollback{job=~\".*postgresql.*\"}[5m]))", "legendFormat": "tps", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 5,
           "type": "stat",
           "title": "Uptime",
-          "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+          "description": "Time since PostgreSQL postmaster started.",
+          "gridPos": {"x": 19, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
               "unit": "s",
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "fixed", "fixedColor": "#73BF69"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "none"},
-          "targets": [{"expr": "time() - pg_postmaster_start_time_seconds{job=~\".*postgresql.*\"}", "legendFormat": "uptime", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "value",
+            "textMode": "auto",
+            "graphMode": "none",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "time() - pg_postmaster_start_time_seconds{job=~\".*postgresql.*\"}", "legendFormat": "uptime", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 101,
+          "type": "row",
+          "title": "Activity",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 6, "w": 24, "h": 1},
+          "panels": []
         },
         {
           "id": 6,
           "type": "timeseries",
           "title": "Connections by Database",
-          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+          "description": "Active backend connections broken down per database.",
+          "gridPos": {"x": 0, "y": 7, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
-          "targets": [{"expr": "pg_stat_database_numbackends{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {"expr": "pg_stat_database_numbackends{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 7,
           "type": "timeseries",
           "title": "Transactions / sec",
-          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+          "description": "Commit and rollback rate per database over time.",
+          "gridPos": {"x": 12, "y": 7, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "ops", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (datname) (rate(pg_stat_database_xact_commit{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "commit {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "sum by (datname) (rate(pg_stat_database_xact_rollback{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "rollback {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
           ]
         },
         {
+          "id": 102,
+          "type": "row",
+          "title": "Storage",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 16, "w": 24, "h": 1},
+          "panels": []
+        },
+        {
           "id": 8,
           "type": "bargauge",
           "title": "Database Sizes",
-          "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+          "description": "On-disk size of each database. Yellow >1 GiB, red >5 GiB.",
+          "gridPos": {"x": 0, "y": 17, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "bytes", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 5368709120}]}, "color": {"mode": "thresholds"}}
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 5368709120}]},
+              "color": {"mode": "thresholds"}
+            }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "horizontal", "displayMode": "gradient"},
-          "targets": [{"expr": "pg_database_size_bytes{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "horizontal",
+            "displayMode": "gradient"
+          },
+          "targets": [
+            {"expr": "pg_database_size_bytes{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 9,
           "type": "timeseries",
           "title": "Deadlocks",
-          "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+          "description": "Rate of deadlocks detected per database. Any sustained rate above zero warrants investigation.",
+          "gridPos": {"x": 12, "y": 17, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10},
-              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]},
-              "color": {"mode": "thresholds"}
+            "defaults": {
+              "unit": "short",
+              "decimals": 2,
+              "min": 0,
+              "color": {"mode": "palette-classic"},
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
             }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
-          "targets": [{"expr": "rate(pg_stat_database_deadlocks{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m])", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {"expr": "rate(pg_stat_database_deadlocks{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m])", "legendFormat": "{{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 10,
           "type": "timeseries",
           "title": "Block I/O Latency",
-          "description": "Time spent reading and writing disk blocks. High values indicate storage pressure.",
-          "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+          "description": "Time spent reading and writing disk blocks per database. High values indicate storage pressure.",
+          "gridPos": {"x": 0, "y": 25, "w": 24, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "ms", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "ms",
+              "decimals": 2,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (datname) (rate(pg_stat_database_blk_read_time{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "read {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "sum by (datname) (rate(pg_stat_database_blk_write_time{job=~\".*postgresql.*\", datname!~\"template.*|postgres\"}[5m]))", "legendFormat": "write {{datname}}", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
           ]
         },
         {
+          "id": 103,
+          "type": "row",
+          "title": "Resources",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 33, "w": 24, "h": 1},
+          "panels": []
+        },
+        {
           "id": 11,
           "type": "timeseries",
           "title": "Pod CPU Usage",
           "description": "Actual CPU usage vs configured request (250m). Use to right-size resource requests.",
-          "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+          "gridPos": {"x": 0, "y": 34, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "cores", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "cores",
+              "decimals": 3,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byRegexp", "options": ".* \\(request\\)"},
+                "properties": [
+                  {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}},
+                  {"id": "custom.fillOpacity", "value": 0}
+                ]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"databases\", pod=~\"postgresql.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"postgresql.*\", container=\"postgresql\", resource=\"cpu\"}", "legendFormat": "postgresql (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
@@ -208,12 +382,34 @@ data:
           "type": "timeseries",
           "title": "Pod Memory Usage",
           "description": "Actual memory working set vs configured request (256Mi). Use to right-size resource requests.",
-          "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+          "gridPos": {"x": 12, "y": 34, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "bytes",
+              "decimals": 1,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byRegexp", "options": ".* \\(request\\)"},
+                "properties": [
+                  {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}},
+                  {"id": "custom.fillOpacity", "value": 0}
+                ]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"databases\", pod=~\"postgresql.*\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"postgresql.*\", container=\"postgresql\", resource=\"memory\"}", "legendFormat": "postgresql (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}

@@ -15,7 +15,7 @@ data:
       "description": "Redis performance — clients, memory, operations, hit ratio, and latency",
       "tags": ["databases", "redis"],
       "schemaVersion": 38,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {"from": "now-3h", "to": "now"},
       "timepicker": {},
@@ -35,10 +35,19 @@ data:
       },
       "panels": [
         {
+          "id": 100,
+          "type": "row",
+          "title": "Status",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+          "panels": []
+        },
+        {
           "id": 1,
           "type": "stat",
           "title": "Redis Status",
-          "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+          "description": "Whether the Redis exporter is reachable by Prometheus.",
+          "gridPos": {"x": 0, "y": 1, "w": 4, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
@@ -46,100 +55,202 @@ data:
                 {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}
               ],
               "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "textMode": "auto", "graphMode": "none"},
-          "targets": [{"expr": "redis_up{job=~\".*redis.*\"}", "legendFormat": "status", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "background",
+            "textMode": "auto",
+            "graphMode": "none",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "redis_up{job=~\".*redis.*\"}", "legendFormat": "status", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 2,
           "type": "stat",
           "title": "Connected Clients",
-          "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+          "description": "Number of clients currently connected to Redis.",
+          "gridPos": {"x": 4, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
               "unit": "short",
+              "decimals": 0,
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "area"},
-          "targets": [{"expr": "redis_connected_clients{job=~\".*redis.*\"}", "legendFormat": "clients", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "value",
+            "textMode": "auto",
+            "graphMode": "area",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "redis_connected_clients{job=~\".*redis.*\"}", "legendFormat": "clients", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 3,
           "type": "gauge",
           "title": "Memory Usage",
-          "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+          "description": "Redis memory used as a fraction of the configured maxmemory limit.",
+          "gridPos": {"x": 9, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
-              "min": 0, "max": 1,
+              "min": 0,
+              "max": 1,
               "unit": "percentunit",
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.9}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true},
-          "targets": [{"expr": "redis_memory_used_bytes{job=~\".*redis.*\"} / (redis_memory_max_bytes{job=~\".*redis.*\"} > 0 or redis_memory_used_bytes{job=~\".*redis.*\"} * 2)", "legendFormat": "used", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {"expr": "redis_memory_used_bytes{job=~\".*redis.*\"} / (redis_memory_max_bytes{job=~\".*redis.*\"} > 0 or redis_memory_used_bytes{job=~\".*redis.*\"} * 2)", "legendFormat": "used", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 4,
           "type": "stat",
           "title": "Commands / sec",
-          "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+          "description": "Rate of commands processed by Redis over the last 5 minutes.",
+          "gridPos": {"x": 14, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
               "unit": "ops",
+              "decimals": 1,
               "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "fixed", "fixedColor": "#5794F2"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "textMode": "auto", "graphMode": "area"},
-          "targets": [{"expr": "rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m])", "legendFormat": "ops/s", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "colorMode": "value",
+            "textMode": "auto",
+            "graphMode": "area",
+            "justifyMode": "center"
+          },
+          "targets": [
+            {"expr": "rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m])", "legendFormat": "ops/s", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 5,
           "type": "gauge",
           "title": "Hit Ratio",
-          "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+          "description": "Keyspace hit ratio — fraction of lookups that found a key. Below 90% indicates cache pressure.",
+          "gridPos": {"x": 19, "y": 1, "w": 5, "h": 5},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
             "defaults": {
-              "min": 0, "max": 1,
+              "min": 0,
+              "max": 1,
               "unit": "percentunit",
               "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.7}, {"color": "green", "value": 0.9}]},
-              "color": {"mode": "thresholds"}
+              "color": {"mode": "thresholds"},
+              "noValue": "N/A"
             }
           },
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true},
-          "targets": [{"expr": "redis_keyspace_hits_total{job=~\".*redis.*\"} / (redis_keyspace_hits_total{job=~\".*redis.*\"} + redis_keyspace_misses_total{job=~\".*redis.*\"} + 1)", "legendFormat": "hit ratio", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {"expr": "redis_keyspace_hits_total{job=~\".*redis.*\"} / (redis_keyspace_hits_total{job=~\".*redis.*\"} + redis_keyspace_misses_total{job=~\".*redis.*\"} + 1)", "legendFormat": "hit ratio", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 101,
+          "type": "row",
+          "title": "Performance",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 6, "w": 24, "h": 1},
+          "panels": []
         },
         {
           "id": 6,
           "type": "timeseries",
           "title": "Commands / sec",
-          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+          "description": "Rate of commands processed by Redis.",
+          "gridPos": {"x": 0, "y": 7, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "ops", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "ops",
+              "decimals": 1,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
-          "targets": [{"expr": "rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m])", "legendFormat": "ops/s", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {"expr": "rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m])", "legendFormat": "ops/s", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
         },
         {
           "id": 7,
           "type": "timeseries",
           "title": "Memory Used",
-          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+          "description": "Redis memory consumption vs configured maximum.",
+          "gridPos": {"x": 12, "y": 7, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "bytes",
+              "decimals": 1,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "used"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#FF9830"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "max"},
+                "properties": [
+                  {"id": "color", "value": {"mode": "fixed", "fixedColor": "#F2495C"}},
+                  {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}}
+                ]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "redis_memory_used_bytes{job=~\".*redis.*\"}", "legendFormat": "used", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "redis_memory_max_bytes{job=~\".*redis.*\"} > 0", "legendFormat": "max", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
@@ -149,12 +260,36 @@ data:
           "id": 8,
           "type": "timeseries",
           "title": "Connected Clients",
-          "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+          "description": "Total connected clients vs blocked clients waiting on a blocking command.",
+          "gridPos": {"x": 0, "y": 16, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "short", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "clients"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#5794F2"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "blocked"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#FF9830"}}]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "redis_connected_clients{job=~\".*redis.*\"}", "legendFormat": "clients", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "redis_blocked_clients{job=~\".*redis.*\"}", "legendFormat": "blocked", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
@@ -164,25 +299,71 @@ data:
           "id": 9,
           "type": "timeseries",
           "title": "Command Latency (avg)",
-          "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+          "description": "Average time to execute a command in microseconds.",
+          "gridPos": {"x": 12, "y": 16, "w": 12, "h": 9},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "µs", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "µs",
+              "decimals": 2,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            }
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
-          "targets": [{"expr": "rate(redis_commands_duration_seconds_total{job=~\".*redis.*\"}[5m]) / rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m]) * 1e6", "legendFormat": "avg latency", "datasource": {"type": "prometheus", "uid": "${datasource}"}}]
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {"expr": "rate(redis_commands_duration_seconds_total{job=~\".*redis.*\"}[5m]) / rate(redis_commands_processed_total{job=~\".*redis.*\"}[5m]) * 1e6", "legendFormat": "avg latency", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
+          ]
+        },
+        {
+          "id": 102,
+          "type": "row",
+          "title": "Resources",
+          "collapsed": false,
+          "gridPos": {"x": 0, "y": 25, "w": 24, "h": 1},
+          "panels": []
         },
         {
           "id": 10,
           "type": "timeseries",
           "title": "Pod CPU Usage",
           "description": "Actual CPU usage vs configured request (100m). Use to right-size resource requests.",
-          "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+          "gridPos": {"x": 0, "y": 26, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "cores", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "cores",
+              "decimals": 3,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byRegexp", "options": ".* \\(request\\)"},
+                "properties": [
+                  {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}},
+                  {"id": "custom.fillOpacity", "value": 0}
+                ]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"databases\", pod=~\"redis.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"redis.*\", container=\"redis\", resource=\"cpu\"}", "legendFormat": "redis (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}
@@ -193,12 +374,34 @@ data:
           "type": "timeseries",
           "title": "Pod Memory Usage",
           "description": "Actual memory working set vs configured request (128Mi). Use to right-size resource requests.",
-          "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+          "gridPos": {"x": 12, "y": 26, "w": 12, "h": 8},
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "fieldConfig": {
-            "defaults": {"unit": "bytes", "custom": {"lineWidth": 2, "fillOpacity": 10}}
+            "defaults": {
+              "unit": "bytes",
+              "decimals": 1,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byRegexp", "options": ".* \\(request\\)"},
+                "properties": [
+                  {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 4]}},
+                  {"id": "custom.fillOpacity", "value": 0}
+                ]
+              }
+            ]
           },
-          "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
           "targets": [
             {"expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"databases\", pod=~\"redis.*\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{container}} (actual)", "datasource": {"type": "prometheus", "uid": "${datasource}"}},
             {"expr": "kube_pod_container_resource_requests{namespace=\"databases\", pod=~\"redis.*\", container=\"redis\", resource=\"memory\"}", "legendFormat": "redis (request)", "datasource": {"type": "prometheus", "uid": "${datasource}"}}

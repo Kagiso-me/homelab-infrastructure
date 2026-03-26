@@ -31,9 +31,42 @@ data:
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
       "links": [],
+      "refresh": "5m",
+      "schemaVersion": 39,
+      "tags": ["backups", "homelab"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "Prometheus", "value": "prometheus"},
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "type": "datasource"
+          }
+        ]
+      },
+      "time": {"from": "now-24h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Backup Overview",
+      "uid": "homelab-backups",
+      "version": 2,
       "panels": [
         {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "id": 100,
+          "title": "Backup Jobs",
+          "type": "row"
+        },
+        {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of backup jobs currently reporting a failure status.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -50,11 +83,13 @@ data:
                   {"color": "red", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 1},
           "id": 1,
           "options": {
             "colorMode": "background",
@@ -79,6 +114,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of backup jobs currently sending metrics to Prometheus.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -95,11 +131,13 @@ data:
                   {"color": "green", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 1},
           "id": 2,
           "options": {
             "colorMode": "background",
@@ -124,6 +162,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Age of the most stale backup across all jobs. Yellow >20h, red >25h.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -136,11 +175,12 @@ data:
                   {"color": "red", "value": 90000}
                 ]
               },
-              "unit": "s"
+              "unit": "s",
+              "noValue": "N/A"
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 1},
           "id": 3,
           "options": {
             "colorMode": "background",
@@ -165,6 +205,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total backup failures recorded across all jobs in the last 24 hours.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -181,11 +222,13 @@ data:
                   {"color": "red", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 1},
           "id": 4,
           "options": {
             "colorMode": "background",
@@ -307,7 +350,7 @@ data:
               }
             ]
           },
-          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 4},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 6},
           "id": 5,
           "options": {
             "cellHeight": "md",
@@ -383,6 +426,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Time since each job's last successful run. Green <20h, yellow <25h, red >25h.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -401,7 +445,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
           "id": 6,
           "options": {
             "displayMode": "lcd",
@@ -426,6 +470,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Size of the most recent backup archive per job.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -443,7 +488,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
           "id": 7,
           "options": {
             "displayMode": "lcd",
@@ -468,37 +513,21 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "How long each backup job takes to complete over time.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "palette-classic"},
               "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {"legend": false, "tooltip": false, "viz": false},
-                "insertNulls": false,
-                "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "pointSize": 5,
-                "scaleDistribution": {"type": "linear"},
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {"group": "A", "mode": "none"},
-                "thresholdsStyle": {"mode": "off"}
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
               },
-              "mappings": [],
-              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
               "unit": "s"
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 22},
+          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 24},
           "id": 8,
           "options": {
             "legend": {"calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true},
@@ -517,6 +546,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Cumulative failure count per backup job.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -538,7 +568,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 22},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24},
           "id": 9,
           "options": {
             "displayMode": "lcd",
@@ -563,13 +593,14 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
           "id": 10,
           "title": "Velero Cluster Backups",
           "type": "row"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Time since the last successful Velero cluster backup. Yellow >25h, red >30h.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -582,12 +613,18 @@ data:
                   {"color": "red", "value": 108000}
                 ]
               },
-              "unit": "s"
+              "unit": "s",
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 31},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 33},
           "id": 11,
-          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -602,6 +639,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of successful Velero cluster backups in the last 7 days.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -613,12 +651,19 @@ data:
                   {"color": "green", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 4, "w": 4, "x": 6, "y": 31},
+          "gridPos": {"h": 5, "w": 4, "x": 6, "y": 33},
           "id": 12,
-          "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -633,6 +678,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of failed Velero cluster backups in the last 7 days.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -644,12 +690,19 @@ data:
                   {"color": "red", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 4, "w": 4, "x": 10, "y": 31},
+          "gridPos": {"h": 5, "w": 4, "x": 10, "y": 33},
           "id": 13,
-          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -664,6 +717,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of Velero node-agent DaemonSet pods in Ready state.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -676,12 +730,19 @@ data:
                   {"color": "green", "value": 3}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 4, "w": 4, "x": 14, "y": 31},
+          "gridPos": {"h": 5, "w": 4, "x": 14, "y": 33},
           "id": 14,
-          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -696,6 +757,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Time since the postgresql-backup CronJob last ran.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -708,12 +770,18 @@ data:
                   {"color": "red", "value": 108000}
                 ]
               },
-              "unit": "s"
+              "unit": "s",
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 31},
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 33},
           "id": 15,
-          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -728,18 +796,24 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Average Velero cluster backup duration over time.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "palette-classic"},
-              "custom": {"lineWidth": 2, "fillOpacity": 10},
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 300000
+              },
               "unit": "s"
             }
           },
-          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 35},
+          "gridPos": {"h": 8, "w": 16, "x": 0, "y": 38},
           "id": 16,
           "options": {
-            "legend": {"displayMode": "list", "placement": "bottom"},
-            "tooltip": {"mode": "multi"}
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["last", "max"]},
+            "tooltip": {"mode": "multi", "sort": "desc"}
           },
           "targets": [
             {
@@ -754,6 +828,7 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total number of backup objects currently stored in object storage.",
           "fieldConfig": {
             "defaults": {
               "color": {"mode": "thresholds"},
@@ -765,12 +840,19 @@ data:
                   {"color": "green", "value": 1}
                 ]
               },
-              "unit": "short"
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
             }
           },
-          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 35},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 38},
           "id": 17,
-          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -782,31 +864,221 @@ data:
           ],
           "title": "Backup Objects in Storage",
           "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 46},
+          "id": 200,
+          "title": "Backblaze B2",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Status of the last TrueNAS Cloud Sync to Backblaze B2. Syncs daily at 04:00.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"type": "value", "options": {"0": {"text": "FAILED", "color": "red"}, "1": {"text": "SYNCED", "color": "green"}}}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+              "noValue": "N/A"
+            }
+          },
+          "gridPos": {"h": 5, "w": 5, "x": 0, "y": 47},
+          "id": 201,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "backup_job_status{job=\"truenas-b2-sync\"}",
+              "instant": true,
+              "legendFormat": "B2 Sync",
+              "refId": "A"
+            }
+          ],
+          "title": "B2 Sync Status",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Time since the last successful TrueNAS → B2 cloud sync. Yellow >25h, red >30h.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 90000},
+                  {"color": "red", "value": 108000}
+                ]
+              },
+              "unit": "s",
+              "noValue": "N/A"
+            }
+          },
+          "gridPos": {"h": 5, "w": 7, "x": 5, "y": 47},
+          "id": 202,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "time() - backup_last_success_timestamp{job=\"truenas-b2-sync\"}",
+              "instant": true,
+              "legendFormat": "age",
+              "refId": "A"
+            }
+          ],
+          "title": "Time Since Last B2 Sync",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total size of all files currently stored in the Backblaze B2 bucket. Updated once per day after the sync completes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "#5794F2"},
+              "unit": "bytes",
+              "noValue": "N/A"
+            }
+          },
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 47},
+          "id": 203,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "b2_bucket_size_bytes{bucket=\"homelab-truenas-backup\"}",
+              "legendFormat": "size",
+              "refId": "A"
+            }
+          ],
+          "title": "Bucket Size",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total number of files currently stored in the Backblaze B2 bucket.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "fixed", "fixedColor": "#5794F2"},
+              "unit": "short",
+              "decimals": 0,
+              "noValue": "N/A"
+            }
+          },
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 47},
+          "id": 204,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "b2_bucket_file_count{bucket=\"homelab-truenas-backup\"}",
+              "legendFormat": "files",
+              "refId": "A"
+            }
+          ],
+          "title": "Bucket File Count",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Backblaze B2 bucket growth over time. Updated once per day when b2-sync-metrics.sh runs after the nightly sync.",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 86400000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "size"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#5794F2"}}]
+              }
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 52},
+          "id": 205,
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "b2_bucket_size_bytes{bucket=\"homelab-truenas-backup\"}",
+              "legendFormat": "size",
+              "refId": "A"
+            }
+          ],
+          "title": "B2 Bucket Size — Growth",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of files in the B2 bucket over time.",
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "min": 0,
+              "custom": {
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "spanNulls": 86400000
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "files"},
+                "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#73BF69"}}]
+              }
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 52},
+          "id": 206,
+          "options": {
+            "tooltip": {"mode": "multi", "sort": "desc"},
+            "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "b2_bucket_file_count{bucket=\"homelab-truenas-backup\"}",
+              "legendFormat": "files",
+              "refId": "A"
+            }
+          ],
+          "title": "B2 Bucket File Count — Trend",
+          "type": "timeseries"
         }
-      ],
-      "refresh": "5m",
-      "schemaVersion": 39,
-      "tags": ["backups", "homelab"],
-      "templating": {
-        "list": [
-          {
-            "current": {"selected": false, "text": "Prometheus", "value": "prometheus"},
-            "hide": 0,
-            "includeAll": false,
-            "multi": false,
-            "name": "datasource",
-            "options": [],
-            "query": "prometheus",
-            "refresh": 1,
-            "regex": "",
-            "type": "datasource"
-          }
-        ]
-      },
-      "time": {"from": "now-24h", "to": "now"},
-      "timepicker": {},
-      "timezone": "browser",
-      "title": "Backup Overview",
-      "uid": "homelab-backups",
-      "version": 1
+      ]
     }
