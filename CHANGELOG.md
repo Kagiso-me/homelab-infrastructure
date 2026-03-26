@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** rename config keys to avoid collision with chart defaults `ddc3afb`
 - **[DEPLOY]** add encrypted Nextcloud secret `7cdd54d`
 - **[DEPLOY]** add Nextcloud deployment `b5f450b`
 - **[MAINTENANCE]** add Resend SMTP API key to secret `e6dca39`
