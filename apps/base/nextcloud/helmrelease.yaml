@@ -53,7 +53,8 @@ spec:
       configs:
         # Reverse-proxy settings — required when running behind Traefik.
         # trusted_proxies must cover the pod network so X-Forwarded-For is trusted.
-        reverse-proxy.config.php: |-
+        # z- prefix ensures these load after chart defaults (alphabetical order).
+        z-reverse-proxy.config.php: |-
           <?php
           $CONFIG = array (
             'overwriteprotocol' => 'https',
@@ -62,7 +63,7 @@ spec:
             'forwarded_for_headers' => array('HTTP_X_FORWARDED_FOR'),
           );
         # Redis caching — use dbindex 1 to avoid key collisions with Authentik (uses 0).
-        redis.config.php: |-
+        z-redis.config.php: |-
           <?php
           $CONFIG = array (
             'memcache.local' => '\OC\Memcache\APCu',
