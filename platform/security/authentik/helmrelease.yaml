@@ -36,6 +36,10 @@ spec:
       name: authentik-secret
       valuesKey: redis-password
       targetPath: authentik.redis.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: smtp-password
+      targetPath: authentik.email.password
   values:
     authentik:
       error_reporting:
@@ -53,6 +57,15 @@ spec:
       redis:
         host: redis-master.databases.svc.cluster.local
         # password injected via valuesFrom
+      email:
+        host: smtp.resend.com
+        port: 587
+        use_tls: true
+        use_ssl: false
+        from: noreply@kagiso.me
+        username: resend
+        timeout: 30
+        # password (Resend API key) injected via valuesFrom
 
     global:
       # Bootstrap admin account — only applied on first startup.
