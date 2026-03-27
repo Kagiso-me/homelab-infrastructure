@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add daily homelab digest CronJob `0d9a041`
 - **[DEPLOY]** add Discord webhook URLs to secret `b5d1c2b`
 - **[DEPLOY]** add CoreDNS split-horizon for kagiso.me `d98585c`
 - **[CONFIG]** enable OIDC user auto-registration `9f44645`
