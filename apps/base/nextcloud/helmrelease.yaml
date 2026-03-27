@@ -182,6 +182,14 @@ spec:
     ingress:
       enabled: false
 
+    # Route auth.kagiso.me directly to Traefik inside the cluster, bypassing
+    # Cloudflare. Without this, PHP curl hits a 301 redirect loop (Cloudflare
+    # flexible SSL forwards HTTP to origin, origin redirects to HTTPS → loop).
+    hostAliases:
+      - ip: "10.43.37.192"
+        hostnames:
+          - auth.kagiso.me
+
     metrics:
       enabled: true
       serviceMonitor:
