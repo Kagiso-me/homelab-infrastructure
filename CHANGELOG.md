@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add OIDC client credentials to secret `d20252b`
 - **[DEPLOY]** add Authentik OIDC login via oidc_login app `4a55034`
 - **[CONFIG]** pin media-net network name to prevent compose prefix `d429c22`
 - **[CONFIG]** correct redis password in secret `cb40883`
