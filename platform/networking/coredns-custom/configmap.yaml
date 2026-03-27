@@ -1,0 +1,25 @@
+# CoreDNS custom overrides for split-horizon DNS.
+# Routes *.kagiso.me queries to Traefik's ClusterIP inside the cluster,
+# bypassing Cloudflare. Without this, in-cluster services (e.g. Nextcloud
+# fetching Authentik OIDC discovery) hit a 301 redirect loop through
+# Cloudflare's proxy.
+#
+# k3s imports *.server files from the coredns-custom ConfigMap as separate
+# CoreDNS server blocks (see Corefile: import /etc/coredns/custom/*.server).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  kagiso-me.server: |
+    kagiso.me:53 {
+      errors
+      cache 30
+      hosts {
+        10.43.37.192 auth.kagiso.me
+        10.43.37.192 cloud.kagiso.me
+        fallthrough
+      }
+      forward . /etc/resolv.conf
+    }
