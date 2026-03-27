@@ -26,7 +26,11 @@ spec:
       retries: 3
   values:
     # ----- Grafana -----
+    # Disable bundled dashboards — we provision our own curated set via ConfigMaps.
+    defaultRules:
+      create: true
     grafana:
+      defaultDashboardsEnabled: false
       enabled: true
       # Admin credentials loaded from SOPS-encrypted Secret (grafana-admin-secret.yaml)
       admin:

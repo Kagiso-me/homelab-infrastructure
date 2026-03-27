@@ -1,0 +1,111 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-infrastructure-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: nodes
+      rules:
+        - alert: NodeDown
+          expr: up{job=~"node-.*"} == 0
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} is unreachable"
+            description: "{{ $labels.instance }} ({{ $labels.job }}) has been down for more than 3 minutes."
+        - alert: NodeHighCPU
+          expr: 100 - (avg by(instance, job)(rate(node_cpu_seconds_total{mode="idle", job=~"node-.*"}[5m])) * 100) > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CPU above 90% on {{ $labels.instance }}"
+            description: "{{ $labels.instance }} CPU has been above 90% for 10 minutes. Current value: {{ $value | printf \"%.1f\" }}%"
+        - alert: NodeHighMemory
+          expr: (1 - node_memory_MemAvailable_bytes{job=~"node-.*"} / node_memory_MemTotal_bytes{job=~"node-.*"}) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Memory above 90% on {{ $labels.instance }}"
+            description: "{{ $labels.instance }} memory usage has been above 90% for 10 minutes. Current value: {{ $value | printf \"%.1f\" }}%"
+        - alert: NodeDiskFull
+          expr: (1 - node_filesystem_avail_bytes{job=~"node-.*", fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job=~"node-.*", fstype!~"tmpfs|overlay"}) * 100 > 85
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk above 85% on {{ $labels.instance }}:{{ $labels.mountpoint }}"
+            description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ $value | printf \"%.1f\" }}% full."
+        - alert: NodeDiskFillingUp
+          expr: predict_linear(node_filesystem_avail_bytes{job=~"node-.*", fstype!~"tmpfs|overlay"}[6h], 24*3600) < 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk on {{ $labels.instance }}:{{ $labels.mountpoint }} predicted full within 24h"
+            description: "At the current rate, filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} will be full within 24 hours."
+    - name: storage
+      rules:
+        - alert: ZfsPoolDegraded
+          expr: node_zfs_zpool_state{state!="online"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} is degraded"
+            description: "ZFS pool {{ $labels.zpool }} on TrueNAS is in state {{ $labels.state }}. Immediate attention required."
+        - alert: ZfsPoolFilling
+          expr: (node_zfs_zpool_used_bytes / node_zfs_zpool_size_bytes) * 100 > 80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} above 80%"
+            description: "ZFS pool {{ $labels.zpool }} is {{ $value | printf \"%.1f\" }}% full. ZFS performance degrades significantly above 80%."
+        - alert: SmartDiskFailing
+          expr: smartctl_device_smart_status == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "SMART failure on {{ $labels.device }} ({{ $labels.model_name }})"
+            description: "Disk {{ $labels.device }} ({{ $labels.model_name }}) is reporting SMART failure. Replace immediately."
+        - alert: SmartHighTemperature
+          expr: smartctl_device_temperature > 55
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk {{ $labels.device }} temperature {{ $value }}°C"
+            description: "Disk {{ $labels.device }} ({{ $labels.model_name }}) temperature has been above 55°C for 10 minutes."
+        - alert: SmartReallocatedSectors
+          expr: smartctl_device_reallocated_sector_ct > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Reallocated sectors on {{ $labels.device }}"
+            description: "Disk {{ $labels.device }} ({{ $labels.model_name }}) has {{ $value }} reallocated sectors. Monitor for increases."
+    - name: certificates
+      rules:
+        - alert: CertExpiringSoon
+          expr: certmanager_certificate_expiration_timestamp_seconds - time() < 7*24*3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires within 7 days"
+            description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}."
+        - alert: CertExpiryCritical
+          expr: certmanager_certificate_expiration_timestamp_seconds - time() < 24*3600
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires within 24 hours"
+            description: "Certificate {{ $labels.name }} in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}. Renew immediately."
