@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: daily-digest-script
+  namespace: monitoring
+data:
+  digest.sh: |
+    #!/bin/sh
+    set -e
+
+    PROM="http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+
+    # ── Helper: query Prometheus instant API ──────────────────────────────────────
+    prom_query() {
+      curl -sf --max-time 10 "${PROM}/api/v1/query" --data-urlencode "query=${1}" \
+        | jq -r '.data.result'
+    }
+
+    # ── 1. Node health ────────────────────────────────────────────────────────────
+    # Combine k8s node-exporter targets and external scrape targets
+    NODE_UP=$(prom_query 'up{job=~"node-exporter|node-rpi|node-proxmox|node-docker-vm|node-truenas"}')
+
+    node_status=""
+    node_status=$(echo "${NODE_UP}" | jq -r '
+      .[] |
+      (.metric.instance // .metric.job) as $name |
+      (if (.value[1] | tonumber) == 1 then "UP" else "DOWN" end) as $state |
+      (if $state == "UP" then "\u2705" else "\u274c" end) + " " + $name + ": **" + $state + "**"
+    ' | sort)
+
+    all_up=$(echo "${NODE_UP}" | jq '[.[] | .value[1] | tonumber] | all(. == 1)')
+
+    # ── 2. CPU usage per node ─────────────────────────────────────────────────────
+    CPU=$(prom_query '100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)')
+
+    cpu_lines=$(echo "${CPU}" | jq -r '
+      .[] |
+      (.metric.instance) as $inst |
+      (.value[1] | tonumber | . * 10 | round / 10 | tostring) as $val |
+      $inst + ": **" + $val + "%**"
+    ' | sort)
+
+    # ── 3. Memory usage per node ──────────────────────────────────────────────────
+    MEM=$(prom_query '(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100')
+
+    mem_lines=$(echo "${MEM}" | jq -r '
+      .[] |
+      (.metric.instance) as $inst |
+      (.value[1] | tonumber | . * 10 | round / 10 | tostring) as $val |
+      $inst + ": **" + $val + "%**"
+    ' | sort)
+
+    # ── 4. Root disk usage per node ───────────────────────────────────────────────
+    DISK=$(prom_query '(1 - (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"})) * 100')
+
+    disk_lines=$(echo "${DISK}" | jq -r '
+      .[] |
+      (.metric.instance) as $inst |
+      (.value[1] | tonumber | . * 10 | round / 10 | tostring) as $val |
+      (if (.value[1] | tonumber) > 85 then "\u26a0\ufe0f " else "" end) + $inst + ": **" + $val + "%**"
+    ' | sort)
+
+    # ── 5. Pod summary ────────────────────────────────────────────────────────────
+    PODS=$(prom_query 'count by (phase) (kube_pod_status_phase == 1)')
+
+    running=$(echo "${PODS}" | jq -r '[.[] | select(.metric.phase == "Running") | .value[1] | tonumber] | add // 0')
+    pending=$(echo "${PODS}" | jq -r '[.[] | select(.metric.phase == "Pending") | .value[1] | tonumber] | add // 0')
+    failed=$(echo "${PODS}" | jq -r '[.[] | select(.metric.phase == "Failed") | .value[1] | tonumber] | add // 0')
+    succeeded=$(echo "${PODS}" | jq -r '[.[] | select(.metric.phase == "Succeeded") | .value[1] | tonumber] | add // 0')
+
+    pod_summary="Running: **${running}** | Pending: **${pending}** | Failed: **${failed}** | Succeeded: **${succeeded}**"
+
+    # ── 6. Backup status ──────────────────────────────────────────────────────────
+    BACKUP_STATUS=$(prom_query 'backup_job_status')
+    BACKUP_TS=$(prom_query 'backup_last_success_timestamp')
+
+    backup_lines=""
+    if [ "$(echo "${BACKUP_STATUS}" | jq 'length')" -gt 0 ]; then
+      backup_lines=$(echo "${BACKUP_STATUS}" | jq -r --argjson ts "${BACKUP_TS}" '
+        .[] |
+        (.metric.job) as $job |
+        (if (.value[1] | tonumber) == 1 then "\u2705" else "\u274c" end) as $icon |
+        # Find matching timestamp
+        ($ts | [.[] | select(.metric.job == $job) | .value[1] | tonumber] | first // 0) as $last_ts |
+        (if $last_ts > 0 then
+          (($last_ts | floor | todate) | split("T") | .[0]) as $date |
+          $icon + " " + $job + " (last: " + $date + ")"
+        else
+          $icon + " " + $job
+        end)
+      ')
+    else
+      backup_lines="No backup metrics found"
+    fi
+
+    # ── 7. Determine embed colour ─────────────────────────────────────────────────
+    # Green if everything healthy, yellow if any warnings, red if nodes down or pods failed
+    colour=3066993   # green (0x2ecc71)
+    if [ "${failed}" -gt 0 ]; then
+      colour=15158332  # red (0xe74c3c)
+    elif [ "${pending}" -gt 0 ]; then
+      colour=15844367  # yellow (0xf1c40f)
+    fi
+    if [ "${all_up}" = "false" ]; then
+      colour=15158332  # red
+    fi
+
+    # ── 8. Build Discord embed payload ────────────────────────────────────────────
+    TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    PAYLOAD=$(jq -n \
+      --arg node_status "${node_status}" \
+      --arg cpu "${cpu_lines}" \
+      --arg mem "${mem_lines}" \
+      --arg disk "${disk_lines}" \
+      --arg pods "${pod_summary}" \
+      --arg backups "${backup_lines}" \
+      --arg ts "${TIMESTAMP}" \
+      --argjson colour "${colour}" \
+      '{
+        embeds: [{
+          title: "Homelab Daily Digest",
+          color: $colour,
+          fields: [
+            { name: "Node Status", value: $node_status, inline: false },
+            { name: "CPU Usage", value: $cpu, inline: true },
+            { name: "Memory Usage", value: $mem, inline: true },
+            { name: "Disk Usage (/)", value: $disk, inline: false },
+            { name: "Pod Summary", value: $pods, inline: false },
+            { name: "Backup Status", value: $backups, inline: false }
+          ],
+          footer: { text: "Daily digest from k3s cluster" },
+          timestamp: $ts
+        }]
+      }')
+
+    # ── 9. POST to Discord ────────────────────────────────────────────────────────
+    HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+      -H "Content-Type: application/json" \
+      -d "${PAYLOAD}" \
+      "${DISCORD_WEBHOOK_URL}")
+
+    if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then
+      echo "Digest posted to Discord (HTTP ${HTTP_CODE})"
+    else
+      echo "Failed to post digest (HTTP ${HTTP_CODE})" >&2
+      exit 1
+    fi
