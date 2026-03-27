@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add full monitoring stack overhaul `d3a8e13`
 - **[MAINTENANCE]** encrypt daily-digest Discord webhook secret `9de947d`
 - **[DEPLOY]** add daily homelab digest CronJob `0d9a041`
 - **[DEPLOY]** add Discord webhook URLs to secret `b5d1c2b`
