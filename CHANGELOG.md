@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** correct redis password in secret `cb40883`
 - **[CONFIG]** run as uid 1000 to match NFS mapall owner `b4b67c5`
 - **[CONFIG]** remove invalid capabilities from pod securityContext `45cabe9`
 - **[CONFIG]** run as www-data with NET_BIND_SERVICE to avoid NFS chown failures `47ce1c4`
