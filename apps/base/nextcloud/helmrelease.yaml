@@ -125,6 +125,7 @@ spec:
               'groups' => 'groups',
             ),
             'oidc_create_groups'           => false,
+            'oidc_login_disable_registration' => false,
           );
 
       mail:
