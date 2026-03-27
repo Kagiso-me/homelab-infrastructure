@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** enable OIDC user auto-registration `9f44645`
 - **[CONFIG]** bypass Cloudflare for OIDC discovery via hostAlias `513fa56`
 - **[DEPLOY]** add OIDC client credentials to secret `d20252b`
 - **[DEPLOY]** add Authentik OIDC login via oidc_login app `4a55034`
