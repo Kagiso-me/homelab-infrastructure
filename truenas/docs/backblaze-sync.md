@@ -159,7 +159,57 @@ See [cluster-rebuild runbook](../../docs/operations/runbooks/cluster-rebuild.md)
 
 TrueNAS displays Cloud Sync task history under **Data Protection → Cloud Sync Tasks**.
 
-For automated monitoring, enable Backblaze B2 alerts:
-- Backblaze web UI: **Account → My Settings → Notifications** — receive email on sync errors
+For Prometheus/Grafana monitoring, the script `truenas/scripts/b2-sync-metrics.sh` runs on TrueNAS after each sync and writes metrics to the node_exporter textfile collector.
 
-The Grafana alert `BackupTooOld` monitors etcd snapshot age on-cluster. If the TrueNAS-to-B2 sync fails silently, etcd backups will still be present on TrueNAS — the Grafana alert remains the first line of backup health monitoring.
+### Deploying b2-sync-metrics.sh
+
+```bash
+# From bran — copy script to TrueNAS (root fs is read-only; use a ZFS pool path)
+scp ~/homelab-infrastructure/truenas/scripts/b2-sync-metrics.sh kagiso@10.0.10.80:~/b2-sync-metrics.sh
+ssh kagiso@10.0.10.80 "sudo mkdir -p /mnt/core/scripts && sudo mv ~/b2-sync-metrics.sh /mnt/core/scripts/b2-sync-metrics.sh && sudo chmod 750 /mnt/core/scripts/b2-sync-metrics.sh"
+```
+
+Create `/etc/b2-sync-metrics.conf` (on TrueNAS, chmod 600):
+
+```
+TRUENAS_API_KEY=<api-key>
+B2_RCLONE_REMOTE=b2remote
+B2_BUCKET=homelab-infrastructure
+TASK_PATTERN=homelab-backup-offsite
+TEXTFILE_DIR=/var/lib/node_exporter/textfile_collector
+```
+
+> **Note:** `TASK_PATTERN` must match the Cloud Sync task description exactly. Ours is `homelab-backup-offsite`.
+> **Note:** TrueNAS root filesystem is read-only — deploy the script to `/mnt/core/scripts/`, not `/usr/local/bin/`.
+
+Configure rclone for B2 (run once as root on TrueNAS):
+
+```bash
+rclone config create b2remote b2 account <keyID> key <appKey>
+# rclone saves config to the user's home — copy it to root for sudo access
+sudo mkdir -p /root/.config/rclone
+sudo cp ~/.config/rclone/rclone.conf /root/.config/rclone/rclone.conf
+```
+
+Test run:
+
+```bash
+sudo /mnt/core/scripts/b2-sync-metrics.sh
+# Expected: B2 metrics written — status=1 size=<bytes> files=<count>
+```
+
+Create the cron task in TrueNAS UI:
+
+> **System → Advanced → Cron Jobs → Add**
+> - Command: `/mnt/core/scripts/b2-sync-metrics.sh`
+> - Run As: `root`
+> - Schedule: `0 5 * * *` (05:00 daily — one hour after the 04:00 B2 sync)
+
+Metrics written to `/var/lib/node_exporter/textfile_collector/b2_sync.prom`:
+
+| Metric | Description |
+|--------|-------------|
+| `backup_job_status{job="truenas-b2-sync"}` | `1` = last sync succeeded, `0` = failed |
+| `backup_last_success_timestamp{job="truenas-b2-sync"}` | Unix timestamp of last successful sync |
+| `b2_bucket_size_bytes{bucket="homelab-infrastructure"}` | Total bytes in B2 bucket |
+| `b2_bucket_file_count{bucket="homelab-infrastructure"}` | File count in B2 bucket |
