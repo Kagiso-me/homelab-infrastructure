@@ -83,6 +83,12 @@ Backups are a **simple encrypted tar** written to TrueNAS NFS storage.
 
 The NFS share is mounted read-write only during the backup window (the script mounts it, writes the backup, then unmounts it). This minimises the window during which the NFS share is accessible.
 
+### TrueNAS NFS prerequisite
+
+The backup script runs as root (required for `mount`). TrueNAS NFS shares squash root by default. The share must have **Maproot User = root** set, otherwise GPG will get `Permission denied` when writing the archive.
+
+> TrueNAS UI → **Shares → Unix (NFS) Shares** → edit `/mnt/archive/backups/rpi` → Advanced Options → **Maproot User: root** → Save
+
 ---
 
 ## Backup Script
@@ -199,7 +205,8 @@ sudo mkdir -p /mnt/backup_rpi
 sudo mkdir -p /var/lib/node_exporter/textfile_collector
 
 # Run a manual backup to verify everything works
-sudo ~/scripts/backup_rpi.sh
+# -E preserves HOME so tar resolves files under /home/kagiso, not /root
+sudo -E ~/scripts/backup_rpi.sh
 ```
 
 ---
@@ -216,7 +223,8 @@ Add:
 
 ```
 # Raspberry Pi key material backup — daily at 01:00
-0 1 * * * /home/pi/scripts/backup_rpi.sh >> /var/log/rpi-backup.log 2>&1
+# HOME must be set explicitly — root's crontab does not inherit the user's HOME
+0 1 * * * HOME=/home/kagiso /home/kagiso/scripts/backup_rpi.sh >> /var/log/rpi-backup.log 2>&1
 ```
 
 Verify:
@@ -232,7 +240,7 @@ sudo crontab -l
 Run before any risky operation (SD card replacement, OS upgrade, Ansible refactor, etc.):
 
 ```bash
-sudo ~/scripts/backup_rpi.sh
+sudo -E ~/scripts/backup_rpi.sh
 ```
 
 ---
