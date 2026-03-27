@@ -13,6 +13,7 @@ name: media-stack
 
 networks:
   media-net:
+    name: media-net
     driver: bridge
     # media-net is created by this stack and referenced as external by proxy-stack.yml
     # Deploy media-stack first, then proxy-stack.
