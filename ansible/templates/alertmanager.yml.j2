@@ -1,0 +1,78 @@
+# Alertmanager configuration — managed by Ansible
+# Deployed to /etc/prometheus/alertmanager.yml on varys (10.0.10.10)
+# Secrets sourced from ansible/vault/varys.yml (ansible-vault encrypted)
+#
+# Discord webhook receivers use the /slack suffix to accept Slack-format payloads.
+# The `channel` field is required by Alertmanager but ignored by Discord.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: discord-alerts
+  group_by: ['alertname', 'namespace']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity = critical
+      receiver: discord-critical
+      repeat_interval: 1h
+    - matchers:
+        - alertname = Watchdog
+      receiver: watchdog-webhook
+
+receivers:
+  - name: discord-alerts
+    slack_configs:
+      - api_url: "{{ alertmanager_discord_alerts_url }}"
+        channel: "#homelab-alerts"
+        send_resolved: true
+{% raw %}
+        title: '{{ if eq .Status "firing" }}⚠️ FIRING ({{ .Alerts.Firing | len }}){{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}'
+        text: >-
+          {{ range .Alerts -}}
+          *{{ .Labels.alertname }}* | `{{ .Labels.severity }}`
+          {{ if .Labels.instance }}📍 *Instance:* {{ .Labels.instance }}{{ end }}
+          {{ if .Labels.namespace }}📦 *Namespace:* {{ .Labels.namespace }}{{ end }}
+          {{ if .Labels.pod }}🔹 *Pod:* {{ .Labels.pod }}{{ end }}
+          {{ if .Annotations.summary }}📝 {{ .Annotations.summary }}{{ end }}
+          {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+          {{ if .StartsAt }}⏱️ *Started:* {{ .StartsAt.Format "2006-01-02 15:04 MST" }}{{ end }}
+          ---
+          {{ end }}
+{% endraw %}
+
+  - name: discord-critical
+    slack_configs:
+      - api_url: "{{ alertmanager_discord_critical_url }}"
+        channel: "#homelab-critical"
+        send_resolved: true
+{% raw %}
+        title: '{{ if eq .Status "firing" }}🔥 CRITICAL ({{ .Alerts.Firing | len }}){{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}'
+        text: >-
+          {{ range .Alerts -}}
+          *{{ .Labels.alertname }}* | `critical`
+          {{ if .Labels.instance }}📍 *Instance:* {{ .Labels.instance }}{{ end }}
+          {{ if .Labels.namespace }}📦 *Namespace:* {{ .Labels.namespace }}{{ end }}
+          {{ if .Labels.pod }}🔹 *Pod:* {{ .Labels.pod }}{{ end }}
+          {{ if .Annotations.summary }}📝 {{ .Annotations.summary }}{{ end }}
+          {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+          {{ if .StartsAt }}⏱️ *Started:* {{ .StartsAt.Format "2006-01-02 15:04 MST" }}{{ end }}
+          ---
+          {{ end }}
+{% endraw %}
+
+  - name: watchdog-webhook
+    webhook_configs:
+      - url: "{{ alertmanager_watchdog_url }}"
+        send_resolved: false
+
+inhibit_rules:
+  # Suppress warning alerts when a critical alert fires with the same labels.
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: ['alertname', 'namespace', 'instance']

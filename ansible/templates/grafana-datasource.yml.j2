@@ -1,0 +1,17 @@
+# Grafana datasource provisioning — managed by Ansible
+# Deployed to /etc/grafana/provisioning/datasources/prometheus.yml on varys
+# Prometheus is the in-cluster kube-prometheus-stack instance, exposed via
+# MetalLB LoadBalancer at 10.0.10.110:9090.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: http://10.0.10.110:9090
+    access: proxy
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST

@@ -1,8 +1,8 @@
 all:
   children:
-    rpi:
+    control_hub:
       hosts:
-        rpi:
+        varys:
           ansible_host: 10.0.10.10
 
     k3s_controller:

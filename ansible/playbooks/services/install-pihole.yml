@@ -24,8 +24,8 @@
 #   ansible-playbook -i ansible/inventory/homelab.yml \
 #     ansible/playbooks/services/install-pihole.yml
 
-- name: Install Pi-hole on Raspberry Pi
-  hosts: rpi
+- name: Install Pi-hole on varys (control hub)
+  hosts: control_hub
   become: true
   gather_facts: true
 
@@ -50,12 +50,6 @@
   # ============================================================================
   # PRE-FLIGHT
   # ============================================================================
-
-    - name: "preflight | Confirm running on RPi"
-      assert:
-        that:
-          - ansible_architecture in ['armv7l', 'aarch64']
-        fail_msg: "This playbook is intended for the Raspberry Pi (ARM). Got: {{ ansible_architecture }}"
 
     - name: "preflight | Update apt cache"
       apt:

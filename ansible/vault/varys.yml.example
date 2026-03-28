@@ -1,0 +1,24 @@
+# ansible/vault/varys.yml — varys secrets (Ansible Vault encrypted)
+#
+# Copy this file to ansible/vault/varys.yml, fill in the values, then encrypt:
+#   ansible-vault encrypt ansible/vault/varys.yml
+#
+# When running playbooks that use these vars:
+#   ansible-playbook ... --ask-vault-pass
+#   or: ansible-playbook ... --vault-password-file ~/.vault_pass
+#
+# Source values from existing SOPS secrets (one-time decrypt):
+#   sops -d platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml
+#   sops -d platform/observability/observability-config/alertmanager-secret.yaml
+
+# Grafana admin credentials
+grafana_admin_user: admin
+grafana_admin_password: CHANGE_ME
+
+# Alertmanager Discord webhook URLs
+# These are the Discord webhook URLs with /slack suffix for Slack-compatible payloads.
+alertmanager_discord_alerts_url: https://discord.com/api/webhooks/CHANGE_ME/slack
+alertmanager_discord_critical_url: https://discord.com/api/webhooks/CHANGE_ME/slack
+
+# Alertmanager watchdog — healthchecks.io ping URL
+alertmanager_watchdog_url: https://hc-ping.com/CHANGE_ME

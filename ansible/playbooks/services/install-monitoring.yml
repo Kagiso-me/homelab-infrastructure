@@ -1,0 +1,201 @@
+---
+# Install Grafana and Alertmanager on varys (10.0.10.10)
+#
+# Both services run as native systemd services (no Docker).
+# Grafana connects to the in-cluster Prometheus at 10.0.10.110:9090.
+# Alertmanager receives alerts from in-cluster Prometheus and routes to Discord.
+#
+# Access:
+#   Grafana:      http://10.0.10.10:3000
+#   Alertmanager: http://10.0.10.10:9093
+#
+# Prerequisites:
+#   1. Create ansible/vault/varys.yml from varys.yml.example, fill in values,
+#      then encrypt: ansible-vault encrypt ansible/vault/varys.yml
+#   2. Prometheus LoadBalancer accessible at 10.0.10.110:9090 (k3s cluster running)
+#   3. kube-prometheus-stack HelmRelease updated to disable in-cluster
+#      Grafana/Alertmanager and point Prometheus to 10.0.10.10:9093
+#
+# Usage:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-monitoring.yml \
+#     --ask-vault-pass
+#
+# Dashboards:
+#   After install, dashboards must be imported manually via the Grafana UI.
+#   Dashboard JSON is available in platform/observability/observability-config/
+#   grafana-dashboard-*.yaml (extract the JSON from the 'json-data' key).
+#   A follow-on playbook will automate dashboard provisioning.
+
+- name: Install Grafana and Alertmanager on varys
+  hosts: control_hub
+  become: true
+  gather_facts: true
+  vars_files:
+    - "{{ playbook_dir }}/../../vault/varys.yml"
+
+  tasks:
+
+  # ============================================================================
+  # PREFLIGHT
+  # ============================================================================
+
+    - name: "preflight | Update apt cache"
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: "preflight | Install prerequisites"
+      apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+          - curl
+        state: present
+
+  # ============================================================================
+  # GRAFANA
+  # ============================================================================
+
+    - name: "grafana | Add Grafana APT signing key"
+      get_url:
+        url: https://apt.grafana.com/gpg.key
+        dest: /etc/apt/keyrings/grafana.asc
+        mode: '0644'
+
+    - name: "grafana | Add Grafana APT repository"
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+        state: present
+        filename: grafana
+
+    - name: "grafana | Install Grafana OSS"
+      apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+    - name: "grafana | Deploy grafana.ini"
+      template:
+        src: "{{ playbook_dir }}/../../../ansible/templates/grafana.ini.j2"
+        dest: /etc/grafana/grafana.ini
+        owner: root
+        group: grafana
+        mode: '0640'
+      notify: restart grafana
+
+    - name: "grafana | Ensure provisioning directories exist"
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: grafana
+        mode: '0755'
+      loop:
+        - /etc/grafana/provisioning/datasources
+        - /etc/grafana/provisioning/dashboards
+
+    - name: "grafana | Deploy Prometheus datasource"
+      template:
+        src: "{{ playbook_dir }}/../../../ansible/templates/grafana-datasource.yml.j2"
+        dest: /etc/grafana/provisioning/datasources/prometheus.yml
+        owner: root
+        group: grafana
+        mode: '0640'
+      notify: restart grafana
+
+    - name: "grafana | Enable and start grafana-server"
+      systemd:
+        name: grafana-server
+        enabled: true
+        state: started
+
+  # ============================================================================
+  # ALERTMANAGER
+  # ============================================================================
+
+    - name: "alertmanager | Install prometheus-alertmanager"
+      apt:
+        name: prometheus-alertmanager
+        state: present
+
+    - name: "alertmanager | Deploy alertmanager.yml"
+      template:
+        src: "{{ playbook_dir }}/../../../ansible/templates/alertmanager.yml.j2"
+        dest: /etc/prometheus/alertmanager.yml
+        owner: root
+        group: prometheus
+        mode: '0640'
+      notify: restart alertmanager
+
+    - name: "alertmanager | Enable and start prometheus-alertmanager"
+      systemd:
+        name: prometheus-alertmanager
+        enabled: true
+        state: started
+
+  # ============================================================================
+  # VERIFY
+  # ============================================================================
+
+    - name: "verify | Wait for Grafana to be ready on port 3000"
+      wait_for:
+        host: 127.0.0.1
+        port: 3000
+        timeout: 30
+
+    - name: "verify | Wait for Alertmanager to be ready on port 9093"
+      wait_for:
+        host: 127.0.0.1
+        port: 9093
+        timeout: 30
+
+    - name: "verify | Check Grafana API health"
+      uri:
+        url: http://127.0.0.1:3000/api/health
+        status_code: 200
+      register: grafana_health
+      retries: 5
+      delay: 3
+      until: grafana_health.status == 200
+
+    - name: "verify | Check Alertmanager status"
+      uri:
+        url: http://127.0.0.1:9093/-/healthy
+        status_code: 200
+      register: am_health
+      retries: 5
+      delay: 3
+      until: am_health.status == 200
+
+    - name: "verify | Summary"
+      debug:
+        msg: |
+          Grafana and Alertmanager are running on varys (10.0.10.10).
+
+          Grafana:      http://10.0.10.10:3000  (login: {{ grafana_admin_user }})
+          Alertmanager: http://10.0.10.10:9093
+
+          Prometheus datasource: http://10.0.10.110:9090 (provisioned automatically)
+
+          Next steps:
+            1. Verify Prometheus datasource is connected in Grafana → Connections
+            2. Import dashboards from platform/observability/observability-config/grafana-dashboard-*.yaml
+               (extract JSON from the 'json-data' key and paste into Grafana → Dashboards → Import)
+            3. Confirm alerts are routing by checking Alertmanager UI at http://10.0.10.10:9093
+
+  # ============================================================================
+  # HANDLERS
+  # ============================================================================
+
+  handlers:
+    - name: restart grafana
+      systemd:
+        name: grafana-server
+        state: restarted
+
+    - name: restart alertmanager
+      systemd:
+        name: prometheus-alertmanager
+        state: restarted

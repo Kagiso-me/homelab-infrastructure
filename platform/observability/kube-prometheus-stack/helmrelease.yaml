@@ -26,30 +26,12 @@ spec:
       retries: 3
   values:
     # ----- Grafana -----
-    # Disable bundled dashboards — we provision our own curated set via ConfigMaps.
+    # Grafana runs as a native systemd service on varys (10.0.10.10).
+    # Managed by Ansible — see ansible/playbooks/services/install-monitoring.yml.
     defaultRules:
       create: true
     grafana:
-      defaultDashboardsEnabled: false
-      enabled: true
-      # Admin credentials loaded from SOPS-encrypted Secret (grafana-admin-secret.yaml)
-      admin:
-        existingSecret: grafana-admin
-        userKey: admin-user
-        passwordKey: admin-password
-      initChownData:
-        enabled: false
-      persistence:
-        enabled: true
-        storageClassName: nfs-truenas
-        size: 2Gi
-      ingress:
-        enabled: false   # managed via IngressRoute in apps layer
-      grafana.ini:
-        server:
-          root_url: https://grafana.kagiso.me
-        analytics:
-          check_for_updates: false
+      enabled: false
 
     # ----- Prometheus -----
     prometheus:
@@ -67,6 +49,15 @@ spec:
               resources:
                 requests:
                   storage: 20Gi
+        # Send alerts to Alertmanager on varys (10.0.10.10)
+        additionalAlertManagerConfigs:
+          - scheme: http
+            timeout: 10s
+            api_version: v2
+            static_configs:
+              - targets:
+                  - "10.0.10.10:9093"
+
         # Scrape all namespaces
         serviceMonitorSelectorNilUsesHelmValues: false
         podMonitorSelectorNilUsesHelmValues: false
@@ -107,16 +98,11 @@ spec:
                   instance: truenas
 
     # ----- Alertmanager -----
+    # Alertmanager runs as a native systemd service on varys (10.0.10.10).
+    # Managed by Ansible — see ansible/playbooks/services/install-monitoring.yml.
+    # Prometheus is configured below to send alerts to 10.0.10.10:9093.
     alertmanager:
-      alertmanagerSpec:
-        storage:
-          volumeClaimTemplate:
-            spec:
-              storageClassName: nfs-truenas
-              accessModes: ["ReadWriteOnce"]
-              resources:
-                requests:
-                  storage: 1Gi
+      enabled: false
 
     # ----- Node Exporter -----
     prometheus-node-exporter:
