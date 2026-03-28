@@ -42,9 +42,9 @@ data:
             "name": "node",
             "type": "query",
             "label": "Node",
-            "query": "label_values(up{job=~\"node-.*\"}, job)",
+            "query": "label_values(node_boot_time_seconds, instance)",
             "datasource": { "type": "prometheus", "uid": "$datasource" },
-            "current": { "text": "node-rpi", "value": "node-rpi" },
+            "current": {},
             "hide": 0,
             "includeAll": false,
             "multi": false,
@@ -73,7 +73,7 @@ data:
           "id": 2,
           "targets": [
             {
-              "expr": "time() - node_boot_time_seconds{job=\"$node\"}",
+              "expr": "time() - node_boot_time_seconds{instance=\"$node\"}",
               "legendFormat": "",
               "refId": "A"
             }
@@ -112,7 +112,7 @@ data:
           "id": 3,
           "targets": [
             {
-              "expr": "count(node_cpu_seconds_total{job=\"$node\", mode=\"idle\"})",
+              "expr": "count(node_cpu_seconds_total{instance=\"$node\", mode=\"idle\"})",
               "legendFormat": "",
               "refId": "A"
             }
@@ -150,7 +150,7 @@ data:
           "id": 4,
           "targets": [
             {
-              "expr": "node_memory_MemTotal_bytes{job=\"$node\"}",
+              "expr": "node_memory_MemTotal_bytes{instance=\"$node\"}",
               "legendFormat": "",
               "refId": "A"
             }
@@ -188,7 +188,7 @@ data:
           "id": 5,
           "targets": [
             {
-              "expr": "node_filesystem_size_bytes{job=\"$node\", mountpoint=\"/\"}",
+              "expr": "node_filesystem_size_bytes{instance=\"$node\", mountpoint=\"/\"}",
               "legendFormat": "",
               "refId": "A"
             }
@@ -226,7 +226,7 @@ data:
           "id": 6,
           "targets": [
             {
-              "expr": "node_load1{job=\"$node\"}",
+              "expr": "node_load1{instance=\"$node\"}",
               "legendFormat": "",
               "refId": "A"
             }
@@ -273,22 +273,22 @@ data:
           "id": 8,
           "targets": [
             {
-              "expr": "avg by(mode) (rate(node_cpu_seconds_total{job=\"$node\", mode=\"user\"}[5m]))",
+              "expr": "avg by(mode) (rate(node_cpu_seconds_total{instance=\"$node\", mode=\"user\"}[5m]))",
               "legendFormat": "user",
               "refId": "A"
             },
             {
-              "expr": "avg by(mode) (rate(node_cpu_seconds_total{job=\"$node\", mode=\"system\"}[5m]))",
+              "expr": "avg by(mode) (rate(node_cpu_seconds_total{instance=\"$node\", mode=\"system\"}[5m]))",
               "legendFormat": "system",
               "refId": "B"
             },
             {
-              "expr": "avg by(mode) (rate(node_cpu_seconds_total{job=\"$node\", mode=\"iowait\"}[5m]))",
+              "expr": "avg by(mode) (rate(node_cpu_seconds_total{instance=\"$node\", mode=\"iowait\"}[5m]))",
               "legendFormat": "iowait",
               "refId": "C"
             },
             {
-              "expr": "avg by(mode) (rate(node_cpu_seconds_total{job=\"$node\", mode=\"idle\"}[5m]))",
+              "expr": "avg by(mode) (rate(node_cpu_seconds_total{instance=\"$node\", mode=\"idle\"}[5m]))",
               "legendFormat": "idle",
               "refId": "D"
             }
@@ -332,17 +332,17 @@ data:
           "id": 9,
           "targets": [
             {
-              "expr": "node_load1{job=\"$node\"}",
+              "expr": "node_load1{instance=\"$node\"}",
               "legendFormat": "1m",
               "refId": "A"
             },
             {
-              "expr": "node_load5{job=\"$node\"}",
+              "expr": "node_load5{instance=\"$node\"}",
               "legendFormat": "5m",
               "refId": "B"
             },
             {
-              "expr": "node_load15{job=\"$node\"}",
+              "expr": "node_load15{instance=\"$node\"}",
               "legendFormat": "15m",
               "refId": "C"
             }
@@ -394,22 +394,22 @@ data:
           "id": 11,
           "targets": [
             {
-              "expr": "node_memory_MemTotal_bytes{job=\"$node\"} - node_memory_MemAvailable_bytes{job=\"$node\"}",
+              "expr": "node_memory_MemTotal_bytes{instance=\"$node\"} - node_memory_MemAvailable_bytes{instance=\"$node\"}",
               "legendFormat": "Used",
               "refId": "A"
             },
             {
-              "expr": "node_memory_Cached_bytes{job=\"$node\"}",
+              "expr": "node_memory_Cached_bytes{instance=\"$node\"}",
               "legendFormat": "Cached",
               "refId": "B"
             },
             {
-              "expr": "node_memory_Buffers_bytes{job=\"$node\"}",
+              "expr": "node_memory_Buffers_bytes{instance=\"$node\"}",
               "legendFormat": "Buffers",
               "refId": "C"
             },
             {
-              "expr": "node_memory_MemAvailable_bytes{job=\"$node\"}",
+              "expr": "node_memory_MemAvailable_bytes{instance=\"$node\"}",
               "legendFormat": "Available",
               "refId": "D"
             }
@@ -453,12 +453,12 @@ data:
           "id": 12,
           "targets": [
             {
-              "expr": "node_memory_SwapTotal_bytes{job=\"$node\"} - node_memory_SwapFree_bytes{job=\"$node\"}",
+              "expr": "node_memory_SwapTotal_bytes{instance=\"$node\"} - node_memory_SwapFree_bytes{instance=\"$node\"}",
               "legendFormat": "Used",
               "refId": "A"
             },
             {
-              "expr": "node_memory_SwapTotal_bytes{job=\"$node\"}",
+              "expr": "node_memory_SwapTotal_bytes{instance=\"$node\"}",
               "legendFormat": "Total",
               "refId": "B"
             }
@@ -510,7 +510,7 @@ data:
           "id": 14,
           "targets": [
             {
-              "expr": "(1 - node_filesystem_avail_bytes{job=\"$node\", fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{job=\"$node\", fstype!~\"tmpfs|overlay\"})",
+              "expr": "(1 - node_filesystem_avail_bytes{instance=\"$node\", fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{instance=\"$node\", fstype!~\"tmpfs|overlay\"})",
               "legendFormat": "{{mountpoint}}",
               "refId": "A"
             }
@@ -554,12 +554,12 @@ data:
           "id": 15,
           "targets": [
             {
-              "expr": "rate(node_disk_read_bytes_total{job=\"$node\"}[5m])",
+              "expr": "rate(node_disk_read_bytes_total{instance=\"$node\"}[5m])",
               "legendFormat": "Read {{device}}",
               "refId": "A"
             },
             {
-              "expr": "rate(node_disk_written_bytes_total{job=\"$node\"}[5m])",
+              "expr": "rate(node_disk_written_bytes_total{instance=\"$node\"}[5m])",
               "legendFormat": "Write {{device}}",
               "refId": "B"
             }
@@ -603,12 +603,12 @@ data:
           "id": 16,
           "targets": [
             {
-              "expr": "rate(node_disk_reads_completed_total{job=\"$node\"}[5m])",
+              "expr": "rate(node_disk_reads_completed_total{instance=\"$node\"}[5m])",
               "legendFormat": "Read {{device}}",
               "refId": "A"
             },
             {
-              "expr": "rate(node_disk_writes_completed_total{job=\"$node\"}[5m])",
+              "expr": "rate(node_disk_writes_completed_total{instance=\"$node\"}[5m])",
               "legendFormat": "Write {{device}}",
               "refId": "B"
             }
@@ -660,12 +660,12 @@ data:
           "id": 18,
           "targets": [
             {
-              "expr": "rate(node_network_receive_bytes_total{job=\"$node\", device!~\"lo|veth.*|cali.*|flannel.*\"}[5m])",
+              "expr": "rate(node_network_receive_bytes_total{instance=\"$node\", device!~\"lo|veth.*|cali.*|flannel.*\"}[5m])",
               "legendFormat": "Receive {{device}}",
               "refId": "A"
             },
             {
-              "expr": "-rate(node_network_transmit_bytes_total{job=\"$node\", device!~\"lo|veth.*|cali.*|flannel.*\"}[5m])",
+              "expr": "-rate(node_network_transmit_bytes_total{instance=\"$node\", device!~\"lo|veth.*|cali.*|flannel.*\"}[5m])",
               "legendFormat": "Transmit {{device}}",
               "refId": "B"
             }
@@ -709,22 +709,22 @@ data:
           "id": 19,
           "targets": [
             {
-              "expr": "rate(node_network_receive_errs_total{job=\"$node\", device!~\"lo|veth.*\"}[5m])",
+              "expr": "rate(node_network_receive_errs_total{instance=\"$node\", device!~\"lo|veth.*\"}[5m])",
               "legendFormat": "Receive Errors {{device}}",
               "refId": "A"
             },
             {
-              "expr": "rate(node_network_transmit_errs_total{job=\"$node\", device!~\"lo|veth.*\"}[5m])",
+              "expr": "rate(node_network_transmit_errs_total{instance=\"$node\", device!~\"lo|veth.*\"}[5m])",
               "legendFormat": "Transmit Errors {{device}}",
               "refId": "B"
             },
             {
-              "expr": "rate(node_network_receive_drop_total{job=\"$node\", device!~\"lo|veth.*\"}[5m])",
+              "expr": "rate(node_network_receive_drop_total{instance=\"$node\", device!~\"lo|veth.*\"}[5m])",
               "legendFormat": "Receive Drops {{device}}",
               "refId": "C"
             },
             {
-              "expr": "rate(node_network_transmit_drop_total{job=\"$node\", device!~\"lo|veth.*\"}[5m])",
+              "expr": "rate(node_network_transmit_drop_total{instance=\"$node\", device!~\"lo|veth.*\"}[5m])",
               "legendFormat": "Transmit Drops {{device}}",
               "refId": "D"
             }

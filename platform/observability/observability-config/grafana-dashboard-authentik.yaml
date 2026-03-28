@@ -10,7 +10,7 @@ metadata:
 data:
   authentik.json: |
     {
-      "uid": "authentik-sso",
+      "uid": "rpfmFFz7z",
       "title": "Authentik SSO",
       "description": "Authentik SSO authentication metrics, login rates, and resource usage",
       "tags": ["authentik", "sso", "auth"],
