@@ -65,13 +65,12 @@ spec:
     # WARNING: changing this after first deploy invalidates all stored credentials.
     main:
       extraEnvVars:
-        - name: N8N_ENCRYPTION_KEY
+        N8N_ENCRYPTION_KEY:
           valueFrom:
             secretKeyRef:
               name: n8n-secret
               key: encryption-key
-        - name: GENERIC_TIMEZONE
-          value: Africa/Johannesburg
+        GENERIC_TIMEZONE: Africa/Johannesburg
 
       persistence:
         enabled: true
