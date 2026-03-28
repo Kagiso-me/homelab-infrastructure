@@ -1,11 +1,10 @@
 ---
-# Infrastructure alert rules — Docker VM, Proxmox host, Raspberry Pi, TrueNAS
+# Infrastructure alert rules — Docker host, Raspberry Pi, TrueNAS
 #
 # Covers host-level health for the non-Kubernetes nodes:
-#   Docker VM (docker-vm)  10.0.10.32  (job: node-docker-host, cadvisor-docker)
-#   Proxmox hypervisor     10.0.10.30  (job: node-proxmox)
-#   Raspberry Pi hub       10.0.10.10  (job: node-rpi)
-#   TrueNAS MicroServer    10.0.10.80  (job: node-truenas)
+#   Docker host (bare metal NUC)  10.0.10.20  (job: node-docker, cadvisor-docker)
+#   Raspberry Pi hub              10.0.10.10  (job: node-rpi)
+#   TrueNAS MicroServer           10.0.10.80  (job: node-truenas)
 #
 # ZFS pool and SMART disk alerts for TrueNAS are in truenas.yml.
 #
@@ -16,7 +15,7 @@
 groups:
 
   # ---------------------------------------------------------------------------
-  # Docker media server (10.0.10.32)
+  # Docker host (10.0.10.20)
   # Runs Jellyfin, Sonarr, Radarr, Prowlarr, Nginx Proxy Manager, and other
   # media-stack containers. Also hosts this Prometheus, Grafana, Alertmanager,
   # and Loki.
@@ -30,10 +29,10 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Docker media server (10.0.10.32) is unreachable"
+          summary: "Docker host (10.0.10.20) is unreachable"
           description: >
             Prometheus cannot scrape node-exporter on the Docker host
-            (10.0.10.32) — the target has been down for more than 3 minutes.
+            (10.0.10.20) — the target has been down for more than 3 minutes.
             All media services (Jellyfin, Sonarr, Radarr, etc.) are likely
             unavailable. This Prometheus and Grafana are also hosted here, so
             alerting may be degraded. Check host power and network connectivity.
@@ -94,7 +93,7 @@ groups:
         annotations:
           summary: "Docker host /srv filesystem is {{ $value | printf \"%.1f\" }}% free"
           description: >
-            The /srv filesystem on the Docker media server (10.0.10.32) has less
+            The /srv filesystem on the Docker host (10.0.10.20) has less
             than 20% free space ({{ $value | printf "%.1f" }}% remaining).
             This mount holds Docker volumes and application data. If it fills
             completely, container writes will fail and databases may corrupt.
@@ -109,7 +108,7 @@ groups:
         annotations:
           summary: "Docker host memory utilisation is {{ $value | printf \"%.1f\" }}%"
           description: >
-            The Docker media server (10.0.10.32) memory utilisation has exceeded
+            The Docker host (10.0.10.20) memory utilisation has exceeded
             90% (current: {{ $value | printf "%.1f" }}%). With many containers
             sharing the host, high memory pressure can cause container OOM kills
             and application instability.
@@ -133,8 +132,8 @@ groups:
         annotations:
           summary: "NFS mount {{ $labels.mountpoint }} on Docker host has been lost"
           description: >
-            The NFS mount at {{ $labels.mountpoint }} on the Docker media server
-            (10.0.10.32) is reporting zero available bytes, which indicates the
+            The NFS mount at {{ $labels.mountpoint }} on the Docker host
+            (10.0.10.20) is reporting zero available bytes, which indicates the
             mount has been lost or the underlying NFS export is unavailable.
             Containers that depend on this path (Jellyfin, Sonarr, Radarr) will
             fail to read or write media.

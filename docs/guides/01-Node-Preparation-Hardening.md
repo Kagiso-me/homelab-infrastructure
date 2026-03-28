@@ -22,17 +22,17 @@
 
 Before Kubernetes is installed, the machines that will host the cluster must be:
 
-• reachable via SSH
-• configured consistently
-• managed through automation
+- reachable via SSH
+- configured consistently
+- managed through automation
 
 Many Kubernetes tutorials skip this step and configure nodes manually.
 
 That approach creates several problems:
 
-• inconsistent node configuration
-• undocumented setup steps
-• difficult cluster rebuilds
+- inconsistent node configuration
+- undocumented setup steps
+- difficult cluster rebuilds
 
 Instead, this platform treats **node preparation as code**.
 
@@ -42,41 +42,45 @@ Automation is used from the very beginning.
 
 # Platform Topology
 
-The platform consists of several machines.
+The platform consists of the following machines. This guide covers the k3s cluster nodes and
+the Docker host. The Raspberry Pi (`bran`) is the automation host used to run all Ansible
+commands throughout this guide.
 
 ```mermaid
 graph TD
-    Auto["Automation Host<br/>ansible - kubectl - git"]
-    Auto -->|SSH + Ansible| tywin["tywin<br/>10.0.10.11<br/>Control Plane"]
-    Auto -->|SSH + Ansible| jaime["jaime<br/>10.0.10.12<br/>Worker"]
-    Auto -->|SSH + Ansible| tyrion["tyrion<br/>10.0.10.13<br/>Worker"]
+    Auto["bran — 10.0.10.10<br/>Automation Host<br/>ansible - kubectl - git"]
+    Auto -->|SSH + Ansible| tywin["tywin<br/>10.0.10.11<br/>k3s Control Plane"]
+    Auto -->|SSH + Ansible| jaime["jaime<br/>10.0.10.12<br/>k3s Worker"]
+    Auto -->|SSH + Ansible| tyrion["tyrion<br/>10.0.10.13<br/>k3s Worker"]
+    Auto -->|SSH + Ansible| docker["docker host<br/>10.0.10.20<br/>Docker CE (bare metal NUC)"]
     style tywin fill:#2b6cb0,color:#fff
     style jaime fill:#276749,color:#fff
     style tyrion fill:#276749,color:#fff
+    style docker fill:#744210,color:#fff
 ```
 
-The **automation host** runs:
-
-```
-Ansible
-kubectl
-git
-```
-
-All cluster management operations originate from this machine.
+| Node | Role | IP |
+|---|---|---|
+| bran | Automation host, self-hosted runner, Pi-hole, cloudflared | 10.0.10.10 |
+| tywin | k3s control-plane | 10.0.10.11 |
+| jaime | k3s worker | 10.0.10.12 |
+| tyrion | k3s worker | 10.0.10.13 |
+| docker host | Docker CE (bare metal Intel NUC i3-7100U) | 10.0.10.20 |
 
 ---
 
-# Step 1 — Install Tools on the Automation Host
+# Step 1 — Install Tools on the Automation Host (bran)
 
 Install all tools required across the entire guide series. These only need to be installed once.
+The self-hosted runner tool installations (kubeconform, pluto, etc.) are covered in Guide 00.5.
+This step covers the tools needed for day-to-day cluster management from bran.
 
 ```bash
 sudo apt update
 sudo apt install -y ansible git nfs-common
 ```
 
-Install `kubectl`:
+Install `kubectl` (arm64 — bran is a Raspberry Pi 3B+):
 
 ```bash
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
@@ -84,7 +88,7 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 rm kubectl
 ```
 
-> **Note:** The automation host is a Raspberry Pi (arm64). Use the `arm64` kubectl binary above.
+> **Architecture note:** The automation host is a Raspberry Pi (arm64). Use the `arm64` kubectl binary above.
 > For amd64 hosts, replace `arm64` with `amd64` in the URL.
 
 Verify:
@@ -101,11 +105,9 @@ git --version
 
 # Step 2 — Generate SSH Keys
 
-Ansible relies on passwordless SSH access.
+Ansible relies on passwordless SSH access. Generate an SSH key on the automation host.
 
-Generate an SSH key on the automation host.
-
-```
+```bash
 ssh-keygen -t ed25519
 ```
 
@@ -118,31 +120,62 @@ Accept the default path:
 This creates:
 
 ```
-~/.ssh/id_ed25519
-~/.ssh/id_ed25519.pub
+~/.ssh/id_ed25519       ← private key (never share this)
+~/.ssh/id_ed25519.pub   ← public key (copied to nodes)
 ```
 
-The **public key** will be copied to all nodes.
+The **public key** will be copied to all nodes in the next steps.
 
 ---
 
 # Step 3 — Assign Static IPs to Nodes
 
-Before copying SSH keys, the nodes must have stable IPs that match the inventory.
+Before copying SSH keys, all nodes must have stable IPs that match the inventory.
 
 **Required static assignments:**
 
 | Node | IP |
 |---|---|
-| tywin (control-plane) | `10.0.10.11` |
-| jaime (worker) | `10.0.10.12` |
-| tyrion (worker) | `10.0.10.13` |
+| bran (Raspberry Pi) | `10.0.10.10` |
+| tywin (k3s control-plane) | `10.0.10.11` |
+| jaime (k3s worker) | `10.0.10.12` |
+| tyrion (k3s worker) | `10.0.10.13` |
+| docker host (NUC) | `10.0.10.20` |
 
 Configure these as **DHCP reservations** in your router or UniFi controller
 (match by MAC address), or set them as static IPs in `/etc/netplan/` on each node.
 
-> DHCP reservations are preferred — the nodes will always request the same IP from the
-> router, with no per-node network configuration needed.
+> DHCP reservations are preferred — the nodes always request the same IP from the router,
+> with no per-node network configuration needed.
+
+For the Docker host (bare metal NUC), a static netplan configuration is appropriate since
+it is not managed by Ansible:
+
+```bash
+# On the Docker host — edit /etc/netplan/00-installer-config.yaml
+sudo nano /etc/netplan/00-installer-config.yaml
+```
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    eno1:              # replace with your actual interface name (ip link show)
+      dhcp4: no
+      addresses:
+        - 10.0.10.20/24
+      routes:
+        - to: default
+          via: 10.0.10.1
+      nameservers:
+        addresses:
+          - 10.0.10.10   # bran runs Pi-hole
+          - 1.1.1.1
+```
+
+```bash
+sudo netplan apply
+```
 
 ---
 
@@ -150,35 +183,28 @@ Configure these as **DHCP reservations** in your router or UniFi controller
 
 The automation host must be able to connect to every node without passwords.
 
-Use:
-
-```
-ssh-copy-id user@node-ip
-```
-
-Example:
-
-```
+```bash
 ssh-copy-id kagiso@10.0.10.11
 ssh-copy-id kagiso@10.0.10.12
 ssh-copy-id kagiso@10.0.10.13
 ```
 
-Verify access:
+Verify access by logging in without a password:
 
-```
+```bash
 ssh kagiso@10.0.10.11
+# Should drop you into a shell with no password prompt
+exit
 ```
 
-You should be able to log in **without a password**.
-
-Repeat for every node.
+Repeat the verification for each node. If you are prompted for a password, the key was not
+copied correctly — check that the remote user exists and that `~/.ssh/authorized_keys` was created.
 
 ---
 
 # Step 5 — Clone the Repository
 
-The Ansible inventory already lives in this repo at `ansible/inventory/homelab.yml`. Rather than creating one manually, clone the repo on the machine you'll run Ansible from:
+The Ansible inventory already lives in this repo at `ansible/inventory/homelab.yml`. Rather than creating one manually, clone the repo on the machine you will run Ansible from:
 
 ```bash
 git clone https://github.com/Kagiso-me/homelab-infrastructure.git
@@ -212,7 +238,7 @@ all:
     ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 ```
 
-No manual inventory creation needed — it's already maintained in version control.
+No manual inventory creation needed — it is already maintained in version control.
 
 ---
 
@@ -224,7 +250,8 @@ The Ansible configuration at `ansible/ansible.cfg` references a vault password f
 vault_password_file = ~/.vault_pass
 ```
 
-This file must exist before running any Ansible command, even those that don't use encrypted secrets. Without it, every command will error:
+This file must exist before running any Ansible command, even those that do not use encrypted
+secrets. Without it, every command will fail:
 
 ```
 [ERROR]: The vault password file /home/kagiso/.vault_pass was not found
@@ -245,7 +272,7 @@ chmod 600 ~/.vault_pass
 
 # Step 7 — Test Ansible Connectivity
 
-Before running any automation, confirm Ansible can reach the nodes.
+Before running any automation, confirm Ansible can reach all nodes.
 
 Run from the repo root:
 
@@ -253,34 +280,37 @@ Run from the repo root:
 ansible all -m ping
 ```
 
-Expected output:
+Expected output (one SUCCESS block per host):
 
 ```
-SUCCESS
+bran | SUCCESS => {"ping": "pong"}
+tywin | SUCCESS => {"ping": "pong"}
+jaime | SUCCESS => {"ping": "pong"}
+tyrion | SUCCESS => {"ping": "pong"}
 ```
 
-Each node should respond successfully.
+If any node fails, check:
 
-If this fails, check:
-
-• SSH connectivity
-• IP addresses
-• inventory configuration
-• `~/.vault_pass` exists and is readable
+- SSH connectivity (can you `ssh kagiso@<ip>` without a password?)
+- IP addresses match the inventory
+- `~/.vault_pass` exists and is readable (`ls -la ~/.vault_pass`)
+- The remote user `kagiso` exists on the target node
 
 ---
 
 # Step 8 — Harden the Raspberry Pi (Automation Host)
 
-The Raspberry Pi (`bran`, `10.0.10.10`) is both the automation host and a managed node. It must be hardened before it starts managing others.
-
-Run the three security playbooks targeting the `rpi` group only:
+The Raspberry Pi (`bran`, `10.0.10.10`) is both the automation host and a managed node. It
+must be hardened before it starts managing others. Harden it first, targeting the `rpi` group only.
 
 ```bash
-  ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
-  ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
-  ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
+ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
+ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
 ```
+
+> **Important:** Ensure your SSH public key is already present in `~/.ssh/authorized_keys` on
+> bran before running `ssh-hardening.yml`. Password login will be permanently disabled.
 
 ### What each playbook does for the RPi
 
@@ -319,26 +349,28 @@ Installs Fail2Ban and enables the SSH jail:
 | `findtime` | 10 minutes |
 | `maxretry` (SSH) | 3 attempts |
 
-> **Important:** Ensure your SSH public key is already present in `~/.ssh/authorized_keys` on the RPi before running `ssh-hardening.yml`. Password login will be permanently disabled.
+### Verify bran hardening
+
+```bash
+# Check UFW status
+ssh kagiso@10.0.10.10 "sudo ufw status"
+# Expected: Status: active, with rules for 22/tcp and 53
+
+# Check Fail2Ban is running
+ssh kagiso@10.0.10.10 "sudo fail2ban-client status sshd"
+# Expected: Jail Status sshd with Currently failed: 0
+
+# Confirm password auth is disabled
+ssh -o PasswordAuthentication=yes kagiso@10.0.10.10
+# Expected: Permission denied (publickey)
+```
 
 ---
 
-# Step 9 — Baseline Node Preparation
+# Step 9 — Baseline Node Preparation (k3s Nodes)
 
-The automation repository already contains several playbooks for node preparation.
-
-```
-playbooks/security
-playbooks/maintenance
-```
-
-These playbooks perform:
-
-• operating system upgrades
-• swap disabling
-• firewall configuration
-• SSH hardening
-• Fail2Ban installation
+Run the full baseline preparation sequence against the k3s cluster nodes. These playbooks
+bring all nodes to a consistent, hardened, Kubernetes-ready state.
 
 ```mermaid
 graph LR
@@ -347,111 +379,230 @@ graph LR
     C --> D[firewall.yml]
     D --> E[ssh-hardening.yml]
     E --> F[fail2ban.yml]
-    F --> G[Nodes Ready ✓]
+    F --> G[Nodes Ready]
+```
+
+Run each playbook in order. The `-l k3s_controller,k3s_workers` limit targets only the cluster
+nodes, not bran (which was already hardened in Step 8).
+
+### Upgrade Nodes
+
+Ensure all cluster nodes are fully updated before installing Kubernetes. Running Kubernetes on
+nodes with outdated packages introduces known CVEs and compatibility issues.
+
+```bash
+ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml \
+  -l k3s_controller,k3s_workers
+```
+
+This performs a package index refresh, upgrades all installed packages, and installs security
+updates. Nodes may require a reboot after this step — the playbook handles that automatically.
+
+### Disable Swap
+
+Kubernetes requires swap to be disabled on all nodes. If swap is active, the kubelet will
+refuse to start.
+
+```bash
+ansible-playbook ansible/playbooks/security/disable-swap.yml \
+  -l k3s_controller,k3s_workers
+```
+
+This disables swap immediately and removes swap entries from `/etc/fstab` so the change
+survives reboots.
+
+Verify swap is off:
+
+```bash
+ansible k3s_controller,k3s_workers -m shell -a "swapon --show" --become
+# Expected: no output (empty = no swap active)
+```
+
+### Enable Time Synchronization
+
+Cluster nodes must share consistent system time. etcd and TLS certificate validation both
+depend on accurate clocks. Drift greater than a few seconds can cause etcd elections to fail
+and certificates to be rejected.
+
+```bash
+ansible-playbook ansible/playbooks/security/time-sync.yml \
+  -l k3s_controller,k3s_workers
+```
+
+This installs and enables `chrony` (or `systemd-timesyncd`) to synchronize with NTP servers.
+
+Verify time sync is active:
+
+```bash
+ansible k3s_controller,k3s_workers -m shell -a "timedatectl show | grep NTPSynchronized"
+# Expected: NTPSynchronized=yes
+```
+
+### Configure Firewall
+
+Apply UFW firewall rules to all cluster nodes. The firewall allows Kubernetes control plane
+traffic (6443, 2379-2380 for etcd, 10250 for kubelet) while blocking unnecessary inbound
+access.
+
+```bash
+ansible-playbook ansible/playbooks/security/firewall.yml \
+  -l k3s_controller,k3s_workers
+```
+
+### Harden SSH
+
+Apply SSH configuration hardening to all cluster nodes. The same settings applied to bran in
+Step 8 are applied here — no password authentication, no root login, key-only access.
+
+```bash
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml \
+  -l k3s_controller,k3s_workers
+```
+
+> **Important:** Verify that your SSH public key is in `~/.ssh/authorized_keys` on each node
+> before running this. Once password authentication is disabled, you cannot log in without a key.
+
+### Install Fail2Ban
+
+Protect all cluster nodes against brute-force SSH attempts.
+
+```bash
+ansible-playbook ansible/playbooks/security/fail2ban.yml \
+  -l k3s_controller,k3s_workers
 ```
 
 ---
 
-# Upgrade Nodes
+# Step 10 — Docker Host OS Setup (bare metal NUC)
 
-Ensure all nodes are fully updated.
+The Docker host at `10.0.10.20` is a bare metal Intel NUC i3-7100U running Ubuntu 24.04. It
+is not managed by Ansible. This step documents its initial configuration.
 
-```
-ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml
-```
+## OS Installation
 
-This performs:
+Install **Ubuntu Server 24.04 LTS** from a USB installer. During installation:
 
-• package index refresh
-• system upgrades
-• security updates
+- Hostname: `docker` (or whichever name you prefer)
+- Username: `kagiso`
+- Static IP configured via netplan (see Step 3 above)
+- SSH server enabled during installation
 
----
+## Copy SSH Key
 
-# Disable Swap
+After the OS is installed, copy your SSH key from bran:
 
-Kubernetes requires swap to be disabled.
-
-Run:
-
-```
-ansible-playbook ansible/playbooks/security/disable-swap.yml
+```bash
+ssh-copy-id kagiso@10.0.10.20
 ```
 
-Swap interferes with Kubernetes scheduling and must always remain disabled.
+Verify:
 
----
-
-# Enable Time Synchronization
-
-Cluster nodes must share consistent system time.
-
-Run:
-
-```
-ansible-playbook ansible/playbooks/security/time-sync.yml
+```bash
+ssh kagiso@10.0.10.20
 ```
 
-This ensures the nodes synchronize with NTP servers.
+## Update the System
 
----
-
-# Configure Firewall
-
-The platform uses **UFW**.
-
-Apply firewall configuration:
-
-```                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-ansible-playbook ansible/playbooks/security/firewall.yml
+```bash
+ssh kagiso@10.0.10.20
+sudo apt update && sudo apt upgrade -y
 ```
 
-This ensures Kubernetes communication ports remain open while protecting the nodes.
+## Install Docker CE
 
----
+Docker's official repository provides the latest stable release. Do not use the version
+from Ubuntu's default package repository — it is typically several major versions behind.
 
-# Harden SSH
+```bash
+# Install prerequisites
+sudo apt install -y ca-certificates curl
 
-Secure the SSH configuration.
+# Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
 
+# Add the Docker repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker CE
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Allow kagiso to run Docker without sudo
+sudo usermod -aG docker kagiso
 ```
-ansible-playbook ansible/playbooks/security/ssh-hardening.yml
+
+Log out and back in for the group change to take effect, then verify:
+
+```bash
+docker version
+docker compose version
 ```
 
-Typical changes include:
+## Install NFS Client
 
-• disabling password authentication
-• enforcing key-based login
+The Docker host mounts NFS shares from TrueNAS for backup jobs.
 
----
-
-# Install Fail2Ban
-
-Enable SSH protection.
-
-```
-ansible-playbook ansible/playbooks/security/fail2ban.yml
+```bash
+sudo apt install -y nfs-common
 ```
 
-Fail2Ban protects against brute force login attempts.
+Test the NFS mount:
+
+```bash
+sudo mount -t nfs 10.0.10.80:/mnt/archive/backups /tmp/test-nfs
+ls /tmp/test-nfs
+sudo umount /tmp/test-nfs
+```
+
+## Basic Security Hardening
+
+Apply the same SSH hardening and firewall rules manually since the Docker host is not in the
+Ansible inventory:
+
+```bash
+# Disable password authentication
+sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart ssh
+
+# Enable UFW
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from 10.0.10.0/24 to any port 22 proto tcp
+sudo ufw --force enable
+sudo ufw status
+```
 
 ---
 
 # Validation Checklist
 
-Before continuing ensure:
+Before continuing to Guide 02, confirm every item below:
 
 ```
-✓ ~/.vault_pass exists with chmod 600
-✓ SSH access works to every node (including bran)
-✓ ansible all -m ping succeeds (run from ansible/ directory)
-✓ bran: UFW enabled, SSH + DNS from LAN only
+✓ ~/.vault_pass exists on bran with chmod 600
+✓ SSH key-only access works to every k3s node (tywin, jaime, tyrion)
+✓ ansible all -m ping returns SUCCESS for all hosts
+✓ bran: UFW enabled, SSH (22/tcp) + DNS (53) from LAN only
 ✓ bran: password authentication disabled
-✓ bran: Fail2Ban running (fail2ban-client status sshd)
-✓ swap is disabled on cluster nodes
-✓ firewall rules are applied to all nodes
-✓ system clocks are synchronized
-✓ nodes are fully updated
+✓ bran: Fail2Ban running (sudo fail2ban-client status sshd)
+✓ k3s nodes: swap disabled (swapon --show shows no output)
+✓ k3s nodes: time synchronized (timedatectl shows NTPSynchronized=yes)
+✓ k3s nodes: UFW enabled with Kubernetes ports open
+✓ k3s nodes: password authentication disabled
+✓ k3s nodes: Fail2Ban installed and running
+✓ k3s nodes: all packages upgraded
+✓ Docker host: Ubuntu 24.04 installed with static IP 10.0.10.20
+✓ Docker host: Docker CE installed and running (docker version)
+✓ Docker host: nfs-common installed, test NFS mount succeeds
+✓ Docker host: SSH password authentication disabled
 ```
 
 ---
@@ -460,9 +611,10 @@ Before continuing ensure:
 
 This phase is complete when:
 
-• Ansible can connect to every node
-• baseline security configuration is applied
-• nodes are ready for Kubernetes installation
+- Ansible can connect to every node without passwords
+- baseline security configuration is applied to bran and all k3s nodes
+- Docker host is configured with Docker CE, NFS client, and basic hardening
+- nodes are ready for Kubernetes installation
 
 ---
 
@@ -470,7 +622,7 @@ This phase is complete when:
 
 ➡ **[02 — Kubernetes Installation (k3s via Ansible)](./02-Kubernetes-Installation.md)**
 
-The next guide explains how the Kubernetes cluster itself is installed using the existing automation playbook.
+The next guide installs the Kubernetes cluster on tywin, jaime, and tyrion using the existing Ansible automation playbook.
 
 ---
 

@@ -1,6 +1,6 @@
 # =============================================================================
 # Media Stack — Docker Compose
-# Host: 10.0.10.32 | TrueNAS: 10.0.10.80
+# Host: 10.0.10.20 | TrueNAS: 10.0.10.80
 # User: kagiso (PUID=1000, PGID=1000) | TZ: Africa/Johannesburg
 #
 # Prerequisites:
@@ -23,7 +23,7 @@ services:
   # ---------------------------------------------------------------------------
   # Plex — Media server
   # Hardware transcoding via Intel VA-API (requires /dev/dri)
-  # Web UI: http://10.0.10.32:32400/web
+  # Web UI: http://10.0.10.20:32400/web
   # ---------------------------------------------------------------------------
   plex:
     image: lscr.io/linuxserver/plex:${PLEX_VERSION:-latest}
@@ -62,7 +62,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Sonarr — TV series management
-  # Web UI: http://10.0.10.32:8989
+  # Web UI: http://10.0.10.20:8989
   # ---------------------------------------------------------------------------
   sonarr:
     image: lscr.io/linuxserver/sonarr:${SONARR_VERSION:-latest}
@@ -94,7 +94,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Radarr — Movie management
-  # Web UI: http://10.0.10.32:7878
+  # Web UI: http://10.0.10.20:7878
   # ---------------------------------------------------------------------------
   radarr:
     image: lscr.io/linuxserver/radarr:${RADARR_VERSION:-latest}
@@ -126,7 +126,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Lidarr — Music management
-  # Web UI: http://10.0.10.32:8686
+  # Web UI: http://10.0.10.20:8686
   # ---------------------------------------------------------------------------
   lidarr:
     image: lscr.io/linuxserver/lidarr:${LIDARR_VERSION:-latest}
@@ -157,7 +157,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Prowlarr — Indexer manager
-  # Web UI: http://10.0.10.32:9696
+  # Web UI: http://10.0.10.20:9696
   # ---------------------------------------------------------------------------
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:${PROWLARR_VERSION:-latest}
@@ -187,7 +187,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Overseerr — Media request management
-  # Web UI: http://10.0.10.32:5055
+  # Web UI: http://10.0.10.20:5055
   # ---------------------------------------------------------------------------
   overseerr:
     image: lscr.io/linuxserver/overseerr:${OVERSEERR_VERSION:-latest}
@@ -217,7 +217,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # SABnzbd — Usenet download client
-  # Web UI: http://10.0.10.32:8085
+  # Web UI: http://10.0.10.20:8085
   # NOTE: Host port 8085 (not 8080) to avoid conflict with cAdvisor in monitoring-stack
   # ---------------------------------------------------------------------------
   sabnzbd:
@@ -250,7 +250,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Bazarr — Subtitle management
-  # Web UI: http://10.0.10.32:6767
+  # Web UI: http://10.0.10.20:6767
   # ---------------------------------------------------------------------------
   bazarr:
     image: lscr.io/linuxserver/bazarr:${BAZARR_VERSION:-latest}
@@ -281,7 +281,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Navidrome — Music streaming server (Subsonic-compatible)
-  # Web UI: http://10.0.10.32:4533
+  # Web UI: http://10.0.10.20:4533
   # ---------------------------------------------------------------------------
   navidrome:
     image: deluan/navidrome:${NAVIDROME_VERSION:-latest}

@@ -9,10 +9,10 @@
 
 ## Context
 
-The CI/CD pipeline (`promote-to-prod.yml`) requires network access to the homelab's internal
-cluster API servers (`10.0.10.11` for prod, `10.0.10.31` for staging) to perform health checks
-after every `main` branch push. GitHub-hosted runners run in GitHub's cloud infrastructure
-and cannot reach RFC-1918 addresses on the homelab LAN.
+The CI/CD pipeline requires network access to the homelab's internal cluster API server
+(`10.0.10.11` for prod) to perform post-merge health checks after every push to `main`.
+GitHub-hosted runners run in GitHub's cloud infrastructure and cannot reach RFC-1918
+addresses on the homelab LAN.
 
 Two options were evaluated to bridge this gap:
 
@@ -25,11 +25,12 @@ Two options were evaluated to bridge this gap:
 
 **Self-hosted runner on bran (10.0.10.10) is used for all cluster-touching CI jobs.**
 
-The `validate` job (kubeconform + kustomize build) continues to run on `ubuntu-latest` —
-it requires no cluster access and benefits from GitHub's hosted infrastructure being
-independent of homelab availability.
+Static analysis jobs (kubeconform, kustomize build, pluto, flux-local diff) run on
+`ubuntu-latest` GitHub-hosted runners — they require no cluster access and benefit from
+GitHub's hosted infrastructure being independent of homelab availability.
 
-Jobs that require cluster access use the runner label `[self-hosted, linux, homelab]`.
+The post-merge health check job requires direct cluster access and runs on the self-hosted
+runner with label `[self-hosted, linux, homelab]`.
 
 ## Rationale
 
@@ -48,28 +49,47 @@ or if the auth key expires, or if Tailscale's GitHub Action API changes, CI brea
 This couples cluster operations to a third-party SaaS product.
 
 The self-hosted runner eliminates this coupling. `bran` is already the homelab automation
-host (Ansible, monitoring), is always on, and has LAN-level access to both clusters.
+host (Ansible, monitoring), is always on, and has LAN-level access to the prod cluster.
 The runner agent auto-updates itself when GitHub signals a new minimum version is required —
 no manual intervention needed in normal operation.
+
+## Runner Role in the CI Pipeline
+
+The runner participates in two distinct phases of the pipeline:
+
+**PR phase (static analysis — GitHub-hosted runners):**
+- `kubeconform` — validates all YAML manifests against Kubernetes schemas
+- `kustomize build` — confirms overlays render without errors
+- `pluto` — detects use of deprecated or removed Kubernetes APIs
+- `flux-local diff` — renders a diff of what changes will be applied to the cluster and posts it as a PR comment
+
+**Post-merge phase (cluster health check — self-hosted runner):**
+- Triggers a Flux source reconciliation to pull the merged commit
+- Waits for all Flux kustomizations to report `Ready`
+- Confirms Traefik responds at its MetalLB VIP
+- Fails the workflow (and fires a GitHub Actions notification) if the cluster is unhealthy after the merge
+
+This split ensures that manifest validation never depends on homelab availability, while the health check that verifies the live cluster always has direct LAN access.
 
 ## Consequences
 
 **Positive:**
 - No Tailscale dependency in the CI pipeline
 - Faster health check jobs (pre-installed kubectl, flux CLI; no VPN handshake)
-- Kubeconfig secrets use plain internal IPs (`10.0.10.11`, `10.0.10.31`) — simpler to generate
+- Kubeconfig secret uses plain internal IP (`10.0.10.11`) — simpler to generate and rotate
 - CI pipeline is fully independent of any third-party network service
+- 100% of manifests are validated before they reach the cluster
 
 **Negative:**
-- If `bran` is offline, health check jobs queue indefinitely rather than failing fast
+- If `bran` is offline, the post-merge health check queues indefinitely rather than failing fast
 - The runner agent systemd service must be configured to start on boot
-- Pre-installed tools (kubectl, flux CLI, kubeconform, kustomize) must be present on bran
+- Pre-installed tools (kubectl, flux CLI, kubeconform, kustomize, pluto) must be present and current on bran
 
 **Learned in practice:**
 - Pod health checks must be scoped to Flux-managed namespaces only (`flux-system`, `ingress`,
   `cert-manager`, `monitoring`, `storage`, `velero`, `metallb-system`). A cluster-wide `-A`
-  check caused promotion to block on unrelated crashing pods (e.g. `system-upgrade-controller`)
-  that have nothing to do with the changes being promoted.
+  check causes the health job to block on unrelated crashing pods (e.g. `system-upgrade-controller`)
+  that have nothing to do with the changes being merged.
 
 ## Runner Setup
 
@@ -122,6 +142,11 @@ curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_
 # kustomize (ARM64)
 curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
 sudo mv kustomize /usr/local/bin/
+
+# pluto (ARM64) — deprecated API detection
+PLUTO_VERSION="v5.19.4"
+curl -sSL "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_arm64.tar.gz" \
+  | tar -xz -C /usr/local/bin pluto
 ```
 
 ## Required Secrets
@@ -130,7 +155,6 @@ Add these to the GitHub repository under **Settings → Secrets and variables �
 
 | Secret | Value |
 |--------|-------|
-| `STAGING_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on the staging VM (server stays as `10.0.10.31:6443`) |
-| `PROD_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on `tywin` (server stays as `10.0.10.11:6443`) |
+| `KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on `tywin` (server stays as `10.0.10.11:6443`) |
 
-No Tailscale auth key is required.
+No Tailscale auth key is required. No staging kubeconfig is required — the staging cluster has been decommissioned (see ADR-006, ADR-012).

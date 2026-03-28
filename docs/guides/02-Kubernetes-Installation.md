@@ -1,12 +1,14 @@
 
 # 02 — Kubernetes Installation (k3s via Ansible)
-## Bootstrapping the Cluster
+## Bootstrapping the Production Cluster
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
 **Guide:** 02 of 13
 
 > In this phase we install Kubernetes using **k3s** and the existing Ansible automation.
+>
+> By the end of this guide, a three-node k3s cluster will be running and accessible from `bran`.
 
 ---
 
@@ -14,24 +16,27 @@
 
 Kubernetes can be installed in many ways. Common approaches include:
 
-• kubeadm
-• managed cloud clusters
-• k3s
+- kubeadm
+- managed cloud clusters
+- k3s
 
 For this platform we intentionally use **k3s**.
 
-k3s is a lightweight Kubernetes distribution created by Rancher that packages
-core Kubernetes components into a simplified deployment model.
+k3s is a lightweight Kubernetes distribution created by Rancher that packages core Kubernetes
+components into a simplified deployment model.
 
-Key advantages include:
+Key advantages for this platform:
 
-• extremely simple installation
-• embedded etcd datastore
-• minimal resource footprint
-• full Kubernetes API compatibility
+| Advantage | Why it matters |
+|---|---|
+| Embedded etcd datastore | No external database required — etcd runs inside k3s itself |
+| Single binary | Dramatically simpler to install and upgrade than multi-component kubeadm |
+| Full Kubernetes API compatibility | All standard manifests, Helm charts, and tools work unchanged |
+| Minimal resource footprint | ThinkCentre nodes run comfortably with headroom for workloads |
+| Automated snapshot support | Built-in etcd-snapshot to NFS/S3 — no external tooling needed |
 
-k3s behaves like a normal Kubernetes cluster while significantly reducing
-operational complexity.
+k3s behaves like a full Kubernetes cluster while significantly reducing operational complexity.
+This is not a tradeoff — it is the correct tool for a single-operator homelab platform.
 
 ---
 
@@ -41,27 +46,28 @@ A Kubernetes cluster should **never be installed manually**.
 
 Manual installation introduces several problems:
 
-• inconsistent configuration between nodes
-• undocumented setup steps
-• difficult disaster recovery
+- inconsistent configuration between nodes
+- undocumented setup steps
+- disaster recovery depends on memory, not automation
 
 Instead, the cluster installation is performed through **Ansible playbooks**.
 
 Automation provides:
 
 ```
-repeatability
-documentation
-disaster recovery capability
+repeatability       → exact same result on every run
+documentation       → the playbook IS the installation procedure
+disaster recovery   → cluster rebuild = run the playbook again
 ```
 
-If the cluster ever needs to be rebuilt, the same playbook can be executed again.
+If the cluster ever needs to be rebuilt, executing `install-cluster.yml` again produces an
+identical result. This is the core of the Automation First principle.
 
 ---
 
 # Automation Repository Structure
 
-The automation repository used for cluster installation has the following structure.
+The Ansible automation lives under `ansible/` in the repo root.
 
 ```
 ansible/
@@ -70,7 +76,7 @@ ansible/
 │   └── homelab.yml
 ├── playbooks
 │   ├── lifecycle
-│   │   ├── install-cluster.yml
+│   │   ├── install-cluster.yml      ← cluster installation (this guide)
 │   │   ├── install-platform.yml
 │   │   └── purge-k3s.yml
 │   ├── maintenance
@@ -90,7 +96,9 @@ ansible/
         └── tasks
 ```
 
-This repository represents **the source of truth for cluster provisioning**.
+This repository is the **source of truth for cluster provisioning**. The role at
+`roles/k3s_install` is what actually installs k3s and configures each node. The playbook
+`install-cluster.yml` calls that role with the correct parameters for each node type.
 
 ---
 
@@ -100,9 +108,9 @@ The cluster consists of three nodes.
 
 ```mermaid
 graph TD
-    tywin["tywin - 10.0.10.11<br/>Control Plane<br/>kube-apiserver - etcd - scheduler"]
-    jaime["jaime - 10.0.10.12<br/>Worker Node"]
-    tyrion["tyrion - 10.0.10.13<br/>Worker Node"]
+    tywin["tywin — 10.0.10.11<br/>Control Plane<br/>kube-apiserver · etcd · scheduler · controller-manager"]
+    jaime["jaime — 10.0.10.12<br/>Worker Node"]
+    tyrion["tyrion — 10.0.10.13<br/>Worker Node"]
     tywin --> jaime
     tywin --> tyrion
     style tywin fill:#2b6cb0,color:#fff
@@ -110,86 +118,100 @@ graph TD
     style tyrion fill:#276749,color:#fff
 ```
 
-Node roles:
-
-| Node | Role |
-|-----|------|
-tywin | control-plane |
-jaime | worker |
-tyrion | worker |
+| Node | Role | IP |
+|---|---|---|
+| tywin | control-plane | 10.0.10.11 |
+| jaime | worker | 10.0.10.12 |
+| tyrion | worker | 10.0.10.13 |
 
 ---
 
-# Control Plane Responsibilities
+# Control Plane Architecture
 
-The control-plane node runs the core Kubernetes control components.
+The control-plane node (`tywin`) runs all core Kubernetes control components:
 
 ```
-kube-apiserver
-kube-controller-manager
-kube-scheduler
-etcd
+kube-apiserver          → serves the Kubernetes API on port 6443
+kube-controller-manager → reconciles desired vs actual cluster state
+kube-scheduler          → assigns pods to nodes
+etcd                    → distributed key-value store for all cluster state
 ```
 
-These components coordinate all cluster activity.
+This is a **single-node control plane** with embedded etcd. See [ADR-005](../adr/ADR-005-embedded-etcd.md) for the rationale — a single-node control plane is appropriate for a homelab where the added complexity of HA etcd is not justified.
 
-Worker nodes host:
+Worker nodes (`jaime`, `tyrion`) host:
 
-• application workloads
-• platform services
-• stateful workloads
+- application workloads
+- platform services (Prometheus, Loki, Traefik, etc.)
+- stateful workloads backed by NFS PVCs
 
 ---
 
-# Installing the Cluster
+# What install-cluster.yml Does
 
-Cluster installation is executed using the existing playbook.
+Before running the playbook, it is important to understand what it does so you can diagnose
+any failures.
 
-From the automation host, run from the repository root:
+The `install-cluster.yml` playbook, through the `k3s_install` role, performs these operations in order:
+
+1. **Installs `nfs-common`** on all nodes — required by the NFS Subdir Provisioner that Flux deploys later. Without it, NFS PVC mounts fail with `bad option; need helper program`.
+2. **Installs k3s server on `tywin`** — starts the control plane with embedded etcd, disables the bundled Traefik ingress and bundled ServiceLB load balancer (both are managed by Flux instead).
+3. **Retrieves the cluster join token** from tywin — this token allows worker nodes to authenticate with the control plane.
+4. **Installs k3s agent on `jaime` and `tyrion`** — joins each worker to the cluster using the join token.
+5. **Applies node labels** — labels `tywin` as `node-role.kubernetes.io/control-plane` and workers as `node-role.kubernetes.io/worker`.
+6. **Configures etcd snapshots** — sets up automatic etcd snapshots to the TrueNAS NFS path `/mnt/archive/backups/k8s/etcd` on a schedule.
+
+The bundled Traefik and ServiceLB are disabled because this platform manages both through
+Flux — Traefik via the `platform-networking` kustomization, and MetalLB as the LoadBalancer
+implementation. The bundled versions conflict with the GitOps-managed ones.
+
+---
+
+# Running the Installation
+
+From the automation host (`bran`), run from the repository root:
 
 ```bash
-cd ~/homelab-infrastructure/ansible
-ansible-playbook playbooks/lifecycle/install-cluster.yml
+cd ~/homelab-infrastructure
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml
 ```
 
-The playbook performs the following operations:
-
-1. installs k3s server on the control-plane node
-2. retrieves the cluster join token
-3. installs k3s agents on worker nodes
-4. configures cluster connectivity
-
-Because the installation is automated, the entire cluster can be deployed
-in a few minutes.
-
----
-
-# Installation Flow
-
-The high level installation process looks like this.
+The playbook runs Ansible tasks against all three nodes in the correct order. Expect it to
+complete in 3–5 minutes on a healthy network.
 
 ```mermaid
 graph TD
-    A["Ansible Automation Host"] --> B["Install k3s server<br/>on tywin (control-plane)"]
-    B --> C["Retrieve cluster join token"]
-    C --> D["Install k3s agents<br/>on jaime + tyrion"]
-    D --> E["Cluster operational<br/>kubectl get nodes ✓"]
+    A["bran — Ansible Automation Host"] --> B["Install nfs-common on all nodes"]
+    B --> C["Install k3s server on tywin<br/>(control-plane, embedded etcd,<br/>--disable traefik --disable servicelb)"]
+    C --> D["Retrieve cluster join token from tywin"]
+    D --> E["Install k3s agent on jaime + tyrion<br/>(join workers to cluster)"]
+    E --> F["Apply node labels"]
+    F --> G["Configure etcd snapshots → TrueNAS NFS"]
+    G --> H["Cluster operational"]
 ```
-
-This process ensures every node is configured consistently.
 
 ---
 
-# Retrieving Kubeconfig
+# Retrieving the Kubeconfig
 
-After installation, copy the kubeconfig from the control-plane node (`tywin`) to the automation host (`bran`) and configure `kubectl` to use it.
+After installation, copy the kubeconfig from the control-plane node (`tywin`) to the
+automation host (`bran`) and configure `kubectl` to use it.
+
+k3s writes `127.0.0.1` as the API server address in the generated kubeconfig. This address
+is only reachable on tywin itself. Replace it with tywin's LAN IP so bran can connect.
 
 Run on **bran**:
 
 ```bash
-# Copy kubeconfig from tywin and fix the address (k3s writes 127.0.0.1, which is only reachable on tywin itself)
+# Create the .kube directory if it does not exist
+mkdir -p ~/.kube
+
+# Copy the kubeconfig and patch the server address
 scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
 sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+
+# Restrict file permissions (kubectl warns if the file is world-readable)
+chmod 600 ~/.kube/prod-config
 
 # Activate for this session
 export KUBECONFIG=~/.kube/prod-config
@@ -207,211 +229,207 @@ kubectl get nodes
 Expected output:
 
 ```
-tywin    Ready
-jaime    Ready
-tyrion   Ready
+NAME     STATUS   ROLES                  AGE   VERSION
+tywin    Ready    control-plane,master   2m    v1.x.x+k3s1
+jaime    Ready    worker                 1m    v1.x.x+k3s1
+tyrion   Ready    worker                 1m    v1.x.x+k3s1
 ```
+
+All three nodes must show `Ready`. If any node shows `NotReady`, wait 30 seconds and retry —
+the agent may still be completing its initialization.
 
 ---
 
 # Verifying System Components
 
-Next verify that system pods are running.
+Confirm that the core Kubernetes system pods are running:
 
-```
+```bash
 kubectl get pods -A
 ```
 
-Core components should include:
+Core components deployed automatically by k3s:
 
+| Component | Namespace | Purpose |
+|---|---|---|
+| `coredns` | `kube-system` | DNS resolution inside the cluster |
+| `metrics-server` | `kube-system` | Resource metrics for HPA and `kubectl top` |
+| `local-path-provisioner` | `kube-system` | Local PVC provisioning (not used by this platform but included by default) |
+
+All pods must show `Running` or `Completed`. If any pod is stuck in `Pending` or `CrashLoopBackOff`:
+
+```bash
+kubectl describe pod <pod-name> -n kube-system
+kubectl logs <pod-name> -n kube-system
 ```
-coredns
-metrics-server
-local-path-provisioner
-```
-These components are deployed automatically by k3s.
 
 ---
 
 # Understanding the Embedded Datastore
 
-k3s uses an embedded **etcd datastore** to store cluster state.
+k3s uses an **embedded etcd** datastore to store all cluster state. This is the single source
+of truth for:
 
-This datastore maintains information about:
+- node registrations
+- pod assignments
+- service definitions
+- ConfigMaps and Secrets
+- all custom resource definitions and their instances
 
-• nodes
-• pods
-• services
-• cluster configuration
+Because etcd runs on the control-plane node (`tywin`), the reliability of tywin is critical.
+Losing tywin without a recent etcd snapshot means losing the cluster state entirely.
 
-The reliability of the control-plane node is therefore critical.
+**This is why etcd snapshots to TrueNAS NFS are configured in the playbook** — they provide a
+point-in-time consistent backup of the entire cluster state, independent of the node itself.
+Guide 10 covers the full backup and restore procedures for etcd snapshots.
 
-Later in this handbook we will introduce **Velero backups**
-to protect this cluster state.
+---
+
+# Verifying etcd Snapshot Configuration
+
+Confirm that k3s is configured to write etcd snapshots to the TrueNAS NFS path.
+
+SSH into tywin and check the k3s configuration:
+
+```bash
+ssh kagiso@10.0.10.11
+sudo cat /etc/rancher/k3s/config.yaml
+```
+
+You should see snapshot configuration similar to:
+
+```yaml
+etcd-snapshot-dir: /mnt/archive/backups/k8s/etcd
+etcd-snapshot-schedule-cron: "0 */6 * * *"
+etcd-snapshot-retention: 10
+```
+
+This schedules snapshots every 6 hours, retaining the 10 most recent snapshots. Verify the
+NFS path is mounted:
+
+```bash
+ls /mnt/archive/backups/k8s/etcd
+# Should list snapshot files after the first scheduled snapshot runs
+```
+
+If the directory is empty immediately after install, that is expected — the first snapshot
+runs on the configured cron schedule.
+
+---
+
+# Verifying Node Labels
+
+Confirm that the Ansible role applied the correct node labels:
+
+```bash
+kubectl get nodes --show-labels
+```
+
+Key labels to verify:
+
+| Node | Expected label |
+|---|---|
+| tywin | `node-role.kubernetes.io/control-plane=true` |
+| jaime | `node-role.kubernetes.io/worker=true` |
+| tyrion | `node-role.kubernetes.io/worker=true` |
+
+These labels are used by platform workloads to constrain scheduling — for example, ensuring
+that Prometheus does not run on the control-plane node.
+
+---
+
+# Confirming Traefik and ServiceLB Are Disabled
+
+The Ansible role passes `--disable traefik --disable servicelb` to the k3s installer. Confirm
+these are not running:
+
+```bash
+kubectl get pods -A | grep -E "traefik|svclb"
+```
+
+Expected output: **no results**. If traefik or svclb pods appear, the disable flags were not
+applied correctly. Check the k3s service arguments on tywin:
+
+```bash
+ssh kagiso@10.0.10.11
+sudo systemctl cat k3s | grep disable
+# Expected: --disable traefik --disable servicelb
+```
 
 ---
 
 # Common Installation Issues
 
-Several problems may occur during installation.
+### Ansible cannot connect to a node
 
-### SSH Connectivity
-
-If Ansible cannot connect to nodes, the playbook will fail.
-
-Verify connectivity:
-
-```
+```bash
 ansible all -m ping
 ```
 
----
-
-### Firewall Blocking Ports
-
-If cluster ports are blocked the workers may fail to join the cluster.
-
-Ensure port **6443** is reachable between nodes.
-
----
-
-### Incorrect Inventory
-
-If the Ansible inventory does not correctly list the nodes,
-installation will not succeed.
-
-Always verify the inventory before running the playbook.
-
----
-
-# Staging Cluster Installation
-
-The platform uses a two-cluster GitOps model: a single-node staging cluster and the three-node
-production cluster. Every change lands on staging first. Only after staging is healthy is it
-promoted to production.
-
-> **Why this architecture exists:** See [ADR-006 — Pivot Docker Host to Proxmox](../adr/ADR-006-proxmox-pivot.md)
-> for the full rationale. The full Proxmox host setup, VM template creation, and Docker VM
-> restore are documented in [Ops Log: 2026-03-16 Pivot NUC to Proxmox](../ops-log/2026-03-16-pivot-nuc-to-proxmox.md).
-
-The staging cluster is a single-node k3s VM running on the Proxmox host (NUC at `10.0.10.30`).
-
-```
-Proxmox host — 10.0.10.30
-├── docker-vm    — 10.0.10.32
-└── staging-k3s  — 10.0.10.31  ← this section
-```
-
----
-
-## Prerequisites
-
-Before continuing, the following must already be in place:
-
-- Proxmox VE installed on the NUC (`10.0.10.30`)
-- Ubuntu 22.04 cloud-init template created as VM 9000
-- SSH key loaded on the Proxmox host
-
-Both are covered in the ops log linked above.
-
----
-
-## Creating the staging-k3s VM
-
-Run on the **Proxmox host** (`ssh root@10.0.10.30`):
+If a node fails, verify SSH key access and that the node is reachable:
 
 ```bash
-# Clone the cloud-init template (VM 9000) into a new VM with ID 3031
-qm clone 9000 3031 --name staging-k3s --full
-
-# Configure resources and networking
-qm set 3031 \
-  --memory 6144 \
-  --cores 2 \
-  --cpu host \
-  --ipconfig0 ip=10.0.10.31/24,gw=10.0.10.1 \
-  --nameserver 10.0.10.10
-
-# Expand disk to 60GB before first boot
-qm resize 3031 scsi0 60G
-
-# Start the VM
-qm start 3031
+ssh kagiso@10.0.10.11
 ```
 
-Cloud-init runs on first boot and automatically:
-- sets the static IP (`10.0.10.31`)
-- injects your SSH key
-- expands the root filesystem
+### Workers fail to join the cluster
 
-No installer interaction is required.
-
----
-
-## First Boot — Install k3s
-
-Once the VM is up, SSH in and install k3s:
+The workers join using port 6443 on tywin. If the firewall is blocking this port, worker agents
+will fail to register. Verify from a worker node:
 
 ```bash
-ssh kagiso@10.0.10.31
-
-# Install QEMU guest agent (enables graceful shutdown and IP visibility in Proxmox UI)
-sudo apt install -y qemu-guest-agent
-sudo systemctl enable --now qemu-guest-agent
-
-# Install k3s as a single-node cluster
-# --disable traefik  → Traefik is managed by Flux, not bundled with k3s
-# --write-kubeconfig-mode 644  → allows non-root kubeconfig reads
-curl -sfL https://get.k3s.io | sh -s - \
-  --disable traefik \
-  --write-kubeconfig-mode 644
+ssh kagiso@10.0.10.12
+curl -k https://10.0.10.11:6443/version
+# Expected: JSON response with Kubernetes version info
 ```
 
-Verify the node is ready:
+If this fails, check the UFW rules on tywin:
 
 ```bash
-kubectl get nodes
+ssh kagiso@10.0.10.11
+sudo ufw status | grep 6443
 ```
 
-Expected output:
+### kubectl cannot connect after copying kubeconfig
 
-```
-NAME          STATUS   ROLES                  AGE   VERSION
-staging-k3s   Ready    control-plane,master   ...   v1.x.x+k3s1
-```
-
----
-
-## Retrieving the Staging Kubeconfig
-
-Copy the kubeconfig from the staging VM to bran and fix the server address.
-
-Run on **bran**:
+The most common cause is forgetting to replace `127.0.0.1` with `10.0.10.11` in the kubeconfig.
 
 ```bash
-# Copy kubeconfig from staging VM and patch the address
-# (k3s writes 127.0.0.1, which is only reachable on the VM itself)
-scp kagiso@10.0.10.31:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
-sed -i 's/127.0.0.1/10.0.10.31/' ~/.kube/staging-config
+grep server ~/.kube/prod-config
+# Expected: server: https://10.0.10.11:6443
+# Wrong:    server: https://127.0.0.1:6443
 ```
 
-Verify connectivity from bran:
+If wrong, run the `sed` command again:
 
 ```bash
-export KUBECONFIG=~/.kube/staging-config
-kubectl get nodes
+sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
 ```
 
-> Do **not** persist `KUBECONFIG=~/.kube/staging-config` in `.bashrc` at this point.
-> Guide 04 sets the default kubeconfig to prod. Staging is activated per-session when needed.
+### nfs-common not installed after playbook
+
+The `install-cluster.yml` playbook installs `nfs-common` as part of node preparation. If it was
+skipped for any reason, verify manually:
+
+```bash
+ansible k3s_controller,k3s_workers \
+  -m shell -a "dpkg -l nfs-common | grep '^ii'" --become
+```
+
+If missing on any node:
+
+```bash
+ansible k3s_controller,k3s_workers \
+  -m apt -a "name=nfs-common state=present update_cache=yes" --become
+```
 
 ---
 
 # Exit Criteria
 
-This phase is complete when both clusters are reachable from bran.
+This phase is complete when the following are all true.
 
-**Production cluster** (`~/.kube/prod-config`):
+**Cluster is reachable from bran:**
 
 ```bash
 export KUBECONFIG=~/.kube/prod-config
@@ -421,31 +439,48 @@ kubectl get nodes
 Expected:
 
 ```
-tywin    Ready    control-plane,master
-jaime    Ready    <none>
-tyrion   Ready    <none>
+NAME     STATUS   ROLES                  AGE   VERSION
+tywin    Ready    control-plane,master   ...   v1.x.x+k3s1
+jaime    Ready    worker                 ...   v1.x.x+k3s1
+tyrion   Ready    worker                 ...   v1.x.x+k3s1
 ```
 
-**Staging cluster** (`~/.kube/staging-config`):
+**All system pods are running:**
 
 ```bash
-export KUBECONFIG=~/.kube/staging-config
-kubectl get nodes
-```
-
-Expected:
-
-```
-staging-k3s   Ready    control-plane,master
-```
-
-Additionally, on each cluster:
-
-```
 kubectl get pods -A
+# coredns, metrics-server, local-path-provisioner — all Running
 ```
 
-should show all system pods running (`coredns`, `metrics-server`, `local-path-provisioner`).
+**Traefik and ServiceLB are disabled:**
+
+```bash
+kubectl get pods -A | grep -E "traefik|svclb"
+# No output
+```
+
+**Node labels are applied:**
+
+```bash
+kubectl get nodes --show-labels | grep "node-role"
+# tywin: control-plane label present
+# jaime, tyrion: worker label present
+```
+
+**nfs-common is installed on all nodes:**
+
+```bash
+ansible k3s_controller,k3s_workers \
+  -m shell -a "dpkg -l nfs-common | grep '^ii'" --become
+# All nodes return the installed package line
+```
+
+**kubeconfig persisted:**
+
+```bash
+grep KUBECONFIG ~/.bashrc
+# Expected: export KUBECONFIG=~/.kube/prod-config
+```
 
 ---
 
@@ -453,7 +488,7 @@ should show all system pods running (`coredns`, `metrics-server`, `local-path-pr
 
 ➡ **[03 — Secrets Management](./03-Secrets-Management.md)**
 
-The next guide covers how secrets are encrypted, stored in Git, and decrypted by Flux at reconciliation time.
+The next guide covers how secrets are encrypted, stored in Git, and decrypted by Flux at reconciliation time. The `sops-age` Kubernetes Secret created in Guide 03 must exist before you bootstrap Flux in Guide 04.
 
 ---
 

@@ -136,8 +136,7 @@ You are Beesly, an intelligent personal assistant.
 
 Infrastructure access — you can query and manage:
 - k3s Kubernetes cluster (nodes: tywin 10.0.10.11, jaime .12, tyrion .13)
-- Docker containers on docker-vm (10.0.10.32)
-- Proxmox hypervisor on the NUC (10.0.10.30) — VMs: docker-vm (10.0.10.32), staging-k3s (10.0.10.31)
+- Docker containers on the NUC bare metal host (10.0.10.20)
 - TrueNAS NAS (10.0.10.80) — pools: core (SSD mirror), archive (HDD mirror), tera (media)
 - Prometheus metrics via kube-prometheus-stack
 - Pulse uptime monitoring at status.kagiso.me
@@ -161,10 +160,6 @@ Shell scripts in `tools/` that Beesly can invoke:
 ```bash
 # tools/k3s-status.sh
 kubectl get nodes && kubectl get pods -A --field-selector=status.phase!=Running
-
-# tools/proxmox-vms.sh
-ssh root@10.0.10.30 "pvesh get /nodes/pve/qemu --output-format=json" \
-  | jq '.[] | {name:.name, status:.status}'
 
 # tools/nas-health.sh
 ssh root@10.0.10.80 "zpool status -x"

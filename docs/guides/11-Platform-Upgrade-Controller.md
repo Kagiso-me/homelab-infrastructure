@@ -212,7 +212,7 @@ graph TD
     Agent2 --> Done["All nodes on new version<br/>Cluster fully upgraded"]
 ```
 
-**Order:** tywin (control-plane) --> jaime --> tyrion
+**Order:** tywin (control-plane) → jaime → tyrion
 
 Worker nodes are upgraded one at a time because the agent Plan's default concurrency is 1 (no explicit `concurrency` field means the controller defaults to upgrading one node at a time).
 
@@ -287,33 +287,16 @@ The repository provides **two** methods for upgrading k3s. They are not intercha
 
 ---
 
-# Staging vs. Production
+# Recommended Upgrade Workflow
 
-## Production Cluster
-
-The production cluster (`clusters/prod/infrastructure.yaml`) includes both Flux kustomizations:
-
-- `platform-upgrade` — deploys the controller
-- `platform-upgrade-plans` — deploys the Plan resources
-
-Upgrades in production follow the full GitOps workflow described in this guide.
-
-## Staging Cluster
-
-The staging cluster (`clusters/staging/infrastructure.yaml`) does **not** include `platform-upgrade` or `platform-upgrade-plans`. The system-upgrade-controller is not deployed in staging.
-
-This means staging cluster k3s upgrades must be performed manually via Ansible or direct SSH. In a single-environment homelab this is acceptable — the production cluster is the only long-lived environment, and staging is used primarily for testing application and platform service changes, not k3s version changes.
-
-## Recommended Upgrade Workflow
-
-For k3s version upgrades where staging validation is desired:
+For k3s version upgrades:
 
 ```
-1. Test the new k3s version on a local VM or the staging cluster (manual install)
-2. Review k3s release notes for breaking changes
-3. Take an etcd snapshot on the production cluster
-4. Update spec.version in both Plan files
-5. Commit and push to main
+1. Review k3s release notes for breaking changes
+2. Take an etcd snapshot on the production cluster
+3. Update spec.version in both Plan files
+4. Open a PR — CI validates the manifest changes
+5. Merge to main — Flux reconciles the Plans
 6. Monitor the rolling upgrade in production
 7. Verify all nodes and workloads
 ```
@@ -375,18 +358,21 @@ spec:
   version: v1.32.1+k3s1    # <-- must match plan-server.yaml
 ```
 
-## Step 5 — Commit and Push
+## Step 5 — Open a PR and Merge
 
 ```bash
+git checkout -b upgrade/k3s-v1.32.1
 git add platform/upgrade/upgrade-plans/plan-server.yaml \
         platform/upgrade/upgrade-plans/plan-agent.yaml
 git commit -m "chore: upgrade k3s to v1.32.1+k3s1"
-git push origin main
+git push origin upgrade/k3s-v1.32.1
 ```
+
+Open a pull request against `main`. CI runs kubeconform validation. After review, merge to `main`. Flux reconciles the Plans automatically.
 
 ## Step 6 — Force Flux Reconciliation (Optional)
 
-Flux polls the Git repository every hour (`interval: 1h` in the kustomization). To apply the upgrade immediately:
+Flux polls the Git repository every hour (`interval: 1h` in the kustomization). To apply the upgrade immediately after merge:
 
 ```bash
 flux reconcile kustomization platform-upgrade-plans --with-source
@@ -436,7 +422,7 @@ apply-k3s-agent-on-tyrion-xxxxx   1/1           150s       2m30s
 kubectl get pods -n system-upgrade --watch
 ```
 
-Each upgrade Job creates a pod that runs through `Pending` --> `Running` --> `Completed`.
+Each upgrade Job creates a pod that runs through `Pending` → `Running` → `Completed`.
 
 ## Watch Node Status
 
@@ -619,7 +605,7 @@ flux get kustomizations -A | grep apps
 
 | Symptom | Cause | Resolution |
 |---------|-------|------------|
-| Plan objects not updating after `git push` | Flux has not reconciled yet | `flux reconcile kustomization platform-upgrade-plans --with-source` |
+| Plan objects not updating after merge to main | Flux has not reconciled yet | `flux reconcile kustomization platform-upgrade-plans --with-source` |
 | Upgrade Job stays `Pending` for >5 minutes | Controller may not be running, or node selector mismatch | Check controller logs: `kubectl logs -n system-upgrade deployment/system-upgrade-controller` |
 | Node stuck in `SchedulingDisabled` | Upgrade Job failed or is still running | Check the Job pod logs: `kubectl logs -n system-upgrade <job-pod-name>` |
 | Node shows `NotReady` after upgrade | k3s service failed to start with the new binary | SSH to the node: `journalctl -u k3s -n 50` (control-plane) or `journalctl -u k3s-agent -n 50` (worker) |
@@ -633,7 +619,7 @@ flux get kustomizations -A | grep apps
 
 # Summary
 
-The system-upgrade-controller transforms k3s upgrades from a manual, SSH-based operation into a GitOps-native workflow. Changing a version string in two YAML files and pushing to Git triggers a fully automated, correctly sequenced rolling upgrade across the entire cluster.
+The system-upgrade-controller transforms k3s upgrades from a manual, SSH-based operation into a GitOps-native workflow. Changing a version string in two YAML files, opening a PR, and merging triggers a fully automated, correctly sequenced rolling upgrade across the entire cluster.
 
 The controller handles cordon, drain, binary replacement, and uncordon for each node. The server Plan upgrades the control-plane first; the agent Plan waits for the server Plan to complete before touching any worker. Version pinning ensures upgrades are deliberate and auditable.
 

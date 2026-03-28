@@ -43,9 +43,10 @@ Together these components transform a raw Kubernetes cluster into a **usable app
 9. [Pi-hole (Split DNS + Ad Blocking)](#pi-hole-split-dns--ad-blocking)
 10. [Tailscale / Headscale (Private Remote Access)](#tailscale--headscale-private-remote-access)
 11. [Ingress vs IngressRoute](#ingress-vs-ingressroute)
-12. [Verifying the Platform](#verifying-the-platform)
-13. [Exit Criteria](#exit-criteria)
-14. [Troubleshooting](#troubleshooting)
+12. [CrowdSec ForwardAuth](#crowdsec-forwardauth)
+13. [Verifying the Platform](#verifying-the-platform)
+14. [Exit Criteria](#exit-criteria)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -113,7 +114,7 @@ MetalLB Speaker responds: "I do" (node MAC address)
 Traffic routed to that node → kube-proxy → Traefik pod
 ```
 
-**IP pool:** `10.0.10.110 – 10.0.10.125` (21 addresses available for LoadBalancer services)
+**IP pool:** `10.0.10.110 – 10.0.10.125` (16 addresses available for LoadBalancer services)
 **Traefik pinned to:** `10.0.10.110`
 
 ### Traefik — Ingress Controller
@@ -161,7 +162,7 @@ Flux reconciles the networking platform in dependency order:
 
 ```mermaid
 sequenceDiagram
-    participant Git as GitHub (prod branch)
+    participant Git as GitHub (main branch)
     participant Flux as Flux Controllers
     participant K8s as Kubernetes API
 
@@ -447,7 +448,7 @@ kubectl --server=https://100.x.x.x:6443 get nodes
 
 ### Headscale — Self-Hosted Coordination Server
 
-[Headscale](https://headscale.net/) is a self-hosted alternative to the Tailscale coordination server. Running Headscale as an LXC container on Proxmox removes the dependency on Tailscale's hosted service. This is a planned future enhancement for this homelab.
+[Headscale](https://headscale.net/) is a self-hosted alternative to the Tailscale coordination server. This is a planned future enhancement for this homelab.
 
 > **TLS note:** Tailscale handles its own certificate infrastructure for MagicDNS and HTTPS. No cert-manager configuration or Let's Encrypt setup is required for Tailscale-connected services.
 
@@ -509,6 +510,42 @@ spec:
 
 **All homelab services use IngressRoute.** The pattern is established in
 [`apps/base/grafana/`](../../apps/base/grafana/) and followed by all subsequent applications.
+
+---
+
+## CrowdSec ForwardAuth
+
+CrowdSec is a collaborative, behaviour-based intrusion prevention system. It is applied as a **global ForwardAuth middleware on the `websecure` entrypoint**, meaning every HTTPS request to Traefik passes through CrowdSec's bouncer before reaching a backend service.
+
+> **Deployment order:** CrowdSec ForwardAuth is deployed **after** all platform components (MetalLB, Traefik, cert-manager, the monitoring stack) are healthy. Do not configure the global middleware until the platform is fully operational. See [Guide 04 — Deployment Order](./04-Flux-GitOps.md) for the full dependency chain.
+
+### How It Works
+
+1. A request arrives at Traefik's `websecure` entrypoint.
+2. Traefik forwards the request to the CrowdSec bouncer (ForwardAuth middleware) before any routing occurs.
+3. The bouncer queries the CrowdSec local API to determine if the source IP is in the blocklist.
+4. If the IP is blocked, the bouncer returns `403 Forbidden` and Traefik rejects the request immediately.
+5. If the IP is clean, the bouncer returns `200 OK` and Traefik routes the request normally.
+
+### Global vs Per-Route Middleware
+
+Applying CrowdSec at the entrypoint level (rather than per-IngressRoute) means:
+- **Every** service is automatically protected — no per-app configuration required.
+- New services added to the cluster are protected from the moment their IngressRoute is created.
+- Bypassing protection requires explicitly setting `middlewares: []` on an IngressRoute (do not do this unless necessary).
+
+### Verifying CrowdSec Is Active
+
+```bash
+# Check the bouncer is registered with the CrowdSec local API
+cscli bouncers list
+
+# Check the ForwardAuth middleware exists in Traefik
+kubectl get middleware -n ingress
+
+# Confirm the entrypoint annotation is set on the Traefik HelmRelease
+kubectl get helmrelease traefik -n ingress -o yaml | grep -A5 entryPoints
+```
 
 ---
 
@@ -580,7 +617,7 @@ Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.1
 ```bash
 kubectl get ingressroute -A                     # Verify the IngressRoute exists
 kubectl describe ingressroute <name> -n <ns>    # Check the Host rule
-kubectl logs -n traefik deploy/traefik          # Check for routing errors
+kubectl logs -n ingress deploy/traefik          # Check for routing errors
 ```
 
 Ensure the `Host()` rule in the IngressRoute matches the requested hostname exactly.

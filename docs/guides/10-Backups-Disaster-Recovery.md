@@ -263,7 +263,7 @@ Storage usage is bounded. For a small homelab cluster, etcd snapshots are typica
 
 # Docker Appdata Backup
 
-The Docker host (`10.0.10.32`) runs Plex, SABnzbd, Sonarr, Radarr, and supporting services. Their configuration, databases, and metadata live in `/srv/docker/appdata`. This directory is not part of the Kubernetes cluster and is not covered by Velero — it needs its own backup.
+The Docker host (`10.0.10.20`) is a bare-metal Intel NUC running Plex, SABnzbd, Sonarr, Radarr, and supporting services. Their configuration, databases, and metadata live in `/srv/docker/appdata`. This directory is not part of the Kubernetes cluster and is not covered by Velero — it needs its own backup.
 
 The backup script lives at `docker/scripts/backup_docker.sh` in this repository.
 
@@ -286,8 +286,8 @@ mkdir -p /mnt/archive/backups/docker
 
 ```bash
 # From your laptop, copy the script to the Docker host
-scp docker/scripts/backup_docker.sh kagiso@10.0.10.32:/srv/docker/scripts/backup_docker.sh
-ssh kagiso@10.0.10.32 "sudo chmod 700 /srv/docker/scripts/backup_docker.sh"
+scp docker/scripts/backup_docker.sh kagiso@10.0.10.20:/srv/docker/scripts/backup_docker.sh
+ssh kagiso@10.0.10.20 "sudo chmod 700 /srv/docker/scripts/backup_docker.sh"
 ```
 
 The script:
@@ -604,16 +604,16 @@ Target recovery time: **90–120 minutes** from disk replacement to all workload
 
 Backups are considered operational when:
 
-✓ NFS share mounted and accessible at `/mnt/backups` on tywin
-✓ etcd snapshot script installed at `/usr/local/bin/k3s-snapshot.sh` and scheduled via `/etc/cron.d/k3s-snapshot`
-✓ snapshots appearing in `/mnt/backups/etcd/` daily
-✓ Docker backup script deployed to `10.0.10.32` and scheduled via cron
-✓ Docker appdata archives appearing in `/mnt/archive/backups/docker/` daily
-✓ Velero deployed and backup schedules reconciled by Flux
-✓ `backup_job_status{job="etcd"} 1` and `backup_job_status{job="docker-appdata"} 1` visible in Prometheus
-✓ Backup Overview dashboard showing all jobs green in Grafana
-✓ backup age alert firing correctly in a test scenario
-✓ restoration runbook tested successfully
+- NFS share mounted and accessible at `/mnt/backups` on tywin
+- etcd snapshot script installed at `/usr/local/bin/k3s-snapshot.sh` and scheduled via `/etc/cron.d/k3s-snapshot`
+- snapshots appearing in `/mnt/backups/etcd/` daily
+- Docker backup script deployed to `10.0.10.20` and scheduled via cron
+- Docker appdata archives appearing in `/mnt/archive/backups/docker/` daily
+- Velero deployed and backup schedules reconciled by Flux
+- `backup_job_status{job="etcd"} 1` and `backup_job_status{job="docker-appdata"} 1` visible in Prometheus
+- Backup Overview dashboard showing all jobs green in Grafana
+- backup age alert firing correctly in a test scenario
+- restoration runbook tested successfully
 
 The platform is now **recoverable after catastrophic failure**.
 
@@ -621,7 +621,7 @@ The platform is now **recoverable after catastrophic failure**.
 
 # Next Guide
 
-➡ **[11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md)**
+**[11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md)**
 
 The next guide covers how the platform upgrade controller manages k3s version upgrades across the cluster.
 

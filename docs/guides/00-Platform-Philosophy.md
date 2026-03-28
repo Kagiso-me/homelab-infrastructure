@@ -187,12 +187,40 @@ graph TD
 # Node Topology
 
 ```
-tywin   → 10.0.10.11   control-plane
-jaime   → 10.0.10.12   worker
-tyrion  → 10.0.10.13   worker
+bran    → 10.0.10.10   Raspberry Pi 3B+ — automation host, self-hosted runner, Pi-hole, cloudflared
+tywin   → 10.0.10.11   k3s control-plane
+jaime   → 10.0.10.12   k3s worker
+tyrion  → 10.0.10.13   k3s worker
+docker  → 10.0.10.20   Docker host (bare metal Intel NUC i3-7100U)
+truenas → 10.0.10.80   TrueNAS storage
 ```
 
 Storage is decoupled from compute. All persistent data is backed by **TrueNAS** at `10.0.10.80`. This means nodes are fully disposable — a node can be wiped and rebuilt without data loss.
+
+---
+
+# CI/CD Model
+
+This platform uses a **PR-based validation** workflow. There is no staging cluster. Changes are validated before merge, not by deploying to an intermediate environment.
+
+```
+Feature branch → Pull Request → CI validation → Merge to main → Flux reconciles prod
+```
+
+CI runs on a self-hosted GitHub Actions runner on `bran` (10.0.10.10), which has LAN access to the production cluster for health checks.
+
+**What CI validates on every PR:**
+
+```
+kubeconform      → schema validation of all Kubernetes manifests
+kustomize build  → all kustomizations render without error
+kubectl dry-run  → server-side dry-run against the live cluster API
+pluto            → detect deprecated API versions
+```
+
+This approach enforces that only valid, schema-correct manifests reach `main`. Flux watches `main` directly and reconciles immediately on merge.
+
+**Branch protection** on `main` requires all CI checks to pass before merge. No manual approval is required for infrastructure changes — CI is the gate.
 
 ---
 

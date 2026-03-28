@@ -6,6 +6,13 @@
 
 ---
 
+> **Status: SUPERSEDED** by bare metal pivot (2026-03-28).
+> The Proxmox hypervisor and all VMs (docker-vm, staging-k3s) have been decommissioned.
+> Docker now runs directly on the Intel NUC at 10.0.10.20 (bare metal).
+> The staging cluster has been removed in favor of PR-based validation (see ADR-012).
+
+---
+
 ## Context
 
 The Intel NUC NUC7i3BNH (i3-7100U, 16GB DDR4, 256GB NVMe) has been running as a bare
@@ -114,3 +121,4 @@ runtime hardware transcoding entirely.
 - Staging cluster config: `clusters/staging/`
 - Promotion pipeline: `.github/workflows/promote-to-prod.yml`
 - Ops log: `docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md`
+- Superseded by: ADR-012 — PR-Based Validation Pipeline

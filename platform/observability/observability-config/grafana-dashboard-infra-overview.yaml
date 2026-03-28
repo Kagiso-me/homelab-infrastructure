@@ -207,14 +207,14 @@ data:
         },
         {
           "type": "stat",
-          "title": "proxmox",
-          "description": "10.0.10.30 — Proxmox hypervisor",
+          "title": "docker",
+          "description": "10.0.10.20 — Docker host (bare metal NUC)",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
           "id": 6,
           "targets": [
             {
-              "expr": "up{job=\"node-proxmox\"}",
+              "expr": "up{job=\"node-docker\"}",
               "refId": "A",
               "instant": true
             }

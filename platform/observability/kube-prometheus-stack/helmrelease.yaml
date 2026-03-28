@@ -80,25 +80,18 @@ spec:
                   instance: rpi
                   role: control-hub
 
-          - job_name: node-proxmox
+          - job_name: node-docker
             static_configs:
-              - targets: ["10.0.10.30:9100"]
+              - targets: ["10.0.10.20:9100"]
                 labels:
-                  instance: proxmox
-                  role: hypervisor
-
-          - job_name: node-docker-vm
-            static_configs:
-              - targets: ["10.0.10.32:9100"]
-                labels:
-                  instance: docker-vm
+                  instance: docker
                   role: docker-host
 
-          - job_name: cadvisor-docker-vm
+          - job_name: cadvisor-docker
             static_configs:
-              - targets: ["10.0.10.32:8080"]
+              - targets: ["10.0.10.20:8080"]
                 labels:
-                  instance: docker-vm
+                  instance: docker
 
           - job_name: node-truenas
             static_configs:

@@ -1,6 +1,6 @@
 
 # 04 — GitOps Control Plane (FluxCD)
-## Turning Git Into the Cluster API
+## Git as the Cluster API
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
@@ -14,951 +14,1520 @@
 >
 > **Git becomes the control plane for the platform.**
 >
-> Once Flux is bootstrapped, it deploys the entire platform stack automatically:
-> networking, security, storage, observability, backups, and upgrades — all from Git.
-
-In this phase we install **FluxCD**, a GitOps controller that continuously reconciles
-the state of the Kubernetes cluster with the contents of a Git repository.
-
-From this point forward:
-
-```
-Git commit → Flux reconciliation → Cluster state updated
-```
-
-No more manual `kubectl apply` operations for platform services or applications.
+> Once Flux is bootstrapped, every change to the cluster flows through a pull request.
+> Manifests are validated before they can merge. Flux reconciles the cluster continuously
+> from `main`. The cluster is disposable; Git is the source of truth.
 
 ---
 
-# What GitOps Means
+## Table of Contents
 
-Traditional Kubernetes operations often look like this:
+1. [Overview — What GitOps Means](#1-overview--what-gitops-means)
+2. [How It Works — Branch Model and CI Pipeline](#2-how-it-works--branch-model-and-ci-pipeline)
+3. [Prerequisites](#3-prerequisites)
+4. [Setting Up the Self-Hosted Runner on bran](#4-setting-up-the-self-hosted-runner-on-bran)
+5. [Bootstrapping Flux on the Prod Cluster](#5-bootstrapping-flux-on-the-prod-cluster)
+6. [Adding KUBECONFIG to GitHub Secrets](#6-adding-kubeconfig-to-github-secrets)
+7. [Enabling Branch Protection on main](#7-enabling-branch-protection-on-main)
+8. [The PR Workflow — Day-to-Day Operations](#8-the-pr-workflow--day-to-day-operations)
+9. [Post-Merge — Flux Reconciles and Health Check Runs](#9-post-merge--flux-reconciles-and-health-check-runs)
+10. [Monitoring Flux](#10-monitoring-flux)
+11. [Troubleshooting](#11-troubleshooting)
+12. [Cluster Rebuild via Ansible](#12-cluster-rebuild-via-ansible)
+
+---
+
+## 1. Overview — What GitOps Means
+
+Traditional Kubernetes operations look like this:
 
 ```
 Engineer → kubectl apply -f deployment.yaml
 ```
 
-Over time this causes problems:
+That works until it doesn't. Over time it causes:
 
-• configuration drift
-• undocumented changes
-• difficult rollbacks
-• inconsistent environments
+- **Configuration drift** — the cluster diverges from what anyone documented
+- **Undocumented changes** — "who changed the replica count?" has no answer
+- **Difficult rollbacks** — there is no canonical previous state to return to
+- **Inconsistent rebuilds** — recreating the cluster from scratch requires tribal knowledge
 
-GitOps replaces manual operations with a **declarative workflow**.
+GitOps replaces all of that with a **declarative, version-controlled workflow**.
+
+```
+Git repository → Flux reconciliation → Cluster state
+```
+
+The Git repository is the single source of truth. Flux runs inside the cluster and
+continuously pulls from Git, applying any difference between what Git says should exist
+and what the cluster currently has. If someone deletes a deployment manually, Flux
+restores it within minutes. If a change needs to be made, it goes into Git — not into
+`kubectl`.
 
 ```mermaid
 graph LR
-    Dev["Developer"] -->|git commit + push| Git["GitHub<br/>homelab-infrastructure"]
-    Git -->|poll every 1m| Flux["Flux Source Controller"]
-    Flux --> Kustomize["Kustomize Controller<br/>applies manifests"]
-    Flux --> Helm["Helm Controller<br/>manages HelmReleases"]
+    Dev["Engineer"] -->|"git push branch"| PR["Pull Request"]
+    PR -->|"CI green"| Merge["Merge to main"]
+    Merge -->|"poll every 1m"| Flux["Flux Source Controller"]
+    Flux --> Kustomize["Kustomize Controller\napplies manifests"]
+    Flux --> Helm["Helm Controller\nmanages HelmReleases"]
     Kustomize --> K8s["Kubernetes Cluster"]
     Helm --> K8s
-    style Git fill:#24292e,color:#fff
+    style PR fill:#2d3748,color:#fff
     style K8s fill:#326ce5,color:#fff
 ```
 
-The cluster always converges toward the desired state defined in Git.
+### Why This Matters for a Solo Operator
+
+On a team, GitOps enables peer review. For a solo homelab operator, it provides something
+equally valuable: **a complete audit trail and a repeatable recovery path**.
+
+Every change that has ever touched this cluster exists in Git history. If a config change
+breaks something at 2am, `git revert` is faster than debugging a corrupted state. If the
+cluster needs to be rebuilt from scratch, two Ansible commands reconstruct the entire
+platform — no manual steps required.
+
+### Flux vs ArgoCD
+
+Flux was chosen over ArgoCD because it is lighter, Kubernetes-native, fully declarative,
+and CNCF graduated. ArgoCD provides a richer UI but requires more resources. For a
+homelab platform where every workload on the cluster competes for the same RAM budget,
+Flux's lightweight controllers are the right trade-off. See
+[ADR-002](../adr/ADR-002-flux-over-argocd.md) for the full rationale.
 
 ---
 
-# Why Flux Was Chosen
+## 2. How It Works — Branch Model and CI Pipeline
 
-Flux is one of the two dominant GitOps tools in Kubernetes (the other being ArgoCD).
+### Single Branch: `main`
 
-Flux was selected because it is:
+This repository uses a **single-branch model**. There is no `staging` cluster and no
+`prod` branch to promote to. The `main` branch is the production branch. Every commit
+that lands on `main` is immediately reconciled into the prod cluster by Flux.
 
-• lightweight
-• Kubernetes-native
-• fully declarative
-• CNCF graduated
-• widely used in platform engineering environments
-
-Flux works by deploying several controllers inside the cluster.
-
----
-
-# Flux Architecture
-
-Flux consists of several cooperating controllers.
-
-```mermaid
-graph TD
-    Repo["Git Repository<br/>github.com/Kagiso-me/homelab-infrastructure"]
-    SC["Source Controller<br/>pulls Git every 1m"]
-    KC["Kustomize Controller<br/>applies raw manifests + Kustomizations"]
-    HC["Helm Controller<br/>installs/upgrades HelmReleases"]
-    NC["Notification Controller<br/>sends alerts + events"]
-    Cluster["Kubernetes Cluster"]
-
-    Repo --> SC
-    SC --> KC
-    SC --> HC
-    SC --> NC
-    KC --> Cluster
-    HC --> Cluster
-```
-
-Each controller performs a specific function.
-
-| Controller | Responsibility |
-|-----------|---------------|
-source-controller | pulls Git repositories |
-kustomize-controller | applies manifests |
-helm-controller | manages Helm releases |
-notification-controller | handles alerts and events |
-
----
-
-# Repository Structure
-
-This repository uses a two-environment GitOps model:
-
-- **Staging** (`clusters/staging/`) — a single-node k3s VM on Proxmox. Watches the `main` branch. Every commit to `main` lands here first.
-- **Production** (`clusters/prod/`) — the three-node ThinkCentre cluster (tywin, jaime, tyrion). Watches the `prod` branch. Changes reach here only after staging validation.
+This simplifies the workflow dramatically:
 
 ```
-homelab-infrastructure/
-├── clusters/
-│   ├── prod/
-│   │   └── flux-system/     ← prod Flux sync (watches prod branch)
-│   └── staging/
-│       └── flux-system/     ← staging Flux sync (watches main branch)
-├── platform/                ← shared platform services (MetalLB, Traefik, cert-manager)
-└── apps/
-    ├── base/                ← shared app manifests
-    └── prod/                ← production Kustomize overlay
+feature/my-change  →  PR against main  →  CI validates  →  merge  →  Flux applies
 ```
 
-| Directory | Purpose |
-|----------|---------|
-`clusters/prod/flux-system` | Prod Flux sync — watches the `prod` branch |
-`clusters/staging/flux-system` | Staging Flux sync — watches the `main` branch |
-`platform/` | Shared platform services — same manifests for both environments |
-`apps/base/` | Shared application manifests |
-`apps/prod/` | Production Kustomize overlay |
+### What Flux Watches
 
-## Promotion Model
+Flux's `GitRepository` source is configured to watch the `main` branch at
+`clusters/prod`. The poll interval is one minute — within 60 seconds of a merge, Flux
+pulls the new commit and begins reconciling.
 
-Every change starts in `main` and is validated on staging before reaching production.
-
-```mermaid
-graph LR
-    Dev["git push → main"] --> Staging["Staging cluster<br/>reconciles immediately"]
-    Staging -->|"staging healthy"| Promote["git push origin main:prod"]
-    Promote --> Prod["Prod cluster<br/>reconciles prod branch"]
-    style Staging fill:#276749,color:#fff
-    style Prod fill:#2b6cb0,color:#fff
+```yaml
+# clusters/prod/flux-system/gotk-sync.yaml
+spec:
+  ref:
+    branch: main   # watches main directly
+  url: ssh://git@github.com/Kagiso-me/homelab-infrastructure.git
 ```
 
-**Promotion is a single git command:**
+### Which Paths Trigger CI
 
-```bash
-# After verifying staging is healthy:
-git push origin main:prod
-```
+Not every commit needs CI. Documentation edits, roadmap updates, and project notes should
+be able to land on `main` without requiring a PR. CI only runs when infrastructure
+changes:
 
-This fast-forwards the `prod` branch to the current `main` HEAD. The prod cluster's
-source-controller detects the new commit on `prod` within one minute and begins reconciliation.
+| Path | Triggers CI |
+|------|-------------|
+| `apps/**` | Yes |
+| `platform/**` | Yes |
+| `clusters/**` | Yes |
+| `ansible/**` | Yes |
+| `docs/**` | No |
+| `projects/**` | No |
+| `ROADMAP.md` | No |
+| `CHANGELOG.md` | No |
 
-Staging is never bypassed. Unintentional configuration drift between environments is
-prevented — both clusters pull from the same `platform/` and `apps/` paths; only the
-branch differs. Intentional differences (e.g. production-specific resource limits) are
-expressed through the `apps/prod/` Kustomize overlay.
+Direct pushes to `main` are allowed for non-infrastructure paths. For infrastructure
+paths, branch protection requires a PR with CI passing before merge.
 
-> **Note:** Once the automated pipeline is active, do not run this command manually.
-> It bypasses all staging health gates. The pipeline performs the same push as part of
-> Stage 3, gated behind the full staging validation.
+### CI Pipeline Overview
 
-## Automated Gated Pipeline
+The pipeline lives in `.github/workflows/gitops-pipeline.yml` and runs two sets of jobs
+depending on the event.
 
-Promotion is handled automatically by GitHub Actions (`.github/workflows/promote-to-prod.yml`).
-Pushing to `main` triggers a fully gated 4-stage pipeline — **production is never touched unless
-staging passes all health checks.**
+**On PR opened against `main` (infra paths):**
 
 ```mermaid
 flowchart TD
-    Push["git push → main"] --> S1
+    PR["PR opened against main\n(apps/**, platform/**, clusters/**, ansible/**)"]
+    PR --> J1
 
-    subgraph S1["Stage 1 — Validate"]
-        V1["kubeconform schema validation"]
-        V2["kustomize build apps/prod"]
-        V3["kustomize build apps/staging"]
-        V1 --> V2 --> V3
+    subgraph J1["Job 1 — validate (ubuntu-latest)"]
+        V1["Install kubeconform v0.6.7"]
+        V2["Install kustomize"]
+        V3["Install pluto"]
+        V4["kubeconform — validate all YAML\n(skip gotk-components.yaml + SOPS-encrypted files)"]
+        V5["kustomize build apps/prod"]
+        V6["pluto detect-files — deprecated API versions"]
+        V1 --> V2 --> V3 --> V4 --> V5 --> V6
     end
 
-    S1 -->|pass| S2
+    J1 -->|needs: validate| J2
 
-    subgraph S2["Stage 2 — Staging Health Check"]
-        H1["Connect runner to homelab via Tailscale"]
-        H2["Wait for staging GitRepository to sync this commit"]
-        H3["kubectl wait kustomizations Ready"]
-        H4["Check: no unhealthy pods"]
-        H5["Smoke test: Traefik responds"]
+    subgraph J2["Job 2 — cluster-diff (self-hosted: bran)"]
+        D1["Configure kubeconfig from KUBECONFIG secret\n(prod cluster 10.0.10.11:6443)"]
+        D2["flux diff kustomization for each kustomization"]
+        D3["Post collapsible diff comment on PR via gh"]
+        D1 --> D2 --> D3
+    end
+
+    style J1 fill:#2d3748,color:#fff,stroke:#4a5568
+    style J2 fill:#2b4c7e,color:#fff,stroke:#2c5282
+```
+
+**On push to `main` (infra paths, i.e. after merge):**
+
+```mermaid
+flowchart TD
+    Push["Push to main\n(after PR merge)"]
+    Push --> J3
+
+    subgraph J3["Job 3 — health-check (self-hosted: bran)"]
+        H1["Configure kubeconfig from KUBECONFIG secret"]
+        H2["flux reconcile source git flux-system\n(force immediate pull)"]
+        H3["kubectl wait kustomizations Ready\n(10m timeout)"]
+        H4["Smoke test: curl http://10.0.10.110\n(Traefik load-balancer IP)"]
+        H5["Write GitHub Step Summary with status"]
         H1 --> H2 --> H3 --> H4 --> H5
     end
 
-    S2 -->|"staging healthy"| S3
-
-    subgraph S3["Stage 3 — Promote"]
-        P1["git merge main → prod branch"]
-        P2["git push origin prod"]
-        P1 --> P2
-    end
-
-    S3 --> S4
-
-    subgraph S4["Stage 4 — Production Health Check"]
-        PH1["Connect runner to homelab via Tailscale"]
-        PH2["Wait for prod GitRepository to sync promoted commit"]
-        PH3["kubectl wait kustomizations Ready"]
-        PH4["Check: no unhealthy pods"]
-        PH5["Smoke test: Traefik at 10.0.10.110 responds"]
-        PH1 --> PH2 --> PH3 --> PH4 --> PH5
-    end
-
-    S4 -->|pass| Done["Production reconciled ✓"]
-    S1 -->|fail| Abort1["Pipeline blocked — no staging touch"]
-    S2 -->|fail| Abort2["Pipeline blocked — no prod promotion"]
-    S4 -->|fail| Alert["Run marked failed — investigate prod"]
-
-    style S1 fill:#2d3748,color:#fff,stroke:#4a5568
-    style S2 fill:#276749,color:#fff,stroke:#2f855a
-    style S3 fill:#2b4c7e,color:#fff,stroke:#2c5282
-    style S4 fill:#2b6cb0,color:#fff,stroke:#2c5282
-    style Done fill:#276749,color:#fff
-    style Abort1 fill:#742a2a,color:#fff
-    style Abort2 fill:#742a2a,color:#fff
-    style Alert fill:#744210,color:#fff
+    style J3 fill:#276749,color:#fff,stroke:#2f855a
 ```
 
-Health check jobs run on a **self-hosted runner installed on `bran` (10.0.10.10)**, which has
-direct LAN access to both cluster API servers. No VPN or third-party tunnelling is required.
-See [ADR-007](../adr/ADR-007-self-hosted-runners.md) for the full rationale and runner setup instructions.
+### The Complete Workflow YAML
 
-The pipeline requires two GitHub repository secrets. Add these under
-**Settings → Secrets and variables → Actions** in the GitHub repository.
+This is the full pipeline. Copy this to `.github/workflows/gitops-pipeline.yml`.
 
-| Secret | How to get it |
-|--------|--------------|
-| `STAGING_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on the staging VM (server = `10.0.10.31:6443`) |
-| `PROD_KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on `tywin` (server = `10.0.10.11:6443`) |
+```yaml
+name: GitOps Pipeline
 
-The `127.0.0.1` address in each kubeconfig must be replaced with the node's LAN IP so the
-runner can reach it:
+# ─── Triggers ──────────────────────────────────────────────────────────────────
+# On PR: run validate + cluster-diff (no cluster writes)
+# On push to main: run health-check (confirms Flux reconciled successfully)
+#
+# Infrastructure paths only — docs/projects/roadmap can merge directly.
 
-```bash
-# On the staging VM:
-sed 's/127.0.0.1/10.0.10.31/' /etc/rancher/k3s/k3s.yaml
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "platform/**"
+      - "clusters/**"
+      - "ansible/**"
 
-# On tywin:
-sed 's/127.0.0.1/10.0.10.11/' /etc/rancher/k3s/k3s.yaml
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "platform/**"
+      - "clusters/**"
+      - "ansible/**"
+
+jobs:
+  # ─── Job 1: Manifest validation ──────────────────────────────────────────────
+  # Runs on GitHub-hosted ubuntu-latest — no cluster access needed.
+  # Validates every YAML file with kubeconform, renders the prod overlay with
+  # kustomize, and checks for deprecated Kubernetes API versions with pluto.
+  #
+  # Excludes:
+  #   gotk-components.yaml — generated by flux bootstrap, intentionally non-strict
+  #   SOPS-encrypted files — encrypted YAML is not valid Kubernetes manifests
+
+  validate:
+    name: Validate manifests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          KUBECONFORM_VERSION="v0.6.7"
+          curl -sSL \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          chmod +x /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Install kustomize
+        run: |
+          curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+
+      - name: Install pluto
+        run: |
+          PLUTO_VERSION="v5.19.0"
+          curl -sSL \
+            "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin pluto
+          chmod +x /usr/local/bin/pluto
+          pluto version
+
+      - name: Run kubeconform
+        run: |
+          # Exclude gotk-components.yaml (Flux bootstrap artifact, not strict Kubernetes manifests)
+          # Exclude any file containing 'sops' in its first few lines (SOPS-encrypted files have
+          # encrypted data fields — not valid YAML for schema validation purposes)
+          find platform/ apps/ clusters/ \
+            -type f \( -name "*.yaml" -o -name "*.yml" \) \
+            ! -name "gotk-components.yaml" \
+            ! -path "*/secrets/*" \
+            | xargs grep -L "^sops:" \
+            | xargs kubeconform \
+                -strict \
+                -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                -summary
+
+      - name: Kustomize build — apps/prod
+        run: kustomize build apps/prod
+
+      - name: Check for deprecated API versions (pluto)
+        run: |
+          kustomize build apps/prod | pluto detect -
+          kustomize build platform/networking | pluto detect - || true
+          kustomize build platform/security | pluto detect - || true
+
+  # ─── Job 2: Cluster diff ─────────────────────────────────────────────────────
+  # Runs on the self-hosted runner on bran (10.0.10.10), which has direct LAN
+  # access to the prod cluster at 10.0.10.11:6443.
+  #
+  # Runs flux diff kustomization against every Flux Kustomization resource in the
+  # cluster. The output shows exactly what would change in the cluster if this PR
+  # is merged — before any change is applied.
+  #
+  # The diff is posted as a collapsible comment on the PR. On every new push to
+  # the PR branch, the comment is updated in place (not duplicated).
+  #
+  # Required GitHub secret: KUBECONFIG (prod cluster kubeconfig)
+  # Required permission: pull-requests: write (for gh pr comment)
+
+  cluster-diff:
+    name: Cluster diff
+    runs-on: [self-hosted, linux, homelab]
+    needs: validate
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl cluster-info --request-timeout=10s
+
+      - name: Run flux diff kustomizations
+        id: diff
+        run: |
+          set +e
+          DIFF_OUTPUT=""
+
+          KUSTOMIZATIONS=(
+            "apps"
+            "platform-networking"
+            "platform-networking-config"
+            "platform-networking-tls"
+            "platform-security"
+            "platform-security-issuers"
+            "platform-namespaces"
+            "platform-storage"
+            "platform-databases"
+            "platform-observability"
+            "platform-observability-config"
+            "platform-observability-digest"
+            "platform-backup"
+            "platform-backup-config"
+            "platform-upgrade"
+            "platform-upgrade-plans"
+            "platform-crowdsec"
+            "platform-authentik"
+          )
+
+          for ks in "${KUSTOMIZATIONS[@]}"; do
+            KS_DIFF=$(flux diff kustomization "${ks}" \
+              --path "$(kubectl get kustomization "${ks}" -n flux-system \
+                -o jsonpath='{.spec.path}' 2>/dev/null)" \
+              -n flux-system 2>&1 || true)
+            if [ -n "$KS_DIFF" ]; then
+              DIFF_OUTPUT="${DIFF_OUTPUT}\n### ${ks}\n\`\`\`diff\n${KS_DIFF}\n\`\`\`\n"
+            fi
+          done
+
+          if [ -z "$DIFF_OUTPUT" ]; then
+            DIFF_OUTPUT="No changes detected in any Kustomization."
+          fi
+
+          # Write to file to avoid GitHub Actions output length limits
+          echo "$DIFF_OUTPUT" > /tmp/diff_output.txt
+          echo "has_diff=true" >> "$GITHUB_OUTPUT"
+
+      - name: Post diff comment on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DIFF=$(cat /tmp/diff_output.txt)
+          BODY="<details>
+          <summary><b>flux diff — cluster change preview</b> (click to expand)</summary>
+
+          ${DIFF}
+
+          ---
+          <sub>Generated by <code>flux diff kustomization</code> against prod cluster (10.0.10.11:6443) on commit \`${{ github.sha }}\`</sub>
+          </details>"
+
+          # Update existing bot comment if present, otherwise create new one
+          EXISTING=$(gh pr view ${{ github.event.pull_request.number }} \
+            --json comments \
+            --jq '.comments[] | select(.author.login == "github-actions[bot]") | select(.body | startswith("<details")) | .databaseId' \
+            2>/dev/null | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            gh api \
+              --method PATCH \
+              "/repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+              -f body="$BODY"
+          else
+            gh pr comment ${{ github.event.pull_request.number }} --body "$BODY"
+          fi
+
+  # ─── Job 3: Post-merge health check ──────────────────────────────────────────
+  # Runs on the self-hosted runner on bran after a push to main (i.e. after merge).
+  # Forces an immediate Flux source reconcile, then waits for all Kustomizations
+  # to report Ready. Fails fast if Traefik's load-balancer IP stops responding.
+  #
+  # A GitHub Step Summary is written with reconciliation status for visibility
+  # in the GitHub Actions UI without needing to parse raw logs.
+  #
+  # Required GitHub secret: KUBECONFIG
+
+  health-check:
+    name: Post-merge health check
+    runs-on: [self-hosted, linux, homelab]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Force Flux source reconcile
+        run: |
+          echo "Triggering immediate Flux pull from Git..."
+          flux reconcile source git flux-system -n flux-system --timeout=60s
+
+      - name: Wait for all kustomizations to be Ready
+        run: |
+          KUSTOMIZATIONS=(
+            "platform-networking"
+            "platform-networking-config"
+            "platform-networking-tls"
+            "platform-security"
+            "platform-security-issuers"
+            "platform-namespaces"
+            "platform-storage"
+            "platform-databases"
+            "platform-observability"
+            "platform-backup"
+            "platform-crowdsec"
+            "platform-authentik"
+            "apps"
+          )
+
+          for ks in "${KUSTOMIZATIONS[@]}"; do
+            echo "Waiting for kustomization/${ks}..."
+            kubectl wait kustomization/"${ks}" \
+              --for=condition=ready \
+              --timeout=10m \
+              -n flux-system
+          done
+
+      - name: Smoke test — Traefik responds
+        run: |
+          HTTP_CODE=$(curl -s --max-time 15 \
+            --write-out '%{http_code}' --output /dev/null \
+            http://10.0.10.110)
+          echo "Traefik HTTP response: ${HTTP_CODE}"
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "ERROR: Traefik at 10.0.10.110 is not reachable (connection refused or timeout)"
+            exit 1
+          fi
+          echo "Traefik is healthy: HTTP ${HTTP_CODE}"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          echo "## Flux Reconciliation Status" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          flux get kustomizations -n flux-system >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 ```
-
-Paste the full output as the secret value.
 
 ---
 
-# Pre-Bootstrap Checklist
+## 3. Prerequisites
 
-**Do not bootstrap Flux until all of the following are true.** Flux reconciles the entire
-platform stack immediately on first sync — if any prerequisite is missing, the corresponding
-kustomization will fail and may require manual recovery.
+Before proceeding, verify these tools are installed and configured on the machine you
+will run bootstrap commands from (the Raspberry Pi, `bran`, at `10.0.10.10`).
 
-| Prerequisite | When | How to verify |
-|---|---|---|
-| TrueNAS `core/k8s-volumes` NFS share exists and is exported | Before bootstrap | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
-| `nfs-common` installed on all k3s nodes | Before bootstrap | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
-| `sops-age` secret created in `flux-system` namespace (Guide 03) | Before bootstrap | `kubectl get secret sops-age -n flux-system` |
-| Cloudflare API token secret created in `cert-manager` namespace | Immediately after bootstrap, before watching convergence | `kubectl get secret cloudflare-api-token -n cert-manager` |
-
-If `nfs-common` is missing, run `install-cluster.yml` again — it now installs it as the first
-step. Or install it directly:
+### Flux CLI
 
 ```bash
-ansible k3s_controller,k3s_workers -i inventory/homelab.yml \
-  -m apt -a "name=nfs-common state=present" --become
-```
-
----
-
-# Bootstrapping Flux
-
-Flux is installed by **bootstrapping** the cluster to a Git repository.
-
-This operation performs three actions:
-
-1. installs Flux controllers in the cluster
-2. commits Flux manifests into Git
-3. connects the cluster to the repository
-
-Once complete the cluster continuously monitors Git for changes.
-
-> **This is a one-time operation per repository.** After the first bootstrap, the
-> `gotk-sync.yaml` manifest (which tells Flux where to pull from and what path to reconcile)
-> lives in `clusters/prod/flux-system/` and is committed to Git. On every subsequent cluster
-> rebuild, the `install-platform.yml` Ansible playbook re-installs the Flux controllers via
-> `flux install` and recreates the SSH secret from vault — no manual `flux bootstrap` call needed.
-
----
-
-# Generate a Deploy Key
-
-Flux authenticates to Git using SSH.
-
-Create a key **on the Raspberry Pi**:
-
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/flux_deploy_key -C "flux@cluster"
-```
-
-This produces:
-
-```
-~/.ssh/flux_deploy_key        ← private key — keep this safe
-~/.ssh/flux_deploy_key.pub    ← public key — added to GitHub
-```
-
-Add the public key to the Git repository as a **Deploy Key** with write access:
-
-```
-GitHub → homelab-infrastructure → Settings → Deploy keys → Add deploy key
-Title: flux@prod-cluster
-Key: <contents of ~/.ssh/flux_deploy_key.pub>
-Allow write access: ✓
-```
-
----
-
-# Installing the Flux CLI
-
-Install the CLI tool:
-
-```bash
+# Install
 curl -s https://fluxcd.io/install.sh | sudo bash
+
+# Verify
+flux --version
+# Expected: flux version 2.x.x
 ```
 
-Verify installation:
+### kubectl
 
 ```bash
-flux --version
+# ARM64 (bran is a Raspberry Pi)
+curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+  -o /usr/local/bin/kubectl
+chmod +x /usr/local/bin/kubectl
+
+# Verify
+kubectl version --client
 ```
 
----
+### gh CLI (GitHub CLI)
 
-# Secrets Prerequisite
+The `gh` CLI is used by the `cluster-diff` job to post PR comments. It must be installed
+on `bran` with a token that has `repo` scope.
 
-Flux decrypts SOPS-encrypted secrets using an age private key stored in the cluster.
-This key **must exist before bootstrap** — if Flux reconciles an encrypted secret without
-it, reconciliation fails immediately.
+```bash
+# Install (Debian/Ubuntu ARM64)
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=arm64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+  https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list
+sudo apt update && sudo apt install gh -y
 
-> **Complete [Guide 03 — Secrets Management](./03-Secrets-Management.md) before proceeding.**
-> That guide covers age key generation, `.sops.yaml` configuration, and storing the
-> `sops-age` Secret in the cluster. All of those steps must be done before Flux bootstrap.
+# Authenticate (follow interactive prompts)
+gh auth login
+
+# Verify
+gh auth status
+```
+
+### kubeconfig for the Prod Cluster
+
+Bootstrap commands must target the prod cluster. Copy the kubeconfig from `tywin`
+(the prod control plane) to `bran` and patch the server address:
+
+```bash
+# On bran
+scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
+# k3s writes 127.0.0.1:6443 — correct on tywin but unreachable from bran
+sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+chmod 600 ~/.kube/prod-config
+
+export KUBECONFIG=~/.kube/prod-config
+
+# Verify connectivity
+kubectl cluster-info
+# Expected: Kubernetes control plane is running at https://10.0.10.11:6443
+```
+
+### SOPS-Age Secret
+
+Flux needs the age private key to decrypt SOPS-encrypted secrets during reconciliation.
+This secret must exist in the `flux-system` namespace **before** Flux bootstraps. If it
+does not exist, every Kustomization that references an encrypted secret will fail
+immediately.
+
+> **Complete [Guide 03 — Secrets Management](./03-Secrets-Management.md) before
+> proceeding.** That guide covers age key generation, `.sops.yaml` configuration, and
+> creating the `sops-age` Secret. All of those steps must be done first.
 
 Verify:
 
 ```bash
 kubectl get secret sops-age -n flux-system
+# Expected: NAME       TYPE     DATA   AGE
+#           sops-age   Opaque   1      Xs
 ```
 
-If this returns `NotFound`, go back to Guide 03 and complete the setup.
+If this returns `NotFound`, complete Guide 03 before continuing.
 
 ---
 
-# First-Time Bootstrap (One-Time Per Repository)
+## 4. Setting Up the Self-Hosted Runner on bran
 
-> **This section is mandatory the first time this repository is used with a new cluster.**
-> Once complete, all future cluster rebuilds use the
-> **[Ansible playbook method](#installing-on-a-rebuilt-cluster-ansible)** instead — no manual
-> `flux bootstrap` call is needed again.
+The `cluster-diff` and `health-check` jobs run on a self-hosted runner installed on
+`bran` (`10.0.10.10`). GitHub-hosted runners run in GitHub's cloud and cannot reach
+private LAN addresses (`10.0.10.x`). Rather than routing through a VPN, a permanent
+runner agent on `bran` — which already has direct LAN access to both clusters — keeps
+CI simple and fast.
 
-## Step 1 — Bootstrap Both Clusters
+See [ADR-007](../adr/ADR-007-self-hosted-runners.md) for the full rationale.
 
-With the secret in place, bootstrap each cluster. Both clusters use the same repository
-and deploy key; only the branch and path differ.
+### Step 1 — Install Pre-required Tools on bran
 
-**Bootstrap staging** (single-node VM at 10.0.10.31). First set up the kubeconfig on bran:
+All cluster-touching CI tools must be installed on `bran` before the runner is
+registered. The runner executes jobs using whatever is already on the machine — there is
+no per-job tool installation for these.
 
 ```bash
-# Copy kubeconfig from staging VM and patch the address
-scp kagiso@10.0.10.31:/etc/rancher/k3s/k3s.yaml ~/.kube/staging-config
-sed -i 's/127.0.0.1/10.0.10.31/' ~/.kube/staging-config
+# kubectl (ARM64 — bran is a Raspberry Pi 4)
+curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+  -o /usr/local/bin/kubectl
+chmod +x /usr/local/bin/kubectl
+kubectl version --client
 
-# Activate for this session
-export KUBECONFIG=~/.kube/staging-config
+# flux CLI (ARM64)
+curl -s https://fluxcd.io/install.sh | sudo bash
+flux --version
 
-# Persist so future sessions don't need the export
-echo 'export KUBECONFIG=~/.kube/staging-config' >> ~/.bashrc
+# kubeconform (ARM64) — used by validate job if it ever runs on the self-hosted runner
+KUBECONFORM_VERSION="v0.6.7"
+curl -sSL \
+  "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-arm64.tar.gz" \
+  | tar -xz -C /usr/local/bin kubeconform
+kubeconform -v
+
+# kustomize (ARM64)
+curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+sudo mv kustomize /usr/local/bin/
+kustomize version
+
+# pluto (ARM64) — deprecated API version detector
+PLUTO_VERSION="v5.19.0"
+curl -sSL \
+  "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_arm64.tar.gz" \
+  | tar -xz -C /usr/local/bin pluto
+pluto version
+
+# gh CLI — for posting PR comments in the cluster-diff job
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=arm64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+  https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list
+sudo apt update && sudo apt install gh -y
+gh --version
 ```
 
-Then bootstrap:
+### Step 2 — Download the Runner Agent
 
 ```bash
-# SSH deploy key method (matches the automated rebuild playbook)
-flux bootstrap git \
-  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
-  --branch=main \
-  --path=clusters/staging \
-  --private-key-file=$HOME/.ssh/flux_deploy_key
+# Create directory
+sudo mkdir -p /opt/github-runner
+sudo chown kagiso:kagiso /opt/github-runner
+cd /opt/github-runner
 
-# Alternative: GitHub PAT method (simpler for first-time setup)
+# Check https://github.com/actions/runner/releases for latest version
+RUNNER_VERSION="2.321.0"
+curl -sL \
+  "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz" \
+  | tar -xz
+```
+
+### Step 3 — Get a Registration Token
+
+1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
+2. **Settings** → **Actions** → **Runners** → **New self-hosted runner**
+3. Set architecture to **Linux / ARM64**
+4. Copy the token from the `./config.sh` command shown on the page
+
+> The token is valid for **one hour** and is single-use. Run the config step
+> immediately after generating it.
+
+### Step 4 — Configure the Runner
+
+```bash
+cd /opt/github-runner
+
+./config.sh \
+  --url https://github.com/Kagiso-me/homelab-infrastructure \
+  --token <TOKEN_FROM_GITHUB> \
+  --labels homelab \
+  --name bran \
+  --unattended
+```
+
+The `--labels homelab` flag is what the workflow YAML targets with
+`runs-on: [self-hosted, linux, homelab]`. The `linux` label is added automatically
+by the runner agent.
+
+### Step 5 — Install as a systemd Service
+
+Do not run `./run.sh`. That runs the runner in the foreground and stops when the SSH
+session ends. Install it as a systemd service so it starts automatically on boot:
+
+```bash
+cd /opt/github-runner
+
+# Install the service (this creates /etc/systemd/system/actions.runner.*.service)
+sudo ./svc.sh install
+
+# Start it
+sudo ./svc.sh start
+
+# Verify it is running
+sudo ./svc.sh status
+# Expected: Active: active (running)
+```
+
+### Step 6 — Verify the Runner Appears in GitHub
+
+1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
+2. **Settings** → **Actions** → **Runners**
+3. The runner named `bran` should appear with status **Idle**
+
+> **If the runner shows Offline:** Check the systemd service logs.
+> ```bash
+> journalctl -u actions.runner.Kagiso-me-homelab-infrastructure.bran.service -f
+> ```
+
+### Runner Maintenance
+
+The runner agent updates itself automatically when GitHub requires a new minimum version.
+The systemd service handles the update without intervention. Check the runner status
+periodically:
+
+```bash
+sudo ./svc.sh status
+```
+
+---
+
+## 5. Bootstrapping Flux on the Prod Cluster
+
+This section walks through bootstrapping Flux onto the prod cluster for the first time.
+
+> **This is a one-time operation per repository.** Once bootstrap has been run,
+> `clusters/prod/flux-system/gotk-sync.yaml` is committed to Git. Every future cluster
+> rebuild uses the Ansible playbook method instead — see
+> [Section 12](#12-cluster-rebuild-via-ansible).
+
+### Pre-Bootstrap Checklist
+
+Do not bootstrap Flux until every item in this table is true. Flux reconciles the
+entire platform stack immediately on first sync. If a prerequisite is missing, the
+corresponding Kustomization will fail and may require manual recovery.
+
+| Prerequisite | How to verify |
+|---|---|
+| TrueNAS `core/k8s-volumes` NFS share exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
+| `nfs-common` installed on all k3s nodes | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
+| `sops-age` secret created in `flux-system` namespace (Guide 03) | `kubectl get secret sops-age -n flux-system` |
+| Cloudflare API token secret created in `cert-manager` namespace | `kubectl get secret cloudflare-api-token -n cert-manager` |
+
+If `nfs-common` is missing:
+
+```bash
+ansible k3s_controller,k3s_workers -i ansible/inventory/homelab.yml \
+  -m apt -a "name=nfs-common state=present" --become
+```
+
+### Run Bootstrap
+
+From `bran` with `KUBECONFIG` pointing at the prod cluster:
+
+```bash
+export KUBECONFIG=~/.kube/prod-config
+
+# Verify you are targeting the correct cluster
+kubectl config current-context
+kubectl cluster-info
+# Expected: control plane at https://10.0.10.11:6443
+
+# Bootstrap Flux
 flux bootstrap github \
   --owner=Kagiso-me \
   --repository=homelab-infrastructure \
   --branch=main \
-  --path=clusters/staging \
+  --path=clusters/prod \
   --personal
 ```
 
-After bootstrap completes, Flux immediately begins reconciling. It needs two secrets to
-progress past the initial kustomizations. The first (`sops-age`) was created in Guide 03.
-The second (Cloudflare API token) must be created now.
+> **What `--personal` means:** This uses your personal GitHub token (set via
+> `GITHUB_TOKEN` environment variable or the `gh` CLI auth) to create a deploy key
+> on the repository. Flux generates an SSH key pair, adds the public key to the
+> repository as a deploy key with write access, and stores the private key as the
+> `flux-system` Secret inside the cluster.
 
-**Verify `sops-age` is present** (created in Guide 03 — should already exist):
+Bootstrap will:
+
+1. Install Flux controllers into the `flux-system` namespace
+2. Generate an SSH deploy key and add it to the GitHub repository
+3. Commit `gotk-sync.yaml` and `kustomization.yaml` into `clusters/prod/flux-system/`
+4. Push those files to `main`
+5. Begin reconciling from `clusters/prod`
+
+Watch bootstrap progress:
 
 ```bash
-kubectl get secret sops-age -n flux-system
+flux get all -n flux-system
+# Wait until all resources show READY: True
 ```
 
-If this returns `NotFound`, go back to [Guide 03 — Step 5](./03-Secrets-Management.md) and create it before continuing.
+### After Bootstrap: Create the Cloudflare API Token Secret
 
-**Create the Cloudflare API token secret** (required for cert-manager DNS-01 wildcard cert):
+Flux begins reconciling immediately after bootstrap. It will reach `platform-security`
+(cert-manager) and attempt to create a `ClusterIssuer` for Let's Encrypt DNS-01
+validation. This requires a Cloudflare API token secret in the `cert-manager` namespace.
+Create it now:
 
 ```bash
-# Get the token from vault
-ansible-vault view ~/homelab-infrastructure/ansible/vars/vault.yml | grep cloudflare_api_token
+# Retrieve the token from Ansible Vault
+ansible-vault view ansible/vars/vault.yml | grep cloudflare_api_token
 
+# Create the namespace if it does not exist yet
 kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
 
+# Create the secret
 kubectl create secret generic cloudflare-api-token \
   --namespace cert-manager \
-  --from-literal=api-token=<token from vault output above>
+  --from-literal=api-token=<TOKEN_FROM_VAULT_OUTPUT>
 ```
 
-Verify both secrets exist:
+Verify:
 
 ```bash
-kubectl get secret sops-age -n flux-system
 kubectl get secret cloudflare-api-token -n cert-manager
 ```
 
-Once both are present, Flux will resolve `platform-networking` and the full dependency
-chain will converge automatically. Watch progress with:
+Once this secret exists, cert-manager can complete the DNS-01 ACME challenge and the
+`platform-security-issuers` Kustomization will converge.
+
+### Watch Convergence
 
 ```bash
 watch flux get kustomizations
 ```
 
-**Bootstrap prod** (ThinkCentre cluster — tywin, jaime, tyrion). First set up the kubeconfig on bran:
+The dependency chain resolves in this order. Each row depends on the rows above it being
+`Ready` first.
+
+| Order | Kustomization | Depends On |
+|-------|--------------|------------|
+| 1 | `platform-networking` | (none — deploys first) |
+| 2 | `platform-networking-config` | `platform-networking` |
+| 3 | `platform-security` | `platform-networking` |
+| 4 | `platform-namespaces` | `platform-networking` |
+| 5 | `platform-security-issuers` | `platform-security` |
+| 6 | `platform-networking-tls` | `platform-networking`, `platform-security-issuers` |
+| 7 | `platform-storage` | `platform-namespaces` |
+| 8 | `platform-databases` | `platform-namespaces`, `platform-storage` |
+| 9 | `platform-observability` | `platform-security`, `platform-namespaces` |
+| 10 | `platform-observability-config` | `platform-observability` |
+| 11 | `platform-observability-digest` | `platform-observability` |
+| 12 | `platform-backup` | `platform-storage` |
+| 13 | `platform-backup-config` | `platform-backup` |
+| 14 | `platform-upgrade` | `platform-networking` |
+| 15 | `platform-upgrade-plans` | `platform-upgrade` |
+| 16 | `platform-crowdsec` | `platform-namespaces`, `platform-networking`, `platform-storage` |
+| 17 | `platform-authentik` | `platform-namespaces`, `platform-networking-tls`, `platform-storage` |
+| 18 | `apps` | `platform-observability`, `platform-storage`, `platform-authentik`, `platform-crowdsec` |
+
+A full cold-start convergence takes approximately 15–25 minutes, dominated by Helm chart
+pulls and container image downloads.
+
+### Verify Bootstrap
 
 ```bash
-# Copy kubeconfig from tywin (prod control plane) and patch the address
-scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
-sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+# All controllers running
+kubectl get pods -n flux-system
+# Expected: source-controller, kustomize-controller, helm-controller,
+#           notification-controller — all Running
 
-# Activate for this session
-export KUBECONFIG=~/.kube/prod-config
+# Full status
+flux get all -n flux-system
+
+# All kustomizations
+flux get kustomizations
+# All should eventually show READY: True
+
+# HelmReleases
+flux get helmreleases -A
 ```
 
-> **Why the sed?** k3s writes `127.0.0.1:6443` into the kubeconfig — correct on `tywin`
-> itself, but unreachable from `bran`. Replacing it with `tywin`'s LAN IP lets `flux` and
-> `kubectl` reach the prod API server over the LAN.
->
-> **Why set KUBECONFIG explicitly?** `flux bootstrap` targets whichever cluster the active
-> kubeconfig points to. If your shell still has `KUBECONFIG=~/.kube/staging-config` from
-> the staging step above, the prod bootstrap will silently install into staging again.
-> Always confirm the active context before running bootstrap:
-> ```bash
-> kubectl config current-context
-> ```
+Expected output from `flux get kustomizations` after full convergence:
 
-Then bootstrap:
-
-```bash
-# On the Raspberry Pi (10.0.10.10), with KUBECONFIG pointing at prod
-flux bootstrap git \
-  --url=ssh://git@github.com/Kagiso-me/homelab-infrastructure.git \
-  --branch=prod \
-  --path=clusters/prod \
-  --private-key-file=$HOME/.ssh/flux_deploy_key
 ```
-
-> **Note:** The `prod` branch must exist before bootstrapping prod. Create it if it
-> doesn't exist yet: `git push origin main:prod`
-
-**After prod bootstrap, create the Cloudflare API token secret on prod** — same as staging:
-
-```bash
-# With KUBECONFIG pointing at prod
-kubectl create secret generic cloudflare-api-token \
-  --namespace cert-manager \
-  --from-literal=api-token=$(ansible-vault view ~/homelab-infrastructure/ansible/vars/vault.yml | grep cloudflare_api_token | awk '{print $2}' | tr -d '"')
-
-kubectl get secret cloudflare-api-token -n cert-manager
+NAME                          REVISION             READY   MESSAGE
+flux-system                   main@sha1:xxxxxxxx   True    Applied revision: main@sha1:xxxxxxxx
+platform-networking           main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking-config    main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-networking-tls       main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-security             main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-security-issuers     main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-namespaces           main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-storage              main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-databases            main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-observability        main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-observability-config main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-observability-digest main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-backup               main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-backup-config        main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-upgrade              main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-upgrade-plans        main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-crowdsec             main@sha1:xxxxxxxx   True    Applied revision: ...
+platform-authentik            main@sha1:xxxxxxxx   True    Applied revision: ...
+apps                          main@sha1:xxxxxxxx   True    Applied revision: ...
 ```
-
-Without this secret, cert-manager cannot complete the DNS-01 challenge and the wildcard TLS certificate will never become `Ready`.
-
-Flux will for each cluster:
-
-- install controllers into the `flux-system` namespace
-- commit/update `gotk-sync.yaml` and `kustomization.yaml` into the repository
-- start reconciling from the specified path and branch
 
 ---
 
-# What Bootstrap Creates
+## 6. Adding KUBECONFIG to GitHub Secrets
 
-After bootstrapping both clusters, the repository will contain:
+The `cluster-diff` and `health-check` jobs authenticate to the prod cluster using a
+kubeconfig stored as a GitHub Actions secret. This is the **one additional secret**
+required beyond what Flux manages internally.
 
-```
-clusters/
-├── prod/flux-system/
-│   ├── gotk-sync.yaml       ← GitRepository (prod branch) + root Kustomization
-│   └── kustomization.yaml   ← ties gotk-sync.yaml into the Kustomize build
-└── staging/flux-system/
-    ├── gotk-sync.yaml       ← GitRepository (main branch) + root Kustomization
-    └── kustomization.yaml
-```
+> The `sops-age` Secret is the one manually created secret inside the cluster (covered
+> in Guide 03). The `KUBECONFIG` secret is separate — it lives in GitHub, not in
+> Kubernetes.
 
-`gotk-sync.yaml` for each cluster defines which branch and path Flux reconciles. These files
-are committed once and reused on every future cluster rebuild.
+### Step 1 — Generate the kubeconfig
 
-On rebuilds, `install-platform.yml` uses `flux install` to reinstall the controllers from
-scratch, then applies the committed `gotk-sync.yaml` to reconnect Flux to the repo — no
-re-bootstrap required.
-
----
-
-# Saving the Deploy Key to Vault
-
-> **Do this immediately after the first bootstrap.** This is the step that makes all future
-> cluster rebuilds fully automated.
-
-The SSH deploy key (`~/.ssh/flux_deploy_key`) is the credential Flux uses to pull from the
-GitHub repository. On a fresh cluster, this key must be placed into the `flux-system` Secret
-before Flux can sync. The `install-platform.yml` playbook handles this automatically — but
-it reads the key from Ansible Vault.
-
-> **First time? You need to create the vault file before you can add anything to it.**
-> If `ansible/vars/vault.yml` does not exist yet, run these steps first:
->
-> ```bash
-> # 1. Create the vault password file (once per RPi — skip if it already exists)
-> echo "your-chosen-vault-password" > ~/.vault_pass
-> chmod 600 ~/.vault_pass
->
-> # 2. Create the encrypted vault file
-> cd ~/homelab-infrastructure/ansible
-> ansible-vault create vars/vault.yml
-> ```
->
-> Paste this as the initial content (you will fill in the Flux key in Step 2 below).
-> Replace the placeholder with the **real token from your password manager** — you stored it
-> there in [Guide 00.5 — Step 6](./00.5-Infrastructure-Prerequisites.md):
->
-> ```yaml
-> cloudflare_api_token: "your-cloudflare-api-token-here"
-> ```
->
-> Save and exit. Then continue with Step 1.
-
-## Step 1 — Extract the key material
+On `tywin` (the prod control plane node):
 
 ```bash
-# Private key (already on the RPi from when you generated it)
-cat ~/.ssh/flux_deploy_key
-
-# known_hosts entry for GitHub (use the official GitHub fingerprint)
-ssh-keyscan github.com 2>/dev/null | grep ed25519
+# k3s writes 127.0.0.1 into the kubeconfig — this is correct on tywin
+# but the runner on bran needs the LAN IP to reach the API server
+cat /etc/rancher/k3s/k3s.yaml | sed 's/127.0.0.1/10.0.10.11/'
 ```
 
-## Step 2 — Add to Ansible Vault
-
-```bash
-# If the vault file already exists:
-ansible-vault edit ansible/vars/vault.yml
-# If you just created it in the prerequisite step above, it is already open — just add the entries below.
-```
-
-Add the following entries (in addition to the existing `cloudflare_api_token`):
+Copy the entire output. It will look like:
 
 ```yaml
-flux_github_ssh_private_key: |
-  -----BEGIN OPENSSH PRIVATE KEY-----
-  <paste the full contents of ~/.ssh/flux_deploy_key here>
-  -----END OPENSSH PRIVATE KEY-----
-
-flux_github_known_hosts: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C5okci41bzVz6S0k"
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: <base64-encoded-ca-cert>
+    server: https://10.0.10.11:6443   # ← patched from 127.0.0.1
+  name: default
+contexts:
+- context:
+    cluster: default
+    user: default
+  name: default
+current-context: default
+kind: Config
+preferences: {}
+users:
+- name: default
+  user:
+    client-certificate-data: <base64-encoded-cert>
+    client-key-data: <base64-encoded-key>
 ```
 
-> **The private key must preserve its exact indentation.** The `|` block scalar in YAML
-> means every line of the key is indented by two spaces. Ansible Vault encrypts this at rest.
+### Step 2 — Add the Secret to GitHub
 
-## Step 3 — Verify
+1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
+2. **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `KUBECONFIG`
+5. Value: paste the full kubeconfig content from Step 1
+6. Click **Add secret**
+
+### Step 3 — Verify the Secret Works
+
+Push a trivial change to a feature branch, open a PR against `main`, and watch the
+`cluster-diff` job in GitHub Actions. It should connect to the cluster and produce
+diff output. If it connects but the diff is empty, that is correct — it means nothing
+changed in the cluster manifests.
+
+---
+
+## 7. Enabling Branch Protection on main
+
+Branch protection ensures that infrastructure changes can only land on `main` after CI
+passes. Without it, a push with a YAML syntax error or a broken kustomization could
+land directly and cause Flux to fail on reconciliation.
+
+### GitHub UI Steps
+
+1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
+2. **Settings** → **Branches**
+3. Under **Branch protection rules**, click **Add rule**
+4. **Branch name pattern:** `main`
+5. Enable **Require status checks to pass before merging**
+6. In the search box, add these required checks:
+   - `Validate manifests`
+   - `Cluster diff`
+7. Enable **Require branches to be up to date before merging**
+8. **Do NOT enable** "Require a pull request before merging" if you want to allow direct
+   pushes for non-infra paths (docs, projects, roadmap). GitHub's branch protection
+   applies to the whole branch, but the path filters in the workflow YAML mean CI simply
+   won't run for non-infra pushes, so they pass automatically.
+9. Enable **Allow auto-merge** — this lets you merge immediately after CI passes without
+   returning to the browser
+10. Click **Save changes**
+
+> **No reviewer required.** This is a solo operator setup. The PR workflow exists to
+> provide a pre-merge validation gate, not a review process. Branch protection without
+> a required reviewer still enforces that CI must pass.
+
+### Enable Auto-Merge on a PR
+
+When auto-merge is enabled on the repository, you can enable it per PR:
 
 ```bash
-# Confirm vault decrypts and contains the key
-ansible-vault view ansible/vars/vault.yml | grep flux_github_ssh_private_key
+# After opening a PR
+gh pr merge <PR_NUMBER> --auto --squash
 ```
 
-Once saved, `install-platform.yml` can rebuild the entire platform on any future cluster from a
-single command — with no manual key handling required.
+This queues the PR for automatic merge the moment all required status checks turn green.
 
 ---
 
-# Installing on a Rebuilt Cluster (Ansible)
+## 8. The PR Workflow — Day-to-Day Operations
 
-This is the **standard procedure for all cluster rebuilds**. It assumes:
+This is the standard workflow for every infrastructure change.
 
-- k3s has been reinstalled via `install-cluster.yml`
-- `clusters/prod/flux-system/gotk-sync.yaml` is committed in the repo (created during first-time bootstrap)
-- The Flux SSH deploy key is stored in Ansible Vault
-
-## Run the Playbook
+### Example: Adding a New Application
 
 ```bash
-# From the Raspberry Pi, inside the ansible/ directory
-cd ~/homelab-infrastructure/ansible
+# 1. Create a feature branch
+git checkout -b feat/add-paperless
 
-ansible-playbook -i inventory/homelab.yml \
-  playbooks/lifecycle/install-platform.yml
+# 2. Make your changes
+mkdir -p apps/base/paperless
+# ... create manifests ...
+
+# 3. Commit
+git add apps/base/paperless/
+git commit -m "feat(apps): add Paperless-ngx deployment"
+
+# 4. Push the branch
+git push -u origin feat/add-paperless
+
+# 5. Open a PR
+gh pr create \
+  --title "feat(apps): add Paperless-ngx" \
+  --body "Adds Paperless-ngx document management. Depends on platform-databases (PostgreSQL)."
 ```
 
-> **Important:** Run from inside `ansible/`. Ansible loads `ansible.cfg` from the current
-> working directory. Running from the repo root will fail to find the vault password file.
+### What Happens Next (Automatic)
 
-## What the Playbook Does
+**Within seconds of the PR opening:**
 
-The playbook runs on the k3s control plane node (`tywin`) in five steps:
+- GitHub Actions starts the `validate` job on an `ubuntu-latest` runner
+- kubeconform validates every YAML file against Kubernetes schemas
+- kustomize builds `apps/prod` to ensure the overlay renders without errors
+- pluto checks for deprecated API versions in the rendered output
 
-```mermaid
-sequenceDiagram
-    participant RPi as Raspberry Pi (ansible)
-    participant CP as tywin (control plane)
-    participant K8s as Kubernetes API
-    participant Git as GitHub
+**After `validate` passes:**
 
-    RPi->>CP: SSH connection
-    CP->>K8s: Pre-flight: verify all nodes Ready
+- The `cluster-diff` job starts on `bran`
+- Flux connects to the prod cluster and diffs every Kustomization against the PR branch
+- The diff output is posted as a collapsible comment on the PR showing exactly what the
+  cluster would look like after merge
 
-    Note over CP,K8s: Step 1 — Install flux2 CLI
-    CP->>CP: curl fluxcd.io/install.sh (if not present)
+**Review the diff comment:**
 
-    Note over CP,K8s: Step 2 — Install Flux controllers
-    CP->>CP: flux install --export (generates CRD + controller manifests)
-    CP->>K8s: kubectl apply (CRDs + controllers)
-    CP->>K8s: Wait for source/kustomize/helm/notification controllers Ready
-
-    Note over CP,K8s: Step 3 — Create SSH secret
-    CP->>K8s: Create flux-system namespace
-    CP->>K8s: Create flux-system Secret from vault (SSH private key + known_hosts)
-
-    Note over CP,K8s: Step 4 — Start GitOps sync
-    RPi->>CP: Copy clusters/prod/flux-system/gotk-sync.yaml
-    CP->>K8s: kubectl apply gotk-sync.yaml (GitRepository + Kustomization)
-    K8s->>Git: source-controller pulls prod branch
-    CP->>K8s: Wait for GitRepository Ready
-
-    Note over CP,K8s: Step 5 — Wait for platform convergence
-    K8s->>K8s: Flux reconciles platform-networking (MetalLB + Traefik)
-    K8s->>K8s: Flux reconciles platform-security (cert-manager + ClusterIssuer)
-    K8s->>K8s: Flux reconciles platform-storage (NFS provisioner)
-    CP->>RPi: Print flux get kustomizations + helmreleases
-```
-
-The playbook explicitly waits for `platform-networking`, `platform-security`, and
-`platform-storage` to reach `Ready` before declaring success. The full platform — MetalLB,
-Traefik, cert-manager, wildcard certificate — is operational by the time the playbook exits.
-
-## Expected Output
-
-When complete, `flux get kustomizations` should show:
-
-On the **prod cluster** (after promoting to the `prod` branch):
+The PR comment will look like this:
 
 ```
-NAME                     REVISION             READY   MESSAGE
-flux-system              prod@sha1:xxxxxxxx   True    Applied revision: prod@sha1:xxxxxxxx
-platform-namespaces      prod@sha1:xxxxxxxx   True    Applied revision: ...
-platform-networking      prod@sha1:xxxxxxxx   True    Applied revision: ...
-platform-security        prod@sha1:xxxxxxxx   True    Applied revision: ...
-platform-storage         prod@sha1:xxxxxxxx   True    Applied revision: ...
-platform-upgrade         prod@sha1:xxxxxxxx   True    Applied revision: ...
-platform-observability   prod@sha1:xxxxxxxx   True    Applied revision: ...
-apps                     prod@sha1:xxxxxxxx   True    Applied revision: ...
+<details>
+<summary>flux diff — cluster change preview (click to expand)</summary>
+
+### apps
+```diff
++ apiVersion: apps/v1
++ kind: Deployment
++ metadata:
++   name: paperless-ngx
++   namespace: apps
+...
 ```
 
-On the **staging cluster** (after a `git push` to `main`):
+This is the cluster-level preview. It shows what resources will be created, modified, or
+deleted — before anything touches the real cluster.
 
-```
-NAME                        REVISION             READY   MESSAGE
-flux-system                 main@sha1:xxxxxxxx   True    Applied revision: main@sha1:xxxxxxxx
-platform-namespaces         main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-networking         main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-networking-config  main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-security           main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-observability      main@sha1:xxxxxxxx   True    Applied revision: ...
-platform-storage            main@sha1:xxxxxxxx   True    Applied revision: ...
-apps                        main@sha1:xxxxxxxx   True    Applied revision: ...
+### Merging
+
+Once CI is green:
+
+```bash
+# Option A: merge via gh CLI
+gh pr merge --squash
+
+# Option B: enable auto-merge (merges automatically when CI passes)
+gh pr merge --auto --squash
+
+# Option C: merge via GitHub web UI
 ```
 
-And `flux get helmreleases -A`:
+After merge, the `health-check` job runs. See the next section.
 
+### Documentation and Roadmap Changes
+
+For non-infra changes (docs, projects, roadmap, CHANGELOG), push directly to `main`:
+
+```bash
+git checkout main
+git pull origin main
+# Make changes to docs/ or projects/ or ROADMAP.md
+git add -p
+git commit -m "docs: update guide 05 networking section"
+git push origin main
 ```
-NAMESPACE       NAME        REVISION   READY   MESSAGE
-metallb-system  metallb     0.14.9     True    Helm install succeeded
-ingress         traefik     28.3.0     True    Helm upgrade succeeded
-cert-manager    cert-manager v1.14.4   True    Helm install succeeded
-```
+
+No PR is required. No CI runs. The push lands directly.
 
 ---
 
-# Flux Reconciliation Model
+## 9. Post-Merge: Flux Reconciles and Health Check Runs
 
-Flux continuously compares Git state with cluster state.
+After a PR merges to `main`, two things happen simultaneously:
 
-```
-Git repository
-      │
-      ▼
-Flux controllers
-      │
-      ▼
-Cluster manifests
-```
+1. **Flux source-controller polls** `main` every 60 seconds. It detects the new commit
+   and downloads the updated manifests.
 
-If drift occurs Flux corrects it automatically.
+2. **The `health-check` job** starts on `bran`. It does not wait for Flux to discover
+   the commit — it forces an immediate reconcile.
 
-Example:
+### Health Check Job Sequence
 
 ```
-kubectl delete deployment grafana
+1. Configure kubeconfig (from KUBECONFIG secret)
+2. flux reconcile source git flux-system  → forces Flux to pull right now
+3. kubectl wait kustomization/<each-ks> --for=condition=ready --timeout=10m
+4. curl http://10.0.10.110  → Traefik must respond (any HTTP code except 000)
+5. Write GitHub Step Summary with full flux get kustomizations output
 ```
 
-Within minutes Flux restores the deployment because it still exists in Git.
+### Reading the Step Summary
+
+After the `health-check` job completes, click on it in GitHub Actions and scroll to the
+bottom. The Summary tab shows the full `flux get kustomizations` table — the same output
+you would get running `flux get kustomizations` on `bran` directly.
+
+### What Failure Means
+
+If the health check fails:
+
+- The GitHub Actions run is marked failed (red)
+- The failing step shows which Kustomization did not become Ready, or that Traefik
+  stopped responding
+- The change is already on `main` — Flux has applied it or is attempting to
+
+Investigate on `bran`:
+
+```bash
+flux get kustomizations
+flux logs --follow
+kubectl get events -n flux-system --sort-by='.lastTimestamp'
+```
+
+If the change is the cause of the failure, revert it:
+
+```bash
+git revert HEAD
+git push origin main
+```
+
+Flux will apply the revert commit within 60 seconds.
 
 ---
 
-# Verifying Flux Installation
+## 10. Monitoring Flux
 
-Check the Flux namespace.
+### CLI Commands (on bran)
 
+```bash
+# All Flux resources at a glance
+flux get all -n flux-system
+
+# Kustomizations only (most useful for tracking reconciliation)
+flux get kustomizations
+
+# Watch kustomizations update in real time
+watch flux get kustomizations
+
+# HelmReleases across all namespaces
+flux get helmreleases -A
+
+# Flux controller logs (source-controller, kustomize-controller, etc.)
+flux logs --follow
+
+# Logs for a specific controller
+flux logs --kind=KustomizeController --follow
+
+# Force an immediate reconcile without waiting for the 1-minute poll
+flux reconcile source git flux-system
+
+# Reconcile a specific Kustomization immediately
+flux reconcile kustomization apps
+
+# Suspend a Kustomization (stop reconciling it temporarily)
+flux suspend kustomization apps
+
+# Resume a suspended Kustomization
+flux resume kustomization apps
+
+# Check Flux component health
+flux check
 ```
+
+### Grafana Dashboard
+
+The `platform-observability` stack includes kube-prometheus-stack, which ships Flux
+dashboards. After the platform converges:
+
+1. Open Grafana at `https://grafana.kagiso.me`
+2. Go to **Dashboards** → search for "Flux"
+3. The **Flux Cluster Stats** dashboard shows reconciliation counts, durations,
+   error rates, and source sync lag over time
+
+For day-to-day monitoring, `watch flux get kustomizations` on `bran` is sufficient.
+The Grafana dashboard is useful for spotting patterns — for example, a Kustomization
+that reconciles successfully but has been retrying every minute for hours is a sign of
+an intermittent dependency problem.
+
+---
+
+## 11. Troubleshooting
+
+### Flux Not Reconciling After a Push
+
+**Symptom:** A commit lands on `main` but `flux get kustomizations` still shows the
+old revision 5 minutes later.
+
+**Check 1 — Source controller status:**
+
+```bash
+flux get source git flux-system
+```
+
+If `READY` is `False`, the source controller cannot reach GitHub. Common causes:
+
+- SSH deploy key was rotated in GitHub but not updated in the cluster
+- Network issue from the cluster to github.com
+
+Check the source controller logs:
+
+```bash
+flux logs --kind=GitRepository --name=flux-system
+```
+
+**Check 2 — Force a reconcile:**
+
+```bash
+flux reconcile source git flux-system --timeout=60s
+```
+
+If this command hangs or fails, the problem is network connectivity from the cluster to
+GitHub. Check the k3s node network and DNS resolution for `github.com`.
+
+**Check 3 — Flux controllers running:**
+
+```bash
 kubectl get pods -n flux-system
 ```
 
-Expected:
-
-```
-source-controller
-kustomize-controller
-helm-controller
-notification-controller
-```
-
-Check Flux health:
-
-```
-flux get all
-```
-
-All resources should report **Ready**.
-
----
-
-# Operational Model After Flux
-
-Once Flux is installed the operational model changes.
-
-Instead of:
-
-```
-kubectl apply
-```
-
-engineers work through Git.
-
-Example workflow:
-
-```
-1. edit manifest
-2. commit change
-3. push to Git
-4. Flux reconciles cluster
-```
-
-This approach provides:
-
-• version history
-• safe rollbacks
-• peer review via pull requests
-• deterministic deployments
-
----
-
-# Failure and Recovery
-
-GitOps makes cluster recovery significantly easier.
-
-If a cluster must be rebuilt, the full recovery sequence is:
+All four pods (`source-controller`, `kustomize-controller`, `helm-controller`,
+`notification-controller`) must be `Running`. If any are `CrashLoopBackOff` or
+`Pending`, check their logs:
 
 ```bash
-# Step 1 — Reinstall k3s
+kubectl logs -n flux-system deployment/source-controller
+kubectl logs -n flux-system deployment/kustomize-controller
+```
+
+---
+
+### dry-run Failing on CRD Resources
+
+**Symptom:** A Kustomization shows:
+
+```
+False   no matches for kind "IPAddressPool" in version "metallb.io/v1beta1"
+```
+
+or similar for other custom resource types (`ServiceMonitor`, `BackupStorageLocation`,
+`Plan`, etc.).
+
+**Cause:** This is the CRD bootstrapping problem. Flux dry-runs every resource in a
+Kustomization before applying any of them. Custom resource types only exist in the API
+server after their parent Helm chart installs. If the CRs and the HelmRelease that
+creates their CRDs are in the same Kustomization, the dry-run fails on a fresh cluster.
+
+**Resolution:** This repository already handles this with the split-Kustomization
+pattern. Every custom resource type that causes this problem is separated into its own
+Kustomization with a `dependsOn` pointing to the Kustomization that installs the
+HelmRelease. For example:
+
+- `platform-networking-config` (`IPAddressPool`) depends on `platform-networking`
+  (MetalLB HelmRelease)
+- `platform-security-issuers` (`ClusterIssuer`) depends on `platform-security`
+  (cert-manager HelmRelease)
+- `platform-observability-config` (`AlertmanagerConfig`, `PrometheusRule`) depends on
+  `platform-observability` (kube-prometheus-stack HelmRelease)
+
+If you add a new HelmRelease that introduces CRDs and also want to apply CRs for those
+types, always put the CRs in a separate Kustomization with `dependsOn: [the-helmrelease-ks]`.
+
+If the error persists on a known-good repo state (e.g. after a fresh cluster bootstrap),
+the HelmRelease may have exhausted its install retries before the split was applied.
+Force a retry:
+
+```bash
+# Suspend and resume resets the retry counter
+flux suspend helmrelease <name> -n <namespace>
+flux resume helmrelease <name> -n <namespace>
+
+# Watch it converge
+flux get helmrelease <name> -n <namespace> --watch
+```
+
+---
+
+### PR Comment Not Posting
+
+**Symptom:** The `cluster-diff` job succeeds but no comment appears on the PR.
+
+**Check 1 — GITHUB_TOKEN permissions:**
+
+The `cluster-diff` job requires `pull-requests: write` permission. Verify the workflow
+YAML has this under the `cluster-diff` job's `permissions` block:
+
+```yaml
+permissions:
+  pull-requests: write
+```
+
+If the repository is in an organization with restricted default permissions, this
+explicit `permissions` block is required. Without it, `GITHUB_TOKEN` may have read-only
+access and `gh pr comment` silently fails.
+
+**Check 2 — gh CLI authentication on bran:**
+
+The `cluster-diff` job uses `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` as an environment
+variable to authenticate the `gh` CLI. Verify the step sets this correctly:
+
+```yaml
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Check 3 — Runner job logs:**
+
+Open the failing job in GitHub Actions, expand the "Post diff comment on PR" step, and
+look for the exact `gh` error message. Common errors:
+
+- `HTTP 403` — token does not have write permission on pull requests
+- `Could not resolve host` — `bran` lost internet connectivity
+
+---
+
+### Kustomization Stuck in "Reconciling"
+
+**Symptom:** One or more Kustomizations show `Unknown / Reconciliation in progress` for
+more than 10 minutes.
+
+**Check 1 — dependsOn chain:**
+
+```bash
+flux get kustomizations
+```
+
+A Kustomization waits indefinitely if any of its `dependsOn` entries are not `Ready`.
+Identify which dependency is blocking:
+
+```bash
+kubectl get kustomization <stuck-name> -n flux-system -o yaml | grep -A5 dependsOn
+```
+
+Then check the blocking dependency:
+
+```bash
+flux get kustomization <dependency-name>
+kubectl describe kustomization <dependency-name> -n flux-system
+```
+
+Fix the blocking dependency first — the downstream chain will unblock automatically
+once all dependencies are `Ready`.
+
+**Check 2 — HelmRelease install failure:**
+
+If the Kustomization contains a HelmRelease and that release has failed, the
+Kustomization may report `Reconciling` while the HelmRelease is stuck:
+
+```bash
+flux get helmreleases -A
+# Look for READY: False
+
+kubectl describe helmrelease <name> -n <namespace>
+# The Events section shows the exact Helm error
+```
+
+Reset a stuck HelmRelease:
+
+```bash
+flux suspend helmrelease <name> -n <namespace>
+flux resume helmrelease <name> -n <namespace>
+```
+
+**Check 3 — Resource timeout:**
+
+Each Kustomization has a `timeout` field. If applying a resource takes longer than this
+value (e.g. a Deployment that never becomes Ready), the Kustomization marks itself as
+failed. Check the Kustomization timeout and the resource that is taking too long:
+
+```bash
+kubectl describe kustomization <name> -n flux-system
+# Look for "timeout" in the spec and "timed out waiting" in the status
+```
+
+---
+
+### `flux reconcile` Times Out
+
+**Symptom:**
+
+```
+✗ timeout waiting for GitRepository/flux-system reconciliation
+```
+
+**Cause:** The source-controller cannot reach GitHub within the timeout period.
+
+**Quick check:**
+
+```bash
+# From bran
+kubectl exec -n flux-system deployment/source-controller -- \
+  wget -qO- https://github.com 2>&1 | head -1
+```
+
+If this fails with a DNS or connection error, the cluster nodes cannot reach the
+internet. Check the k3s node network configuration and the upstream DNS server.
+
+---
+
+## 12. Cluster Rebuild via Ansible
+
+GitOps means the cluster is fully disposable. If a node is lost or the cluster needs
+to be rebuilt from scratch, the recovery sequence is exactly two commands.
+
+This assumes:
+
+- k3s has been removed (or you are starting from freshly imaged nodes — see
+  [Guide 01](./01-Node-Preparation-Hardening.md) and
+  [Guide 02](./02-Kubernetes-Installation.md))
+- `clusters/prod/flux-system/gotk-sync.yaml` exists in the repo (committed during
+  first bootstrap — see Section 5 above)
+- The Flux SSH deploy key is stored in Ansible Vault (see the Flux deploy key vault
+  storage steps in the old bootstrap notes, or in `ansible/vars/vault.yml`)
+
+### Step 1 — Reinstall k3s
+
+```bash
+cd ~/homelab-infrastructure/ansible
+
 ansible-playbook -i inventory/homelab.yml \
   playbooks/lifecycle/install-cluster.yml
+```
 
-# Step 2 — Bootstrap Flux and wait for platform convergence
+This installs k3s on all nodes, configures the CNI, and waits for all nodes to reach
+`Ready`.
+
+### Step 2 — Reinstall Flux and Wait for Platform Convergence
+
+```bash
 cd ~/homelab-infrastructure/ansible
+
 ansible-playbook -i inventory/homelab.yml \
   playbooks/lifecycle/install-platform.yml
 ```
 
-That is the complete platform rebuild. Two commands. No manual `kubectl apply`, no `helm install`,
-no manually recreating secrets. Everything is either in Git or in Ansible Vault.
+> **Always run from inside `ansible/`.** Ansible reads `ansible.cfg` from the current
+> working directory. Running from the repo root will fail to find the vault password file.
 
-Flux automatically reconstructs the full platform from Git:
-- MetalLB → Traefik → cert-manager (in dependency order)
-- All kustomizations and HelmReleases
-- The wildcard TLS certificate (re-issued by cert-manager from Let's Encrypt)
+The `install-platform.yml` playbook:
 
-> **Production cluster** pulls from the `prod` branch. Ensure the `prod` branch is up to
-> date before running `install-platform.yml` — if it was destroyed with the cluster, push
-> the current `main`: `git push origin main:prod`
+1. Installs the Flux CLI on the control plane (`tywin`)
+2. Runs `flux install` to deploy the Flux controllers
+3. Creates the `sops-age` Secret from Ansible Vault
+4. Applies `clusters/prod/flux-system/gotk-sync.yaml` to connect Flux to the repo
+5. Waits for the `GitRepository` source to sync
+6. Waits for `platform-networking`, `platform-security`, and `platform-storage` to reach
+   `Ready`
 
-Application data (PVC contents) is restored separately via Velero — see [Guide 10](./10-Backups-Disaster-Recovery.md).
+Once the playbook exits, Flux continues converging the full platform stack
+autonomously — all remaining Kustomizations resolve through the `dependsOn` chain.
 
-This is one of the most powerful advantages of GitOps: **the cluster is entirely disposable
-and recoverable from a single vault + git repository.**
+### After Rebuild: Recreate External Secrets
+
+The Ansible playbook recreates the `sops-age` Secret from vault automatically. One
+additional secret must be recreated manually — the Cloudflare API token for cert-manager:
+
+```bash
+export KUBECONFIG=~/.kube/prod-config
+
+# Get the token from vault
+ansible-vault view ansible/vars/vault.yml | grep cloudflare_api_token
+
+kubectl create secret generic cloudflare-api-token \
+  --namespace cert-manager \
+  --from-literal=api-token=<TOKEN_FROM_VAULT>
+```
+
+Without this, cert-manager cannot issue the wildcard TLS certificate and all HTTPS
+Ingresses remain in a `CertificateNotReady` state.
+
+### What GitOps Rebuild Gives You
+
+Two commands. No manual `kubectl apply`, no `helm install`, no manually re-creating
+Deployments or ConfigMaps. Every service that was running before the rebuild —
+MetalLB, Traefik, cert-manager, kube-prometheus-stack, Velero, Authentik, all apps —
+is restored automatically from Git.
+
+Application data (PVC contents: databases, media files, app state) is restored
+separately via Velero from MinIO backups — see [Guide 10](./10-Backups-Disaster-Recovery.md).
 
 ---
 
-# Troubleshooting
+## Emergency: Force a Reconcile Manually
 
-## `platform-networking` stuck: "no matches for kind IPAddressPool"
-
-**Symptom:** `flux get kustomizations` shows:
-
-```
-platform-networking   False   IPAddressPool/metallb-system/homelab-pool dry-run failed:
-                              no matches for kind "IPAddressPool" in version "metallb.io/v1beta1"
-```
-
-And every other kustomization shows `dependency '…/platform-networking' is not ready`.
-
-**Cause:** This is a Flux CRD bootstrapping problem. Flux dry-runs all resources in a
-Kustomization before applying any of them. `IPAddressPool` is a MetalLB custom resource type —
-the CRD only exists after MetalLB installs. If the MetalLB HelmRelease and the `IPAddressPool`
-resource are in the same Kustomization, the dry-run fails on a fresh cluster because the CRD
-hasn't been created yet.
-
-**Resolution:** The fix is already applied in this repository. `metallb-config` (IPAddressPool +
-L2Advertisement) lives in a separate `platform-networking-config` Kustomization that
-`dependsOn: platform-networking`. This ensures MetalLB's HelmRelease installs first (creating
-the CRDs), then the config is applied.
-
-If you see this error after a fresh bootstrap, it usually means you are on an older version of
-the repo that predates this fix. Pull the latest `main` and force a reconciliation:
+Use these commands when you need Flux to act immediately without waiting for the
+1-minute poll cycle.
 
 ```bash
-flux reconcile kustomization flux-system --with-source
+# Force Flux to pull the latest commit from GitHub right now
+flux reconcile source git flux-system
+
+# Reconcile a specific Kustomization immediately (also forces the source)
+flux reconcile kustomization apps --with-source
+
+# Reconcile all Kustomizations (forces source first)
+flux reconcile source git flux-system
+for ks in $(kubectl get kustomization -n flux-system -o name); do
+  flux reconcile "${ks/kustomization.kustomize.toolkit.fluxcd.io\//kustomization }"
+done
 ```
 
-## `platform-security` stuck: "no matches for kind ServiceMonitor"
-
-**Symptom:** `flux get kustomizations` shows:
-
-```
-platform-security   Unknown   Reconciliation in progress
-```
-
-And `kubectl get helmrelease -n cert-manager` shows:
-
-```
-cert-manager   False   Helm install failed: unable to build kubernetes objects from release manifest:
-                       resource mapping not found for name: "cert-manager" namespace: "cert-manager"
-                       from "": no matches for kind "ServiceMonitor" in version "monitoring.coreos.com/v1"
-```
-
-Every downstream kustomization (`platform-security-issuers`, `platform-observability`, `apps`) is blocked waiting on `platform-security`.
-
-**Cause:** Another CRD bootstrapping chicken-and-egg. cert-manager's HelmRelease has
-`prometheus.servicemonitor.enabled: true`, which tells Helm to create a `ServiceMonitor`
-resource. `ServiceMonitor` is a kube-prometheus-stack CRD — it only exists after
-`platform-observability` installs. But `platform-observability` depends on `platform-security`
-(cert-manager). They block each other indefinitely.
-
-**Resolution:** The fix is already applied in this repository. `platform/security/cert-manager/helmrelease.yaml`
-sets `prometheus.servicemonitor.enabled: false` on bootstrap. Once `platform-observability`
-is healthy and kube-prometheus-stack CRDs exist, you can re-enable it:
-
-```yaml
-# platform/security/cert-manager/helmrelease.yaml
-values:
-  prometheus:
-    enabled: true
-    servicemonitor:
-      enabled: true   # safe to enable after platform-observability is Ready
-```
-
-Commit and push — Flux will upgrade the HelmRelease and create the ServiceMonitor against
-the now-existing CRDs.
-
-If you see this on a fresh bootstrap after the fix is already committed, Flux may have
-exhausted its install retries (configured as 3) before the fix landed. In that case, Flux
-will not retry automatically — the HelmRelease stays in a failed state indefinitely.
-
-**Force a retry:**
-
-```bash
-flux reconcile helmrelease cert-manager -n cert-manager
-```
-
-If that does not trigger a new install attempt (the HelmRelease is already marked failed),
-reset it by suspending and resuming:
-
-```bash
-flux suspend helmrelease cert-manager -n cert-manager
-flux resume helmrelease cert-manager -n cert-manager
-```
-
-Then watch it converge:
-
-```bash
-flux get helmrelease cert-manager -n cert-manager --watch
-```
-
-Once cert-manager goes `READY: True`, the downstream chain (`platform-security-issuers` →
-`platform-observability` → `apps`) unblocks automatically.
-
----
-
-# Exit Criteria
-
-Flux is correctly installed when:
-
-✓ flux-system namespace exists
-✓ Flux controllers are running
-✓ repository successfully reconciles
-
-Run:
-
-```
-flux get kustomizations
-```
-
-Status should be **Ready**.
-
----
-
-# Next Guide
-
-➡ **[05 — Networking: MetalLB & Traefik](./05-Networking-MetalLB-Traefik.md)**
-
-The next guide introduces the networking layer that exposes services
-from the cluster to the local network.
+This is useful when you know a change just merged and want to see the reconciliation
+result immediately rather than waiting up to 60 seconds for the next poll.
 
 ---
 
@@ -966,6 +1535,6 @@ from the cluster to the local network.
 
 | | Guide |
 |---|---|
-| ← Previous | [03 — Secrets Management](./03-Secrets-Management.md) |
-| Current | **04 — Flux GitOps Bootstrap** |
-| → Next | [05 — Networking: MetalLB & Traefik](./05-Networking-MetalLB-Traefik.md) |
+| Previous | [03 — Secrets Management](./03-Secrets-Management.md) |
+| Current | **04 — Flux GitOps** |
+| Next | [05 — Networking: MetalLB & Traefik](./05-Networking-MetalLB-Traefik.md) |

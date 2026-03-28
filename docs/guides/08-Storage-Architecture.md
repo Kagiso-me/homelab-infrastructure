@@ -76,9 +76,11 @@ The provisioner runs inside the cluster. It watches for PVC creation and automat
 
 - Maproot User: `root`
 - Maproot Group: `wheel`
-- Allowed hosts/networks: `10.0.10.0/24` (cluster node subnet only)
+- Allowed hosts/networks: `10.0.10.0/24` (cluster node and Docker host subnet)
 - Enable: `NFSv4`
 - Disable: `NFSv3` (if possible, for better locking semantics)
+
+> **Note on allowed networks:** The `/24` subnet covers the k3s cluster nodes (`10.0.10.11-13`), the Docker host (`10.0.10.20`), and the RPi (`10.0.10.10`). All of these systems mount or access TrueNAS NFS shares.
 
 ---
 
@@ -183,9 +185,9 @@ Examples:
 grafana-data
 prometheus-data
 loki-data
-jellyfin-config
-jellyfin-media
 sonarr-config
+immich-data
+n8n-data
 ```
 
 This makes it straightforward to identify the TrueNAS directory that corresponds to a given PVC.
@@ -240,7 +242,7 @@ All PVCs should show `STATUS: Bound`.
 | Loki | 20Gi | log retention |
 | Velero | n/a | Velero writes directly to NFS share |
 | Sonarr / Radarr | 1Gi | config and database only; media is a hostPath or separate NFS mount |
-| Jellyfin | 2Gi | config; media library on dedicated NFS share |
+| Immich | 10Gi+ | config + ML models; media library on dedicated NFS share |
 
 These are starting points. Monitor actual usage via Grafana and expand as needed.
 
@@ -298,12 +300,12 @@ Dataset: core/k8s-volumes
 
 Storage is considered operational when:
 
-✓ TrueNAS NFS shares configured and accessible from cluster subnet
-✓ NFS provisioner deployed and running via Flux
-✓ `nfs-truenas` StorageClass present and set as default (or explicitly referenced in PVCs)
-✓ test PVC creates successfully and shows `Bound`
-✓ backing directory visible on TrueNAS at `/mnt/core/k8s-volumes/`
-✓ Grafana dashboard shows PVC usage metrics
+- TrueNAS NFS shares configured and accessible from cluster subnet
+- NFS provisioner deployed and running via Flux
+- `nfs-truenas` StorageClass present and set as default (or explicitly referenced in PVCs)
+- test PVC creates successfully and shows `Bound`
+- backing directory visible on TrueNAS at `/mnt/core/k8s-volumes/`
+- Grafana dashboard shows PVC usage metrics
 
 ---
 

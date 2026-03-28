@@ -1,6 +1,6 @@
 
 # 13 — Platform Operations & Lifecycle Management
-## Running the Platform Day‑to‑Day
+## Running the Platform Day-to-Day
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
@@ -9,8 +9,9 @@
 > Building a Kubernetes platform is only half the work.
 > Operating it reliably over time is where real platform engineering begins.
 >
-> This chapter documents day‑to‑day operational lifecycle management:
+> This chapter documents day-to-day operational lifecycle management:
 >
+> - making changes safely through the PR workflow
 > - cluster upgrades
 > - node maintenance
 > - platform component upgrades
@@ -27,10 +28,13 @@ Once the platform is live, it enters a continuous operational cycle.
 
 ```mermaid
 graph LR
-    Deploy["Deploy<br/>Flux reconcile"] --> Observe["Observe<br/>Grafana + Alerts"]
+    Change["Change<br/>PR opened"] --> Validate["Validate<br/>CI checks + diff comment"]
+    Validate --> Merge["Merge<br/>main branch"]
+    Merge --> Reconcile["Reconcile<br/>Flux applies to cluster"]
+    Reconcile --> Observe["Observe<br/>Grafana + Alerts"]
     Observe --> Maintain["Maintain<br/>Ansible playbooks"]
     Maintain --> Upgrade["Upgrade<br/>HelmRelease bump + k3s Plans"]
-    Upgrade --> Deploy
+    Upgrade --> Change
 ```
 
 The goal is to keep the cluster:
@@ -47,17 +51,79 @@ The goal is to keep the cluster:
 | Layer | Responsibility | Primary Tool |
 |-------|---------------|--------------|
 | Infrastructure | node reboots, OS patching | Ansible |
-| Kubernetes | k3s version upgrades | Ansible + system-upgrade-controller |
-| Platform services | Traefik, cert-manager, monitoring upgrades | Flux (HelmRelease version bump) |
-| Applications | deployment and scaling | Flux (Git commit) |
+| Kubernetes | k3s version upgrades | system-upgrade-controller (via Git PR) |
+| Platform services | Traefik, cert-manager, monitoring upgrades | Flux (HelmRelease version bump via PR) |
+| Applications | deployment and scaling | Flux (Git PR → merge → reconcile) |
 | Backups | daily etcd snapshots, Velero schedules | cron + Velero |
 | Secrets | key rotation, re-encryption | SOPS + age |
 
 ---
 
+# Making a Change
+
+All changes to the cluster go through the same workflow. There are no special paths for "emergency" pushes directly to `main` — direct pushes bypass CI validation and the diff preview, increasing the risk of deploying broken manifests.
+
+## The Standard Workflow
+
+```
+1. Create a feature branch
+2. Make changes to the appropriate YAML files
+3. Push the branch and open a PR against main
+4. CI runs automatically:
+   - kubeconform validates all manifests against Kubernetes schemas
+   - kustomize build confirms the overlay renders without errors
+   - flux-local diff posts a comment showing what resources will change in the cluster
+5. Review the diff comment — verify the changes look exactly as expected
+6. Merge the PR
+7. Flux detects the new commit on main and reconciles the cluster (within the poll interval, or immediately if forced)
+8. Post-merge: verify Flux kustomizations are Ready and pods are healthy
+```
+
+## Step-by-Step
+
+```bash
+# 1. Create a branch
+git checkout -b feat/upgrade-traefik
+
+# 2. Make the change
+# (edit platform/networking/traefik/helmrelease.yaml, apps/prod/kustomization.yaml, etc.)
+
+# 3. Commit and push
+git add -p
+git commit -m "chore: upgrade Traefik to 28.0.0"
+git push origin feat/upgrade-traefik
+
+# 4. Open a PR on GitHub and wait for CI checks to pass
+# 5. Review the flux-local diff comment on the PR
+# 6. Merge the PR
+
+# 7. (Optional) Force Flux to reconcile immediately after merge
+flux reconcile source git flux-system -n flux-system
+flux reconcile kustomization platform-networking --with-source
+
+# 8. Verify
+flux get kustomizations
+kubectl get pods -n ingress
+```
+
+## Forcing Flux Reconciliation
+
+By default, Flux polls the Git source every hour. After merging a PR, you can force an immediate reconciliation:
+
+```bash
+# Force the source controller to pull from Git
+flux reconcile source git flux-system -n flux-system
+
+# Then reconcile a specific kustomization
+flux reconcile kustomization apps --with-source
+flux reconcile kustomization platform-networking --with-source
+```
+
+---
+
 # Routine Operational Checks
 
-Run these checks periodically (recommend: daily, via Grafana or cron).
+Run these checks periodically (recommended: daily, via Grafana or cron).
 
 ```bash
 # Cluster node health
@@ -92,7 +158,7 @@ ansible/playbooks/maintenance/
 └── upgrade-nodes.yml
 ```
 
-Always run maintenance playbooks from the automation host with the kubeconfig present.
+Always run maintenance playbooks from the automation host (`bran`, 10.0.10.10) with the kubeconfig present.
 
 ---
 
@@ -150,33 +216,32 @@ k3s upgrades require care. With an embedded etcd datastore, the control-plane no
 
 ## Recommended Approach: System Upgrade Controller
 
-The preferred method is the **k3s System Upgrade Controller**, which performs rolling upgrades via a Kubernetes `Plan` resource. This is deployed through Flux under `platform/upgrade/`.
+The preferred method is the **k3s System Upgrade Controller**, which performs rolling upgrades via Kubernetes `Plan` resources. This is deployed through Flux under `platform/upgrade/`. See [Guide 11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md) for full detail.
 
 ```mermaid
 graph TD
-    Snap["1. Take etcd snapshot<br/>k3s-snapshot.sh"] --> Plan["2. Update Plan version in Git<br/>platform/upgrade/plan-server.yaml"]
-    Plan --> CP["3. Controller upgrades tywin<br/>control-plane first"]
-    CP --> W1["4. Controller upgrades jaime"]
-    W1 --> W2["5. Controller upgrades tyrion"]
-    W2 --> Verify["6. kubectl get nodes<br/>Verify all Ready"]
+    Snap["1. Take etcd snapshot<br/>k3s-snapshot.sh"] --> PR["2. Open PR: update Plan version<br/>platform/upgrade/upgrade-plans/"]
+    PR --> CI["3. CI validates the Plan manifests"]
+    CI --> Merge["4. Merge to main"]
+    Merge --> CP["5. Controller upgrades tywin<br/>control-plane first"]
+    CP --> W1["6. Controller upgrades jaime"]
+    W1 --> W2["7. Controller upgrades tyrion"]
+    W2 --> Verify["8. kubectl get nodes<br/>Verify all Ready"]
 ```
 
-Trigger an upgrade by updating the k3s version in the `Plan` resource:
+Trigger an upgrade by opening a PR that sets the new version in both Plan files:
 
 ```yaml
-# platform/upgrade/plan.yaml
+# platform/upgrade/upgrade-plans/plan-server.yaml
 spec:
-  channel: https://update.k3s.io/v1-release/channels/stable
+  version: v1.32.1+k3s1
+
+# platform/upgrade/upgrade-plans/plan-agent.yaml
+spec:
+  version: v1.32.1+k3s1   # must match plan-server.yaml exactly
 ```
 
-Or pin to a specific version:
-
-```yaml
-spec:
-  version: v1.31.4+k3s1
-```
-
-Commit the change. Flux reconciles it. The controller upgrades control-plane first, then workers sequentially.
+Commit the change to a branch, open the PR, merge after CI passes. Flux reconciles the Plans. The controller upgrades the control-plane first, then workers sequentially.
 
 ## Manual Upgrade (if system-upgrade-controller is unavailable)
 
@@ -206,12 +271,12 @@ kubectl wait --for=condition=Ready node/tyrion --timeout=120s
 
 # Upgrading Platform Components via GitOps
 
-All platform components managed by Flux (Traefik, cert-manager, Prometheus, Loki, Velero) are upgraded by changing their chart version in Git.
+All platform components managed by Flux (Traefik, cert-manager, Prometheus, Loki, Velero) are upgraded by changing their chart version in a PR.
 
 Example: upgrading Traefik from `27.0.2` to `28.0.0`:
 
 ```yaml
-# platform/upgrade/traefik/helmrelease.yaml
+# platform/networking/traefik/helmrelease.yaml
 spec:
   chart:
     spec:
@@ -220,12 +285,15 @@ spec:
 ```
 
 ```bash
-git add -p
+git checkout -b chore/upgrade-traefik-28
+git add platform/networking/traefik/helmrelease.yaml
 git commit -m "chore: upgrade Traefik to 28.0.0"
-git push
+git push origin chore/upgrade-traefik-28
 ```
 
-Flux reconciles the upgrade. Monitor progress:
+Open a PR. CI validates the manifest. The flux-local diff comment shows the HelmRelease change. After review, merge to `main`. Flux reconciles the upgrade.
+
+Monitor progress:
 
 ```bash
 flux get helmreleases -A --watch
@@ -235,7 +303,8 @@ Rollback if needed:
 
 ```bash
 git revert HEAD
-git push
+git push origin main
+flux reconcile kustomization platform-networking --with-source
 ```
 
 ---
@@ -246,7 +315,7 @@ To add a worker node:
 
 ```
 1. Provision new machine with Ubuntu Server
-2. Update inventory/homelab.yml to add the new node
+2. Update ansible/inventory/homelab.yml to add the new node
 3. Run node preparation playbooks:
    ansible-playbook ansible/playbooks/security/disable-swap.yml --limit new-node
    ansible-playbook ansible/playbooks/security/firewall.yml --limit new-node
@@ -340,6 +409,8 @@ flux logs --follow --level=error
 | High memory / CPU | Grafana Node Exporter dashboard — identify the process |
 | Backup too old | `ls -lht /mnt/backups/etcd/ \| head -5` |
 | Flux reconciliation failing | `flux logs --level=error` — check SOPS key and Git repo state |
+| HelmRelease stuck in upgrade | `kubectl describe helmrelease <name> -n <namespace>` — look for error in status |
+| CI failing on a PR | Check the Actions tab — kubeconform errors show the exact invalid line |
 
 ---
 
@@ -351,13 +422,13 @@ If the cluster must be rebuilt entirely, follow this sequence.
 
 | Item | Location | How to verify |
 |------|----------|---------------|
-| Ansible Vault password | `~/.vault_pass` on RPi | `ansible-vault view ansible/vars/vault.yml` |
+| Ansible Vault password | `~/.vault_pass` on `bran` | `ansible-vault view ansible/vars/vault.yml` |
 | Flux SSH deploy key | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep flux_github_ssh_private_key` |
 | Cloudflare API token | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep cloudflare` |
 | etcd snapshot | TrueNAS NFS at `/mnt/backups/etcd/` | `ls -lht /mnt/backups/etcd/` |
-| age key (SOPS) | `~/age.key` on RPi | `ls -la ~/age.key` |
+| age key (SOPS) | `~/age.key` on `bran` | `ls -la ~/age.key` |
 
-If the Flux SSH key is missing from vault, see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).
+If the Flux SSH key is missing from vault, see [Guide 04 — Flux GitOps](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).
 
 ## Rebuild Steps
 
@@ -375,7 +446,7 @@ If the Flux SSH key is missing from vault, see [Guide 04 — Saving the Deploy K
 ## Commands
 
 ```bash
-# On the Raspberry Pi (10.0.10.10), from ~/homelab-infrastructure/ansible
+# On bran (10.0.10.10), from ~/homelab-infrastructure/ansible
 
 # Step 3 — reinstall k3s
 ansible-playbook -i inventory/homelab.yml \
@@ -421,15 +492,13 @@ Target: full platform operational **within 90–120 minutes** of starting the re
 
 Platform operations are considered stable when:
 
-✓ maintenance playbooks run successfully without manual intervention
-✓ k3s version upgrades complete via system-upgrade-controller
-✓ platform component upgrades occur through GitOps HelmRelease bumps
-✓ incident response triage produces root cause within 10 minutes
-✓ monitoring confirms system health continuously
+- maintenance playbooks run successfully without manual intervention
+- k3s version upgrades complete via system-upgrade-controller
+- platform component upgrades occur through GitOps PR → merge → Flux reconcile
+- incident response triage produces root cause within 10 minutes
+- monitoring confirms system health continuously
 
 ---
-
-# Next Guide
 
 This is the final guide in the series. The platform is now **fully operational and maintainable**.
 

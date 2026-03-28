@@ -144,7 +144,7 @@ A ClusterIssuer defines **how** cert-manager obtains certificates. This homelab 
 
 ### letsencrypt-prod
 
-The production issuer. Issues browser-trusted certificates signed by Let's Encrypt. Used for all services that need real TLS.
+The production issuer. Issues browser-trusted certificates signed by Let's Encrypt. Used for all services that need real TLS. This is the **default issuer** for all cluster services.
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -178,7 +178,9 @@ Identical configuration to production, but points at the Let's Encrypt staging A
 server: https://acme-staging-v02.api.letsencrypt.org/directory
 ```
 
-Certificates issued by staging are **not trusted by browsers**. The staging environment exists for testing the entire issuance flow without consuming production rate limits. Always test with staging first when making changes to issuers or certificate resources.
+Certificates issued by staging are **not trusted by browsers**. The staging environment exists for testing the entire issuance flow without consuming production rate limits. Use `letsencrypt-staging` any time you need to verify that DNS-01 challenges are working or that the cert-manager ACME account is healthy — without risking a rate limit against production.
+
+This ClusterIssuer always exists in the cluster. It is not the default for any environment's running services, but it is available whenever you need a safe issuance test.
 
 **Manifest:** `platform/security/cluster-issuers/letsencrypt-staging.yaml`
 
@@ -503,7 +505,7 @@ platform/
 │   └── cluster-issuers/
 │       ├── kustomization.yaml
 │       ├── letsencrypt-prod.yaml                  ← Production ClusterIssuer (DNS-01/Cloudflare)
-│       ├── letsencrypt-staging.yaml               ← Staging ClusterIssuer (DNS-01/Cloudflare)
+│       ├── letsencrypt-staging.yaml               ← Staging ClusterIssuer (DNS-01/Cloudflare, not rate-limited)
 │       ├── internal-ca.yaml                       ← Self-signed CA for internal services
 │       └── cloudflare-api-token.yaml.template     ← Template only — never apply directly
 └── networking/

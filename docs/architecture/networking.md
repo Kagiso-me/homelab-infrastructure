@@ -18,9 +18,7 @@ All nodes are on the same Layer-2 network segment.
 | tyrion | 10.0.10.13 | Kubernetes worker |
 | TrueNAS | 10.0.10.80 | NFS storage |
 | Router / DNS | 10.0.10.1 | Default gateway, wildcard DNS |
-| Proxmox host (NUC) | 10.0.10.30 | Hypervisor |
-| docker-vm | 10.0.10.32 | Docker media stack |
-| staging-k3s | 10.0.10.31 | Single-node k3s staging |
+| Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
 | RPi | 10.0.10.10 | Control hub (Ansible, kubectl, Pi-hole DNS, cloudflared) |
 
 ---
@@ -56,7 +54,7 @@ Browser
 Cloudflare Edge (public IP — TLS terminated here)
   │  (encrypted tunnel — outbound connection initiated by cloudflared)
   ▼
-cloudflared daemon (running on RPi / Proxmox)
+cloudflared daemon (running on RPi at 10.0.10.10)
   │
   ▼
 Traefik (10.0.10.110 — internal routing + host matching)
@@ -220,7 +218,7 @@ Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nex
 
 ### Tailscale / Headscale — Media Streaming and Remote Admin
 
-Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) may be run as an LXC on Proxmox in future.
+Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) runs on bran alongside Pi-hole and cloudflared.
 
 ### Direct LAN — Internal Traffic
 

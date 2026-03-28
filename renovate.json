@@ -1,0 +1,77 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separatePatchReleases"
+  ],
+  "timezone": "Africa/Johannesburg",
+  "schedule": ["before 6am on Monday"],
+  "labels": ["renovate", "dependencies"],
+  "reviewers": [],
+  "assignees": [],
+  "dependencyDashboardTitle": "Renovate Dashboard",
+  "flux": {
+    "enabled": true,
+    "fileMatch": [
+      "clusters/.+\\.ya?ml$",
+      "platform/.+\\.ya?ml$",
+      "apps/.+\\.ya?ml$"
+    ]
+  },
+  "helm-values": {
+    "fileMatch": [
+      "platform/.+/helmrelease\\.ya?ml$",
+      "apps/base/.+/helmrelease\\.ya?ml$"
+    ]
+  },
+  "docker-compose": {
+    "fileMatch": ["docker/compose/.+\\.ya?ml$"]
+  },
+  "packageRules": [
+    {
+      "description": "Group Flux platform updates — upgrade controller and CRDs together",
+      "matchPackageNames": ["fluxcd/flux2"],
+      "groupName": "flux2"
+    },
+    {
+      "description": "Group kube-prometheus-stack with its subcharts — they must stay in sync",
+      "matchPackageNames": [
+        "prometheus-community/kube-prometheus-stack",
+        "prometheus-community/prometheus",
+        "grafana/grafana"
+      ],
+      "groupName": "kube-prometheus-stack"
+    },
+    {
+      "description": "Group cert-manager CRDs and controller — must upgrade together",
+      "matchPackageNames": ["jetstack/cert-manager"],
+      "groupName": "cert-manager"
+    },
+    {
+      "description": "Auto-merge patch and minor updates for stable platform charts",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": [
+        "metallb/metallb",
+        "traefik/traefik",
+        "nfs-subdir-external-provisioner/nfs-subdir-external-provisioner",
+        "vmware-tanzu/velero"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Never auto-merge major versions — always require review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Docker compose image digests — weekly, auto-merge patch",
+      "matchFileNames": ["docker/compose/**"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

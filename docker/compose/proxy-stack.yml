@@ -1,7 +1,7 @@
 # =============================================================================
 # Proxy Stack — Docker Compose
 # Nginx Proxy Manager — reverse proxy with automatic TLS (Let's Encrypt)
-# Host: 10.0.10.32
+# Host: 10.0.10.20
 #
 # TLS Strategy:
 #   NPM uses Let's Encrypt DNS-01 challenge via Cloudflare API to issue
@@ -29,7 +29,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Nginx Proxy Manager — Reverse proxy and TLS termination
-  # Admin UI: http://10.0.10.32:81
+  # Admin UI: http://10.0.10.20:81
   # Default login: admin@example.com / changeme (change immediately)
   # ---------------------------------------------------------------------------
   nginx-proxy-manager:

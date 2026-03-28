@@ -6,7 +6,7 @@
 **Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
 **Guide:** 07 of 13
 
-> This guide covers two closely related topics: the namespace layout that organizes the platform, and the node identity system that controls where workloads run. Both are deployed by Flux — namespaces via `platform-namespaces`, and node labels/taints via manual configuration during node preparation.
+> This guide covers two closely related topics: the namespace layout that organises the platform, and the node identity system that controls where workloads run. Both are deployed by Flux — namespaces via `platform-namespaces`, and node labels/taints via manual configuration during node preparation.
 
 ---
 
@@ -23,10 +23,10 @@ This step might appear simple, but it is actually **foundational platform engine
 
 A clean namespace model provides:
 
-• operational clarity
-• security boundaries
-• easier troubleshooting
-• safer GitOps workflows
+- operational clarity
+- security boundaries
+- easier troubleshooting
+- safer GitOps workflows
 
 Without namespaces everything lives in the `default` namespace.
 
@@ -36,7 +36,6 @@ Example:
 kubectl get pods
 
 grafana-abc123
-jellyfin-xyz321
 prometheus-abc999
 traefik-qwe888
 ```
@@ -112,11 +111,11 @@ Create the following namespaces.
 
 | Namespace | Purpose |
 |----------|--------|
-ingress | ingress controllers |
-monitoring | Prometheus / Grafana |
-storage | storage infrastructure |
-databases | stateful databases |
-apps | user applications |
+| `ingress` | ingress controllers |
+| `monitoring` | Prometheus / Grafana |
+| `storage` | storage infrastructure |
+| `databases` | stateful databases |
+| `apps` | user applications |
 
 Infrastructure namespaces such as `metallb-system` and `cert-manager`
 are created automatically during installation.
@@ -188,20 +187,20 @@ Namespaces also define the **Git repository structure** used by Flux.
 Example layout:
 
 ```
-platform-infra/
-└── clusters
-    └── prod
-        ├── infrastructure
-        │   ├── metallb
-        │   ├── traefik
-        │   └── cert-manager
+platform/
+└── clusters/
+    └── prod/
+        ├── infrastructure/
+        │   ├── metallb/
+        │   ├── traefik/
+        │   └── cert-manager/
         │
-        ├── platform
-        │   ├── monitoring
-        │   ├── storage
-        │   └── databases
+        ├── platform/
+        │   ├── monitoring/
+        │   ├── storage/
+        │   └── databases/
         │
-        └── apps
+        └── apps/
 ```
 
 This layout mirrors the namespace structure inside the cluster.
@@ -242,9 +241,9 @@ Namespaces can also enforce limits.
 
 Examples include:
 
-• CPU quotas
-• memory limits
-• network policies
+- CPU quotas
+- memory limits
+- network policies
 
 Although these controls are optional in small clusters, designing namespaces
 properly now makes it easier to introduce them later.
@@ -271,7 +270,7 @@ Namespaces therefore help provide **meaningful operational visibility**.
 
 Run:
 
-```
+```bash
 kubectl get namespaces
 ```
 
@@ -285,9 +284,9 @@ databases
 apps
 ```
 
-Check pods within each namespace.
+Check pods within each namespace:
 
-```
+```bash
 kubectl get pods -n ingress
 kubectl get pods -n monitoring
 ```
@@ -315,9 +314,9 @@ Everything runs everywhere.
 
 While this works initially, it leads to problems:
 
-• infrastructure services competing with applications
-• unpredictable performance
-• accidental scheduling of workloads on the control plane
+- infrastructure services competing with applications
+- unpredictable performance
+- accidental scheduling of workloads on the control plane
 
 A well-structured cluster instead has **clear node responsibilities**.
 
@@ -325,23 +324,21 @@ A well-structured cluster instead has **clear node responsibilities**.
 
 # The Nodes in This Cluster
 
-Your cluster currently contains three nodes.
-
-Example:
+The production cluster contains three nodes:
 
 ```
-tywin   → control-plane
-jaime   → worker
-tyrion  → worker
+tywin   → control-plane  (10.0.10.11)
+jaime   → worker         (10.0.10.12)
+tyrion  → worker         (10.0.10.13)
 ```
 
 Each node plays a specific role.
 
-| Node | Role |
-|-----|------|
-tywin | Kubernetes control-plane |
-jaime | application workloads |
-tyrion | application workloads |
+| Node | IP | Role |
+|-----|----|------|
+| tywin | 10.0.10.11 | Kubernetes control-plane |
+| jaime | 10.0.10.12 | application workloads |
+| tyrion | 10.0.10.13 | application workloads |
 
 The control-plane node is responsible for running the components that manage the cluster.
 
@@ -374,10 +371,10 @@ Worker nodes host the majority of workloads.
 
 Examples:
 
-• application pods
-• monitoring stack
-• storage services
-• ingress controllers
+- application pods
+- monitoring stack
+- storage services
+- ingress controllers
 
 Workers provide the compute capacity for the platform.
 
@@ -389,11 +386,11 @@ When a pod is created the Kubernetes scheduler decides **where it should run**.
 
 The decision is based on several factors:
 
-• node availability
-• resource requests
-• node labels
-• taints and tolerations
-• affinity rules
+- node availability
+- resource requests
+- node labels
+- taints and tolerations
+- affinity rules
 
 Diagram:
 
@@ -418,7 +415,7 @@ This is done using a **taint**.
 
 Run:
 
-```
+```bash
 kubectl taint nodes tywin node-role.kubernetes.io/control-plane=:NoSchedule
 ```
 
@@ -450,7 +447,7 @@ Labels are key/value tags assigned to nodes.
 
 Example:
 
-```
+```bash
 kubectl label nodes jaime node-role=worker
 kubectl label nodes tyrion node-role=worker
 ```
@@ -459,7 +456,7 @@ Labels allow workloads to target specific nodes.
 
 Example scheduling rule:
 
-```
+```yaml
 nodeSelector:
   node-role: worker
 ```
@@ -490,10 +487,10 @@ Diagram:
 ```mermaid
 graph TD
     Cluster["Kubernetes Cluster"]
-    Cluster --> CP["tywin - Control Plane<br/>kube-apiserver - etcd - scheduler - controller-manager"]
+    Cluster --> CP["tywin - Control Plane<br/>10.0.10.11<br/>kube-apiserver - etcd - scheduler - controller-manager"]
     Cluster --> W["Workers"]
-    W --> jaime["jaime<br/>ingress - monitoring<br/>applications"]
-    W --> tyrion["tyrion<br/>ingress - storage<br/>applications"]
+    W --> jaime["jaime (10.0.10.12)<br/>ingress - monitoring<br/>applications"]
+    W --> tyrion["tyrion (10.0.10.13)<br/>ingress - storage<br/>applications"]
     style CP fill:#2b6cb0,color:#fff
     style jaime fill:#276749,color:#fff
     style tyrion fill:#276749,color:#fff
@@ -524,7 +521,7 @@ This is achieved using **replicas and anti-affinity rules**.
 
 Check nodes:
 
-```
+```bash
 kubectl get nodes
 ```
 
@@ -539,13 +536,13 @@ tyrion   Ready    worker
 
 Check labels:
 
-```
+```bash
 kubectl get nodes --show-labels
 ```
 
 Check taints:
 
-```
+```bash
 kubectl describe node tywin
 ```
 
@@ -559,9 +556,9 @@ Cluster identity may seem minor, but it forms the foundation for reliable schedu
 
 A cluster without scheduling rules eventually develops problems such as:
 
-• infrastructure pods competing with applications
-• uneven workload distribution
-• accidental overload of control-plane nodes
+- infrastructure pods competing with applications
+- uneven workload distribution
+- accidental overload of control-plane nodes
 
 Defining identity early prevents these issues.
 
@@ -573,15 +570,15 @@ This guide is complete when:
 
 **Namespaces:**
 
-✓ platform namespaces exist
-✓ workloads are deployed into the correct namespaces
-✓ repository layout mirrors namespace structure
+- platform namespaces exist: `ingress`, `monitoring`, `storage`, `databases`, `apps`
+- workloads are deployed into the correct namespaces
+- repository layout mirrors namespace structure
 
 **Cluster Identity:**
 
-✓ control-plane node is tainted
-✓ worker nodes are labeled
-✓ scheduler behavior is predictable
+- control-plane node `tywin` is tainted `NoSchedule`
+- worker nodes `jaime` and `tyrion` are labeled
+- scheduler behaviour is predictable
 
 Your cluster now has a **clear organisational model** and a **well-defined node structure**.
 

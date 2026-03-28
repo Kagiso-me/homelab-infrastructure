@@ -623,36 +623,19 @@ This phase is complete when:
 
 # Appendix — Intel iGPU Passthrough
 
-> **Optional.** Only required to enable Plex hardware transcoding. The docker-vm runs on
-> a Proxmox host (Intel NUC NUC7i3BNH, i3-7100U). The NUC's iGPU is not exposed to the VM
-> by default — it must be explicitly shared using Intel GVT-g, a GPU virtualisation
-> technology built into Kaby Lake and natively supported by Proxmox.
+> **Optional.** Only required to enable Plex hardware transcoding. The Docker host is an
+> Intel NUC NUC7i3BNH (i3-7100U) running bare metal. On bare metal the iGPU is directly
+> accessible as `/dev/dri/renderD128` — no GVT-g virtualisation or GRUB configuration is
+> required. The only prerequisites are:
+> 1. VT-d enabled in BIOS (one-time BIOS setting)
+> 2. VA-API drivers installed on the host
 >
 > Complete this appendix before enabling the hardware transcoding settings in the Plex
 > section above.
 
 ---
 
-## Why GVT-g Instead of Full Passthrough
-
-| Approach | How It Works | Trade-offs |
-|---|---|---|
-| **Full VT-d passthrough** | Entire physical GPU handed to one VM exclusively | Host loses GPU; must blacklist `i915` on Proxmox; non-recoverable if misconfigured |
-| **GVT-g (mediated device)** | Kernel creates a virtual GPU that shares the physical GPU | Host retains GPU access; multiple VMs can use it; Proxmox manages lifecycle automatically |
-
-GVT-g avoids blacklisting `i915` on Proxmox, preserving console GPU access. Proxmox manages
-the virtual GPU device automatically when the VM starts and stops.
-
-Intel GVT-g is supported on **6th through 10th generation Intel Core** (Broadwell through
-Ice Lake). The i3-7100U is 7th generation (Kaby Lake) — fully supported.
-
----
-
-## A.1 — Proxmox Host Configuration
-
-All commands in this section run as **root on the Proxmox host (10.0.10.30)**.
-
-**Step 1 — Enable VT-d in BIOS:**
+## A.1 — Enable VT-d in BIOS
 
 Reboot the NUC and enter BIOS (press **F2** during POST).
 
@@ -661,117 +644,29 @@ Advanced → Security → Security Features
   VT-d:  [Enable]
 ```
 
-Save and boot back into Proxmox. This setting persists — it only needs to be done once.
+Save and boot back into the OS. This setting persists — it only needs to be done once.
 
-**Step 2 — Enable IOMMU and GVT-g in GRUB:**
-
-```bash
-nano /etc/default/grub
-```
-
-Replace the `GRUB_CMDLINE_LINUX_DEFAULT` line:
-
-```
-GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt i915.enable_gvt=1"
-```
-
-| Parameter | Purpose |
-|---|---|
-| `intel_iommu=on` | Enables the IOMMU hardware unit (required for device virtualisation) |
-| `iommu=pt` | Pass-through mode — only devices being passed through use IOMMU; reduces overhead for everything else |
-| `i915.enable_gvt=1` | Enables GVT-g in the i915 kernel driver |
-
-Apply:
+Confirm the iGPU device is visible:
 
 ```bash
-update-grub
+ls /dev/dri/
+# Expected: card0  renderD128
 ```
 
-**Step 3 — Load required kernel modules:**
+If `/dev/dri` does not exist, the i915 driver has not loaded. Check:
 
 ```bash
-printf 'kvmgt\nvfio-iommu-type1\nvfio-mdev\n' | sudo tee -a /etc/modules
-update-initramfs -u -k all
-```
-
-**Step 4 — Reboot the Proxmox host:**
-
-```bash
-reboot
-```
-
-Wait 60–90 seconds, then reconnect to `https://10.0.10.30:8006`.
-
-**Step 5 — Verify IOMMU and GVT-g are active:**
-
-```bash
-# Confirm IOMMU is active
-dmesg | grep -e DMAR -e IOMMU | head -10
-# Expected: DMAR: IOMMU enabled
-
-# Confirm GVT-g loaded
-dmesg | grep -i gvt | head -10
-# Expected: i915 0000:00:02.0: GVT-g is enabled
-
-# List available virtual GPU types
-ls /sys/bus/pci/devices/0000:00:02.0/mdev_supported_types/
-# Expected: i915-GVTg_V5_1  i915-GVTg_V5_2  i915-GVTg_V5_4  i915-GVTg_V5_8
-```
-
-If `mdev_supported_types` is empty, GVT-g did not activate. Confirm `i915.enable_gvt=1`
-is in `cat /proc/cmdline` and that `kvmgt` loaded: `lsmod | grep kvmgt`.
-
-**Virtual GPU type reference:**
-
-| Type | Aperture Memory | Notes |
-|---|---|---|
-| `i915-GVTg_V5_2` | 256 MB | Sufficient for H.264 and HEVC Plex transcoding |
-| `i915-GVTg_V5_4` | 512 MB | Use if running multiple simultaneous 4K transcodes |
-
-**Step 6 — Attach the virtual GPU to the docker-vm:**
-
-```bash
-# Find the docker-vm VMID
-qm list
-
-# Stop the VM before editing its hardware config
-qm stop 101
-```
-
-Edit the VM configuration file (replace `101` with your actual VMID):
-
-```bash
-nano /etc/pve/qemu-server/101.conf
-```
-
-Add the following lines:
-
-```ini
-machine: q35
-hostpci0: 0000:00:02.0,mdev=i915-GVTg_V5_2,x-vga=0
-```
-
-| Option | Meaning |
-|---|---|
-| `mdev=i915-GVTg_V5_2` | Proxmox creates and destroys this mdev instance automatically at VM start/stop |
-| `x-vga=0` | vGPU used for compute (VA-API) only — existing VirtIO display remains for console access |
-
-> If the config already has a `machine:` line reading `i440fx`, change it to `q35`. GVT-g
-> requires the Q35 machine type. Any Proxmox installation from 2021 onward defaults to Q35.
-
-Start the VM:
-
-```bash
-qm start 101
+dmesg | grep i915 | head -10
+lsmod | grep i915
 ```
 
 ---
 
-## A.2 — docker-vm Configuration
+## A.2 — Docker Host Configuration
 
-All commands in this section run as **kagiso on docker-vm (10.0.10.32)**.
+All commands in this section run as **kagiso on the Docker host (10.0.10.20)**.
 
-**Step 7 — Verify `/dev/dri` exists:**
+**Step 2 — Verify `/dev/dri` exists:**
 
 ```bash
 ls -la /dev/dri/
@@ -784,10 +679,10 @@ crw-rw---- 1 root video  226,   0 card0
 crw-rw---- 1 root render 226, 128 renderD128
 ```
 
-If `/dev/dri` does not exist, return to Step 6 and confirm the VM config was saved
-with the VM fully stopped before editing.
+If `/dev/dri` does not exist, confirm VT-d is enabled in BIOS (Step 1) and
+that the i915 driver is loaded: `lsmod | grep i915`.
 
-**Step 8 — Install VA-API drivers:**
+**Step 3 — Install VA-API drivers:**
 
 ```bash
 sudo apt update
@@ -798,7 +693,7 @@ sudo apt install -y vainfo intel-media-va-driver-non-free
 hardware encoding on Kaby Lake. The free variant (`intel-media-va-driver`) does not include
 encoding support and is insufficient for Plex transcoding.
 
-**Step 9 — Verify VA-API hardware support:**
+**Step 4 — Verify VA-API hardware support:**
 
 ```bash
 vainfo
@@ -829,17 +724,17 @@ includes the correct `devices` and `group_add` configuration.
 
 ## A.3 — Persistence Verification
 
-Proxmox creates and destroys the mdev instance automatically when the VM starts and
-stops — no separate service or cron job is required. Verify this survives a Proxmox reboot:
+On bare metal the i915 driver loads automatically at boot — no additional configuration
+is required. Verify after a reboot:
 
 ```bash
-# On the Proxmox host — reboot and confirm docker-vm starts with /dev/dri intact
-reboot
-# ... wait for Proxmox to come back up, then start the VM ...
-qm start 101
-# SSH to docker-vm and confirm
-ssh kagiso@10.0.10.32
+# After reboot, confirm /dev/dri is still present
 ls /dev/dri/
+# Expected: card0  renderD128
+
+# Confirm VA-API still works
+vainfo 2>/dev/null | grep -c VAEntrypointEncSlice
+# Expected: 2 (H.264 + HEVC)
 ```
 
 ---
@@ -848,23 +743,17 @@ ls /dev/dri/
 
 | Symptom | Resolution |
 |---|---|
-| `mdev_supported_types` empty after reboot | Confirm `i915.enable_gvt=1` is in `cat /proc/cmdline`; check `lsmod \| grep kvmgt` |
-| Plex container fails — `/dev/dri` not found | mdev not created; check `journalctl -u pvedaemon --since "10 minutes ago" \| grep -i mdev` on Proxmox host |
+| `/dev/dri` absent after boot | Confirm VT-d is enabled in BIOS; check `lsmod \| grep i915` |
+| Plex container fails — `/dev/dri` not found | Confirm `devices` and `group_add` are in the Plex service block in `media-stack.yml` |
 | `vainfo` works but Plex still uses CPU | Plex Pass required for hardware transcoding — verify subscription under Settings |
-| VM fails to start after adding `hostpci0` | Machine type is still `i440fx` — change to `q35` in the VM config file |
+| `vainfo` returns `/dev/dri/renderD128: no access` | Run `sudo usermod -aG render,video kagiso`, log out and back in |
 
 ---
 
 ## A.5 — Exit Criteria
 
-**Proxmox host:**
 - VT-d enabled in BIOS
-- `intel_iommu=on iommu=pt i915.enable_gvt=1` present in `/proc/cmdline`
-- `kvmgt`, `vfio-iommu-type1`, `vfio-mdev` modules loaded
-- docker-vm config includes `hostpci0` with `mdev=i915-GVTg_V5_2`
-
-**docker-vm:**
-- `/dev/dri/card0` and `/dev/dri/renderD128` exist
+- `/dev/dri/card0` and `/dev/dri/renderD128` exist on the Docker host
 - `vainfo` reports `VAEntrypointEncSlice` for H.264 and HEVC
 - `kagiso` user is in `render` and `video` groups
 - Plex dashboard shows `(hw)` on an active transcode stream

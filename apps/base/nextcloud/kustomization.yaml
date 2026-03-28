@@ -5,3 +5,4 @@ resources:
   - helmrelease.yaml
   - ingressroute.yaml
   - secret.yaml
+  - occ-init-job.yaml

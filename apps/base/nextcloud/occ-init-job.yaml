@@ -1,0 +1,85 @@
+---
+# One-time initialisation Job — enables the OIDC login app and runs a
+# maintenance repair after Nextcloud is deployed.
+#
+# Why a Job and not a manual step:
+#   `php occ app:enable oidc_login` is idempotent — enabling an already-enabled
+#   app is a no-op. Running this as a tracked manifest means it is never
+#   forgotten on a fresh cluster build.
+#
+# The Job mounts the same NFS data volume as the Nextcloud deployment so that
+# occ can find the existing config and write app state. The same environment
+# variables (database, Redis, OIDC secrets) are sourced from the same Secret
+# used by the HelmRelease.
+#
+# The ttlSecondsAfterFinished field causes the completed Job to be garbage-
+# collected after 24 hours, keeping the namespace tidy.
+#
+# IMPORTANT: Pin the image tag here to match the tag used by the HelmRelease.
+# When upgrading Nextcloud, update this tag at the same time.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-occ-init
+  namespace: apps
+  annotations:
+    # Re-run this Job on every Flux reconcile by incrementing this value
+    # whenever you need to re-run occ commands (e.g. after a version upgrade).
+    run-version: "1"
+spec:
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # Wait for the Nextcloud service to be reachable before running occ.
+        # occ requires the database to be initialised, which happens during
+        # the Nextcloud pod's own startup sequence.
+        - name: wait-for-nextcloud
+          image: curlimages/curl:8.6.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Nextcloud to be ready..."
+              until curl -sf --max-time 5 \
+                "http://nextcloud-nextcloud.apps.svc.cluster.local:8080/status.php" \
+                | grep -q '"installed":true'; do
+                echo "Not ready yet — retrying in 10s..."
+                sleep 10
+              done
+              echo "Nextcloud is ready."
+      containers:
+        - name: occ
+          # Pin to the same tag as the HelmRelease chart image.
+          image: bitnami/nextcloud:30
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "--- Enabling oidc_login app ---"
+              php /var/www/html/occ app:enable oidc_login
+
+              echo "--- Running maintenance:repair ---"
+              php /var/www/html/occ maintenance:repair
+
+              echo "--- occ init complete ---"
+          env:
+            - name: NEXTCLOUD_DATA_DIR
+              value: /bitnami/nextcloud/data
+          envFrom:
+            - secretRef:
+                # The same Secret referenced by the HelmRelease valuesFrom.
+                # Contains: NEXTCLOUD_DATABASE_PASSWORD, REDIS_HOST_PASSWORD,
+                # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, etc.
+                name: nextcloud-secret
+          volumeMounts:
+            - name: nextcloud-data
+              mountPath: /bitnami/nextcloud
+      volumes:
+        - name: nextcloud-data
+          persistentVolumeClaim:
+            # Bitnami chart names the PVC <release-name>-nextcloud.
+            claimName: nextcloud-nextcloud

@@ -1,7 +1,7 @@
 ---
 # Prometheus configuration for homelab monitoring stack
 #
-# This Prometheus instance runs on the Docker media server (10.0.10.32) and is
+# This Prometheus instance runs on the Docker host (10.0.10.20) and is
 # responsible for scraping all non-Kubernetes targets plus the k8s node-exporters
 # as external hosts. Kubernetes internal metrics (pods, deployments, etc.) are
 # handled by the kube-prometheus-stack instance running inside the cluster via
@@ -85,7 +85,7 @@ scrape_configs:
         target_label: instance
 
   # ---------------------------------------------------------------------------
-  # 3. node-docker-host — node-exporter on the Docker media server (10.0.10.32)
+  # 3. node-docker-host — node-exporter on the Docker host (10.0.10.20)
   #    This host runs Jellyfin, Sonarr, Radarr, Prowlarr, Nginx Proxy Manager,
   #    and other media-stack containers. It also writes textfile metrics (backup
   #    timestamps, NFS mount health) into the node-exporter textfile directory.
@@ -95,7 +95,7 @@ scrape_configs:
   # ---------------------------------------------------------------------------
   - job_name: node-docker-host
     static_configs:
-      - targets: ['10.0.10.32:9100']
+      - targets: ['10.0.10.20:9100']
         labels:
           instance: docker-host
 
@@ -129,17 +129,7 @@ scrape_configs:
           instance: rpi-control
 
   # ---------------------------------------------------------------------------
-  # 6. node-proxmox — node-exporter on the Proxmox hypervisor (10.0.10.30)
-  #    Provides host-level metrics for the NUC running Proxmox VE.
-  # ---------------------------------------------------------------------------
-  - job_name: node-proxmox
-    static_configs:
-      - targets: ['10.0.10.30:9100']
-        labels:
-          instance: proxmox
-
-  # ---------------------------------------------------------------------------
-  # 7. cadvisor-docker-vm — cAdvisor on Docker VM (10.0.10.32:8080)
+  # 6. cadvisor-docker — cAdvisor on Docker host (10.0.10.20:8080)
   #    cAdvisor exposes per-container CPU, memory, network I/O, and filesystem
   #    metrics. Used for container-level resource tracking and the
   #    DockerContainerDown / DockerContainerRestarting alerts.
@@ -149,7 +139,7 @@ scrape_configs:
   # ---------------------------------------------------------------------------
   - job_name: cadvisor-docker
     static_configs:
-      - targets: ['10.0.10.32:8080']
+      - targets: ['10.0.10.20:8080']
         labels:
           instance: docker-host
     # Keep only useful container labels; drop the rest to limit series cardinality.

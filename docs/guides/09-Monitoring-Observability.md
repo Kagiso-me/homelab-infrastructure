@@ -75,7 +75,7 @@ This is why the stack runs both Prometheus and Loki, and why Grafana is the sing
 
 ## 2. Full Architecture
 
-The monitoring data flow covers all six physical systems in the homelab. Metrics flow inward to Prometheus; logs flow inward to Loki; both surface in Grafana; and Alertmanager fans out notifications.
+The monitoring data flow covers all five physical systems in the homelab. Metrics flow inward to Prometheus; logs flow inward to Loki; both surface in Grafana; and Alertmanager fans out notifications.
 
 ```mermaid
 graph TD
@@ -89,25 +89,25 @@ graph TD
         prom_stack["kube-prometheus-stack\n(Prometheus + Grafana + AM)"]
     end
 
-    subgraph docker["Docker Media Server (10.0.10.32)"]
+    subgraph docker["Docker Host — bare metal NUC (10.0.10.20)"]
         ne_docker["node-exporter :9100"]
         cadvisor["cAdvisor :8080"]
         backup_txt["textfile collector\n(backup timestamps)"]
     end
 
-    subgraph truenas["TrueNAS HP MicroServer (10.0.10.80)"]
+    subgraph truenas["TrueNAS (10.0.10.80)"]
         ne_truenas["node-exporter :9100\n(+ZFS collector)"]
         smartctl["smartctl-exporter :9633"]
     end
 
-    subgraph rpi["Raspberry Pi (10.0.10.10)"]
+    subgraph rpi["Raspberry Pi bran (10.0.10.10)"]
         ne_rpi["node-exporter :9100"]
         rpi_txt["textfile collector\n(backup timestamps)"]
     end
 
     subgraph notify["Notifications"]
-        slack_warn["Slack #homelab-alerts"]
-        slack_crit["Slack #homelab-critical"]
+        discord_warn["Discord #homelab-alerts"]
+        discord_crit["Discord #homelab-critical"]
         webhook["Generic Webhook"]
         hcio["Healthchecks.io\n(Watchdog)"]
     end
@@ -134,8 +134,8 @@ graph TD
     loki -->|log queries| grafana
 
     prom_stack -->|alerts| am["Alertmanager"]
-    am -->|severity: warning| slack_warn
-    am -->|severity: critical| slack_crit
+    am -->|severity: warning| discord_warn
+    am -->|severity: critical| discord_crit
     am -->|severity: critical| webhook
     am -->|Watchdog heartbeat| hcio
 ```
@@ -146,9 +146,9 @@ graph TD
 |-----------|--------------|-------------|
 | **kube-prometheus-stack** | Kubernetes `monitoring` namespace | Prometheus, Grafana, Alertmanager, node-exporter DaemonSet, kube-state-metrics |
 | **Loki + Promtail** | Kubernetes `monitoring` namespace | Log aggregation from all k8s pods |
-| **node-exporter** | All 6 hosts (DaemonSet on k8s, binary on others) | Host-level metrics: CPU, memory, disk, network, textfile |
+| **node-exporter** | All 5 hosts (DaemonSet on k8s, binary on others) | Host-level metrics: CPU, memory, disk, network, textfile |
 | **smartctl-exporter** | TrueNAS (10.0.10.80) | Per-disk SMART attribute metrics |
-| **cAdvisor** | Docker host (10.0.10.32) | Per-container resource metrics |
+| **cAdvisor** | Docker host (10.0.10.20) | Per-container resource metrics |
 | **Alertmanager** | Kubernetes `monitoring` namespace | Alert routing, deduplication, grouping, inhibition |
 
 ---
@@ -215,7 +215,7 @@ Every signal collected by this stack, where it comes from, how to query it, and 
 | Signal | Source | Metric / PromQL | Why it matters |
 |--------|--------|-----------------|----------------|
 | etcd backup age | textfile (k8s node) | `time() - etcd_backup_last_success_timestamp_seconds > 86400` | etcd backup >24h old = disaster recovery gap |
-| Docker appdata backup age | textfile (docker-host) | `time() - docker_backup_last_success_timestamp_seconds > 86400` | Media server appdata not backed up |
+| Docker appdata backup age | textfile (docker-host) | `time() - docker_backup_last_success_timestamp_seconds > 86400` | Docker host appdata not backed up |
 | RPi backup age | textfile (rpi) | `time() - rpi_backup_last_success_timestamp_seconds > 86400` | kubeconfig, GPG, SSH keys not protected |
 | Velero schedule status | Velero | `velero_backup_success_total` / `velero_backup_failure_total` | PVC snapshots covering stateful workloads |
 | Backup duration trend | textfile | `docker_backup_duration_seconds` | Sudden increase indicates storage or network issue |
@@ -241,6 +241,8 @@ Every signal collected by this stack, where it comes from, how to query it, and 
 | SMART overall health | smartctl-exporter | `smartctl_device_smart_status != 1` | Drive failed SMART self-assessment |
 
 ### Docker Host — Container Health
+
+The Docker host is a bare-metal Intel NUC i3-7100U at `10.0.10.20`. It runs Plex, SABnzbd, Sonarr, Radarr, and supporting services as Docker Compose stacks. node-exporter, cAdvisor, and Promtail run as compose services on this host, shipping metrics and logs to the cluster monitoring stack.
 
 | Signal | Source | Metric / PromQL | Why it matters |
 |--------|--------|-----------------|----------------|
@@ -320,7 +322,7 @@ prometheus:
               role: worker
 ```
 
-Note: the node-exporter DaemonSet already scrapes the k8s nodes via ServiceMonitor. The `node-k8s-nodes` static_configs entries above are for the Docker-hosted Prometheus (see Section 5). The in-cluster Prometheus picks up node metrics automatically via the DaemonSet's ServiceMonitor.
+Note: the node-exporter DaemonSet already scrapes the k8s nodes via ServiceMonitor. The `node-k8s-nodes` static_configs entries above are for reference only; the in-cluster Prometheus picks up node metrics automatically via the DaemonSet's ServiceMonitor.
 
 ---
 
@@ -328,27 +330,30 @@ Note: the node-exporter DaemonSet already scrapes the k8s nodes via ServiceMonit
 
 External hosts (Docker server, TrueNAS, RPi) are not part of the Kubernetes cluster and cannot be discovered via ServiceMonitors. They are scraped via `additionalScrapeConfigs` in the HelmRelease values.
 
-The Docker-hosted Prometheus at `docker/config/prometheus/prometheus.yml` handles this for the Docker-side Prometheus instance. For the in-cluster Prometheus to also have full coverage, mirror these jobs via `additionalScrapeConfigs`:
+The complete external target configuration is as follows:
 
 ```yaml
 additionalScrapeConfigs:
-  - job_name: node-docker-host
+  - job_name: node-rpi
     static_configs:
-      - targets: ['10.0.10.32:9100']
+      - targets: ['10.0.10.10:9100']
         labels:
-          instance: docker-host
+          instance: rpi
+          role: control-hub
+
+  - job_name: node-docker
+    static_configs:
+      - targets: ['10.0.10.20:9100']
+        labels:
+          instance: docker
+          role: docker-host
 
   - job_name: node-truenas
     static_configs:
       - targets: ['10.0.10.80:9100']
         labels:
           instance: truenas
-
-  - job_name: node-rpi
-    static_configs:
-      - targets: ['10.0.10.10:9100']
-        labels:
-          instance: rpi
+          role: storage
 
   - job_name: smartctl-truenas
     scrape_interval: 5m
@@ -360,9 +365,9 @@ additionalScrapeConfigs:
 
   - job_name: cadvisor-docker
     static_configs:
-      - targets: ['10.0.10.32:8080']
+      - targets: ['10.0.10.20:8080']
         labels:
-          instance: docker-host
+          instance: docker
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: 'container_(cpu|memory|network|fs|last_seen|start_time).*'
@@ -371,6 +376,16 @@ additionalScrapeConfigs:
         regex: 'k8s_.*|POD_.*'
         action: drop
 ```
+
+### External Target Summary
+
+| Job | Target | Labels | Notes |
+|-----|--------|--------|-------|
+| `node-rpi` | `10.0.10.10:9100` | `instance: rpi, role: control-hub` | RPi 3B+; runner, Pi-hole, cloudflared |
+| `node-docker` | `10.0.10.20:9100` | `instance: docker, role: docker-host` | Bare-metal NUC; Plex, SABnzbd, *arr stack |
+| `node-truenas` | `10.0.10.80:9100` | `instance: truenas, role: storage` | TrueNAS with ZFS collector enabled |
+| `smartctl-truenas` | `10.0.10.80:9633` | `instance: truenas` | SMART data; 5m interval to reduce drive wear |
+| `cadvisor-docker` | `10.0.10.20:8080` | `instance: docker` | Per-container metrics on Docker host |
 
 ### Why the smartctl scrape interval is 5m
 
@@ -382,11 +397,48 @@ For Prometheus to scrape these targets, ensure the following ports are reachable
 
 | Host | Port | Service |
 |------|------|---------|
-| `10.0.10.32` | `9100` | node-exporter (Docker host) |
-| `10.0.10.32` | `8080` | cAdvisor (Docker host) |
+| `10.0.10.10` | `9100` | node-exporter (RPi) |
+| `10.0.10.20` | `9100` | node-exporter (Docker host) |
+| `10.0.10.20` | `8080` | cAdvisor (Docker host) |
 | `10.0.10.80` | `9100` | node-exporter (TrueNAS) |
 | `10.0.10.80` | `9633` | smartctl-exporter (TrueNAS) |
-| `10.0.10.10`  | `9100` | node-exporter (RPi) |
+
+### Setting Up Exporters on the Docker Host
+
+The Docker host at `10.0.10.20` is a bare-metal machine. node-exporter, cAdvisor, and Promtail run as Docker Compose services. A minimal compose snippet:
+
+```yaml
+services:
+  node-exporter:
+    image: prom/node-exporter:latest
+    pid: host
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /var/lib/node_exporter/textfile_collector:/var/lib/node_exporter/textfile_collector:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.textfile.directory=/var/lib/node_exporter/textfile_collector'
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    privileged: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    restart: unless-stopped
+```
+
+The `--collector.textfile.directory` flag on node-exporter enables the textfile collector. Backup scripts write `.prom` files to that directory, which node-exporter serves as metrics. This is how backup freshness metrics (`backup_job_status`, `backup_last_success_timestamp`, etc.) reach Prometheus.
 
 ---
 
@@ -400,8 +452,8 @@ Alert rule files are committed under `docker/config/prometheus/alerts/`. The ful
 - `docker/config/prometheus/alerts/truenas.yml` — ZFS pool state, SMART attributes, scrub status
 
 The most critical rules are shown below. All rules follow the same severity routing:
-- `severity: warning` → `#homelab-alerts` Slack channel
-- `severity: critical` → `#homelab-critical` Slack + generic webhook
+- `severity: warning` → `#homelab-alerts` Discord channel
+- `severity: critical` → `#homelab-critical` Discord + generic webhook
 
 ### Drive Failure — Reallocated Sectors (P0)
 
@@ -482,9 +534,9 @@ This is the single most important alert for a homelab with physical storage. A r
     description: >
       The last successful etcd backup was {{ $value | humanizeDuration }} ago.
       If the cluster is lost without a recent etcd snapshot, full cluster
-      reconstruction from scratch is required. Investigate the backup CronJob:
-      kubectl get cronjob -n kube-system etcd-backup
-      kubectl logs -n kube-system -l job-name=etcd-backup --tail=50
+      reconstruction from scratch is required. Check the snapshot cron job on tywin:
+      cat /etc/cron.d/k3s-snapshot
+      tail -50 /var/log/k3s-snapshot.log
 ```
 
 ### ZFS Pool Degraded
@@ -534,10 +586,10 @@ This is the single most important alert for a homelab with physical storage. A r
   annotations:
     summary: "Docker appdata backup has not succeeded in more than 24 hours"
     description: >
-      The Docker media server appdata backup (Jellyfin config, Sonarr/Radarr
+      The Docker host appdata backup (Plex config, Sonarr/Radarr
       databases, etc.) has not completed successfully in {{ $value | humanizeDuration }}.
-      Check the backup script logs on the Docker host:
-      journalctl -u docker-backup.service --since "24 hours ago"
+      Check the backup script logs on the Docker host (10.0.10.20):
+      tail -50 /var/log/docker-backup.log
 ```
 
 ---
@@ -548,13 +600,13 @@ Import these dashboards from grafana.com into the Grafana instance at `https://g
 
 | Dashboard | ID | Purpose |
 |-----------|----|---------|
-| Node Exporter Full | 1860 | All 5+ nodes: CPU, memory, disk I/O, network, system load. The definitive host-level dashboard. |
+| Node Exporter Full | 1860 | All 5 hosts: CPU, memory, disk I/O, network, system load. The definitive host-level dashboard. |
 | Kubernetes Cluster Monitoring | 7249 | Pod status, deployment health, namespace resource usage. Overview of the k8s layer. |
 | Kubernetes PVC Monitor | 13646 | PVC usage, growth trends, and capacity across all claims. Essential for NFS storage management. |
 | Flux CD | 16714 | Flux reconciliation status, sync health, controller logs. Shows which Flux resources are drifting. |
 | Traefik v3 | 17346 | Ingress request rate, error rate, p50/p95/p99 latency per service. |
 | Loki Dashboard | 13639 | Log ingest volume, error rate, query performance. Verify Loki is receiving all pod logs. |
-| Docker Container Monitoring | 893 | Per-container CPU, memory, and network on the Docker media server via cAdvisor. |
+| Docker Container Monitoring | 893 | Per-container CPU, memory, and network on the Docker host via cAdvisor. |
 | ZFS on Linux | 12081 | ZFS pool metrics: allocated space, I/O ops, ARC hit rate, dataset breakdown. |
 | SMART Disk Monitor | custom | Drive health — reallocated sectors, temperature, pending sectors per drive on TrueNAS. |
 | Backup Status | custom | All backup last-run times, backup sizes, age. See Section 8 for panel queries. |
@@ -731,9 +783,7 @@ sum by (namespace) (count_over_time({namespace=~".+"} |= "error" [5m]))
 
 Promtail is deployed as part of the `loki-stack` HelmRelease (`platform/observability/loki/helmrelease.yaml`) as a DaemonSet. It automatically discovers all pods via Kubernetes API and ships their stdout/stderr to Loki with labels for `namespace`, `pod`, `container`, and `node_name`.
 
-No manual Promtail configuration is needed for k8s pods. For Docker host container logs, either:
-1. Run a second Promtail instance on the Docker host pointing at `/var/lib/docker/containers/**/*.log`, or
-2. Use the node-exporter textfile approach for structured metrics (backup success/failure) rather than raw log shipping
+No manual Promtail configuration is needed for k8s pods. For Docker host container logs, the Promtail instance on the Docker host (`10.0.10.20`) is configured to read from `/var/lib/docker/containers/**/*.log` and ships container logs to Loki at the in-cluster Loki endpoint. This provides unified log search across both the Kubernetes cluster and the Docker host from a single Grafana Explore interface.
 
 ---
 
@@ -846,7 +896,7 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:909
 
 # Then open http://localhost:9090/targets in a browser
 # Every target should show State: UP
-# External targets (truenas, docker-host, rpi) must also be UP
+# External targets (truenas, docker, rpi) must also be UP
 ```
 
 **Identify any DOWN targets via API:**
@@ -858,10 +908,10 @@ kubectl exec -n monitoring \
   jq '.data.activeTargets[] | select(.health == "down") | {instance: .labels.instance, job: .labels.job, error: .lastError}'
 ```
 
-### Verify All 6 Hosts Are Scraping
+### Verify All 5 Hosts Are Scraping
 
 ```bash
-# Should return: tywin, jaime, tyrion, docker-host, truenas, rpi (or rpi-control)
+# Should return: tywin, jaime, tyrion, docker, truenas, rpi (instances for all external jobs)
 kubectl exec -n monitoring \
   deploy/kube-prometheus-stack-prometheus \
   -c prometheus -- \
@@ -894,7 +944,7 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9
 
 ### Test Alert Delivery End-to-End
 
-Send a synthetic alert directly to Alertmanager and confirm it arrives in Slack `#homelab-alerts`:
+Send a synthetic alert directly to Alertmanager and confirm it arrives in Discord `#homelab-alerts`:
 
 ```bash
 curl -X POST http://localhost:9093/api/v1/alerts \
@@ -907,7 +957,7 @@ curl -X POST http://localhost:9093/api/v1/alerts \
     },
     "annotations": {
       "summary": "Test alert — verify delivery",
-      "description": "This is a synthetic test alert. If you see this in Slack, the alerting pipeline is working."
+      "description": "This is a synthetic test alert. If you see this in Discord, the alerting pipeline is working."
     }
   }]'
 ```
@@ -1027,19 +1077,20 @@ Procedure when a SMART alert fires:
 
 This guide is complete when all of the following are true:
 
-- [ ] All 6 hosts visible in Prometheus `/targets` — tywin, jaime, tyrion, docker-host, truenas, rpi — all showing `State: UP`
+- [ ] All 5 external targets visible in Prometheus `/targets` — `rpi` (10.0.10.10), `docker` (10.0.10.20), `truenas` (10.0.10.80), `smartctl-truenas` (10.0.10.80:9633), `cadvisor-docker` (10.0.10.20:8080) — all showing `State: UP`
+- [ ] k8s node-exporter DaemonSet scraping tywin, jaime, tyrion via ServiceMonitor
 - [ ] smartctl-exporter scraping TrueNAS — `smartctl_device_attribute` metrics present in Prometheus for each physical drive
 - [ ] ZFS metrics present — `node_zfs_pool_state` series visible in Prometheus
 - [ ] All backup metrics visible — `etcd_backup_last_success_timestamp_seconds`, `docker_backup_last_success_timestamp_seconds`, `rpi_backup_last_success_timestamp_seconds`, and Velero metrics all queryable
 - [ ] Grafana dashboards imported — Node Exporter Full (1860), Kubernetes Cluster Monitoring (7249), Kubernetes PVC Monitor (13646), Flux CD (16714), Traefik v3 (17346), ZFS on Linux (12081)
 - [ ] Custom Backup Status dashboard created with all 6 panels showing current data
-- [ ] Alertmanager routing verified — synthetic `TestAlert` curl delivers to `#homelab-alerts` in Slack within 60 seconds
-- [ ] Critical routing verified — a `severity: critical` test alert delivers to `#homelab-critical` Slack channel
+- [ ] Alertmanager routing verified — synthetic `TestAlert` curl delivers to `#homelab-alerts` in Discord within 60 seconds
+- [ ] Critical routing verified — a `severity: critical` test alert delivers to `#homelab-critical` Discord channel
 - [ ] Watchdog heartbeat configured at healthchecks.io — check is in "up" state
 - [ ] Loki receiving logs — Grafana Explore query for `{namespace="monitoring"}` returns log lines
 - [ ] Promtail DaemonSet pods running on all 3 k8s nodes — `kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail`
 - [ ] Zero "Down" targets in Prometheus `/targets` page
-- [ ] At least one alert rule has been test-fired and confirmed delivered to the correct Slack channel
+- [ ] At least one alert rule has been test-fired and confirmed delivered to the correct Discord channel
 - [ ] All alert rule files committed and reachable — `docker/config/prometheus/alerts/*.yml`
 
 ---

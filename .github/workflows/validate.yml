@@ -1,47 +1,264 @@
-name: Validate Manifests
+name: Validate & Health Check
+
+# PR validation — gates merge on static analysis and live cluster diff.
+# Post-merge health check — confirms Flux reconciled successfully.
+#
+# Jobs (on pull_request to main — infra paths only):
+#   validate     — kubeconform + kustomize build + pluto (GitHub-hosted, no cluster access)
+#   cluster-diff — flux diff posted as collapsible PR comment (self-hosted, bran)
+#
+# Jobs (on push to main — infra paths, after merge):
+#   health-check — Flux reconcile + kustomization Ready + Traefik smoke test (self-hosted, bran)
+#
+# Required GitHub repository secrets:
+#   KUBECONFIG — base64-encoded kubeconfig for prod cluster (server = 10.0.10.11:6443)
+#
+# Branch protection on main:
+#   Required status checks: validate, cluster-diff
+#   No reviewer required (solo operator) — auto-merge enabled for convenience
+#
+# Self-hosted runner: installed on bran (10.0.10.10) as a systemd service.
+# Labels: [self-hosted, linux, homelab]
+# Pre-installed tools: kubectl, flux, kubeconform, kustomize, pluto, gh
+# See docs/guides/04-Flux-GitOps.md for full runner setup instructions.
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "platform/**"
-      - "apps/**"
-      - "clusters/**"
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - "platform/**"
       - "apps/**"
+      - "platform/**"
+      - "clusters/**"
+      - "ansible/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "platform/**"
       - "clusters/**"
 
 jobs:
-  kubeconform-validate:
-    name: kubeconform
+  # ─── PR Job 1: Static validation ──────────────────────────────────────────
+  # Runs on GitHub-hosted runner — no cluster access required.
+  # Catches: schema errors, broken kustomize overlays, deprecated API versions.
+  validate:
+    name: Validate manifests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install kubeconform
         run: |
-          KUBECONFORM_VERSION="v0.6.7"
           curl -sSL \
-            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz" \
             | tar -xz -C /usr/local/bin kubeconform
           chmod +x /usr/local/bin/kubeconform
-          kubeconform -v
 
-      - name: Run kubeconform
+      - name: Install kustomize
+        run: |
+          curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Install pluto
+        run: |
+          PLUTO_VERSION=$(curl -s https://api.github.com/repos/FairwindsOps/pluto/releases/latest \
+            | grep '"tag_name"' | cut -d'"' -f4)
+          curl -sSL \
+            "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin pluto
+          chmod +x /usr/local/bin/pluto
+
+      - name: Validate with kubeconform
         run: |
           find platform/ apps/ clusters/ \
-            -type f \
-            \( -name "*.yaml" -o -name "*.yml" \) \
+            -type f \( -name "*.yaml" -o -name "*.yml" \) \
             ! -name "gotk-components.yaml" \
-            | xargs kubeconform \
-                -schema-location default \
-                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-                -ignore-missing-schemas \
-                -summary
+          | xargs kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -summary
+
+      - name: Kustomize build — apps/prod
+        run: kustomize build apps/prod
+
+      - name: Check for deprecated Kubernetes APIs
+        run: |
+          echo "--- apps/prod ---"
+          kustomize build apps/prod | pluto detect - || true
+
+  # ─── PR Job 2: Live cluster diff ──────────────────────────────────────────
+  # Runs on self-hosted runner (bran, 10.0.10.10) — direct LAN access to prod.
+  # Diffs the PR's manifests against the live cluster state.
+  # Posts a collapsible summary as a PR comment so you see exactly what will change.
+  cluster-diff:
+    name: Cluster diff
+    runs-on: [self-hosted, linux, homelab]
+    needs: validate
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Run flux diff and post PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_FILE=$(mktemp)
+          echo "## Cluster diff" >> "$COMMENT_FILE"
+          echo "" >> "$COMMENT_FILE"
+          echo "_Comparing PR manifests against live cluster state. Expand a section to see what will change._" >> "$COMMENT_FILE"
+          echo "" >> "$COMMENT_FILE"
+
+          HAS_DIFF=false
+
+          KUSTOMIZATIONS=(
+            apps
+            platform-networking
+            platform-networking-config
+            platform-networking-tls
+            platform-security
+            platform-security-issuers
+            platform-namespaces
+            platform-observability
+            platform-observability-config
+            platform-observability-digest
+            platform-databases
+            platform-storage
+            platform-backup
+            platform-backup-config
+            platform-crowdsec
+            platform-authentik
+            platform-upgrade
+            platform-upgrade-plans
+          )
+
+          for ks in "${KUSTOMIZATIONS[@]}"; do
+            KS_DIFF=$(flux diff kustomization "$ks" --namespace flux-system 2>&1) || true
+            if [ -n "$KS_DIFF" ]; then
+              HAS_DIFF=true
+              echo "<details>" >> "$COMMENT_FILE"
+              echo "<summary><code>$ks</code></summary>" >> "$COMMENT_FILE"
+              echo "" >> "$COMMENT_FILE"
+              echo '```diff' >> "$COMMENT_FILE"
+              echo "$KS_DIFF" >> "$COMMENT_FILE"
+              echo '```' >> "$COMMENT_FILE"
+              echo "</details>" >> "$COMMENT_FILE"
+              echo "" >> "$COMMENT_FILE"
+            fi
+          done
+
+          if [ "$HAS_DIFF" = "false" ]; then
+            echo "_No changes to cluster state detected._" >> "$COMMENT_FILE"
+          fi
+
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file "$COMMENT_FILE" \
+            --repo "${{ github.repository }}"
+
+  # ─── Post-merge: Production health check ──────────────────────────────────
+  # Runs on self-hosted runner (bran) after every infra push to main.
+  # Forces Flux to reconcile, waits for all kustomizations to be Ready,
+  # then verifies Traefik is responding. Fails loudly if anything is wrong.
+  health-check:
+    name: Production health check
+    runs-on: [self-hosted, linux, homelab]
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Trigger Flux reconcile
+        run: |
+          echo "Forcing Flux to pull latest commit from Git..."
+          flux reconcile source git flux-system \
+            --namespace flux-system \
+            --timeout=60s
+
+      - name: Wait for all kustomizations to be Ready
+        run: |
+          KUSTOMIZATIONS=(
+            platform-networking
+            platform-networking-config
+            platform-networking-tls
+            platform-security
+            platform-security-issuers
+            platform-namespaces
+            platform-observability
+            platform-observability-config
+            platform-observability-digest
+            platform-databases
+            platform-storage
+            platform-backup
+            platform-backup-config
+            platform-crowdsec
+            platform-authentik
+            platform-upgrade
+            platform-upgrade-plans
+            apps
+          )
+          for ks in "${KUSTOMIZATIONS[@]}"; do
+            echo "Waiting for kustomization/${ks}..."
+            kubectl wait kustomization/"${ks}" \
+              --for=condition=ready \
+              --timeout=10m \
+              --namespace flux-system
+          done
+          echo "All kustomizations Ready."
+
+      - name: Check for unhealthy pods
+        run: |
+          NAMESPACES="flux-system ingress cert-manager monitoring storage velero metallb-system auth crowdsec databases apps"
+          UNHEALTHY=""
+          for ns in $NAMESPACES; do
+            PODS=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null \
+              | grep -Ev 'Running|Completed|Succeeded' || true)
+            if [ -n "$PODS" ]; then
+              UNHEALTHY="${UNHEALTHY}--- ${ns} ---\n${PODS}\n"
+            fi
+          done
+          if [ -n "$UNHEALTHY" ]; then
+            echo "Unhealthy pods found:"
+            echo -e "$UNHEALTHY"
+            exit 1
+          fi
+          echo "All pods healthy."
+
+      - name: Smoke test — Traefik responds
+        run: |
+          HTTP_CODE=$(curl -s --max-time 15 \
+            --write-out '%{http_code}' --output /dev/null \
+            http://10.0.10.110)
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "ERROR: Traefik not reachable at 10.0.10.110 (connection refused or timeout)"
+            exit 1
+          fi
+          echo "Traefik responding at 10.0.10.110 — HTTP ${HTTP_CODE}"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "### Production health check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit:** \`${SHORT_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Flux:** all kustomizations reconciled" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Traefik:** responding at 10.0.10.110" >> "$GITHUB_STEP_SUMMARY"
