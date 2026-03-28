@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** rewrite n8n helmrelease using correct chart schema `fa684cb`
 - **[CONFIG]** fix n8n extraEnvVars format — map not array `eb3eef3`
 - **[CONFIG]** fix n8n helmrelease values schema `49c387e`
 - **[DEPLOY]** encrypt Immich and n8n secrets `4824ec6`
