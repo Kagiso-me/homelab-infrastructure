@@ -1,0 +1,51 @@
+---
+# Docker host deployment pipeline
+#
+# Triggers on push to main when compose files change. The self-hosted runner
+# (varys, 10.0.10.10) SSHes to docked (10.0.10.20) via Ansible and reconciles
+# all Docker stacks to match what is in git.
+#
+# This gives the Docker host the same GitOps model as the k3s cluster:
+#   git push → CI → Ansible → Docker host matches repo
+#
+# Manual trigger: Actions → docker-deploy → Run workflow
+#
+# Required: SSH key from varys to docked must be established
+#   (runner user's ~/.ssh/id_ed25519 trusted by kagiso@10.0.10.20)
+
+name: docker-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/compose/**'
+      - 'docker/config/**'
+  workflow_dispatch:
+    inputs:
+      target_stack:
+        description: 'Stack to deploy (all / media-stack / proxy-stack / monitoring-stack)'
+        required: false
+        default: 'all'
+
+jobs:
+  deploy:
+    name: deploy-docker-host
+    runs-on: [self-hosted, linux, homelab]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Docker stacks
+        run: |
+          ansible-playbook \
+            -i ansible/inventory/homelab.yml \
+            ansible/playbooks/docker/deploy.yml \
+            -e target_stack=${{ github.event.inputs.target_stack || 'all' }}
+
+      - name: Verify containers are running
+        run: |
+          ansible docker -i ansible/inventory/homelab.yml \
+            -m shell \
+            -a "docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -v NAMES"

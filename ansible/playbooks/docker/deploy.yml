@@ -1,0 +1,93 @@
+---
+# Deploy Docker stacks on the Docker host (docked, 10.0.10.20)
+#
+# Syncs compose files from the repo to /srv/docker/stacks/ and reconciles
+# each stack against the current state. This playbook is the source-of-truth
+# enforcer: what is in git is what runs on the host.
+#
+# Stack deployment order matters:
+#   1. media-stack   — creates the media-net Docker network
+#   2. proxy-stack   — joins media-net (external: true)
+#   3. monitoring-stack — independent (node-exporter, cAdvisor, promtail)
+#
+# Secrets (.env) are NOT managed here. The .env file must exist at
+# /srv/docker/stacks/.env on the host before first deploy. Ansible never
+# creates or overwrites it — secrets stay off git.
+#
+# Usage:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/docker/deploy.yml
+#
+# To target a single stack:
+#   ansible-playbook ... -e target_stack=media-stack
+#
+# Prerequisites on the Docker host:
+#   - Docker CE installed
+#   - /srv/docker/stacks/.env populated
+#   - NFS mounts active (/mnt/media, /mnt/downloads)
+#   - /var/lib/node_exporter/textfile_collector directory exists
+
+- name: Deploy Docker stacks on docked (10.0.10.20)
+  hosts: docker
+  gather_facts: false
+  vars:
+    stacks_src: "{{ playbook_dir }}/../../../docker/compose"
+    stacks_dest: /srv/docker/stacks
+    target_stack: all   # override with -e target_stack=media-stack to deploy one stack
+
+  tasks:
+
+    - name: Ensure stacks directory exists
+      file:
+        path: "{{ stacks_dest }}"
+        state: directory
+        mode: '0755'
+
+    - name: Sync compose files from repo
+      # Copies all *.yml files from docker/compose/ to /srv/docker/stacks/.
+      # Existing .env file is not touched (no_copy_links preserves symlinks
+      # but crucially we only copy *.yml so .env is never overwritten).
+      copy:
+        src: "{{ stacks_src }}/"
+        dest: "{{ stacks_dest }}/"
+        mode: '0644'
+
+    - name: Verify NFS mounts are active
+      # media-stack containers will fail silently if NFS mounts are stale.
+      # Abort the playbook here rather than deploying into a broken state.
+      command: mountpoint -q {{ item }}
+      loop:
+        - /mnt/media
+        - /mnt/downloads
+      changed_when: false
+      when: target_stack == 'all' or target_stack == 'media-stack'
+
+    - name: Deploy media-stack
+      # Must run before proxy-stack — creates the media-net bridge network.
+      shell: >
+        docker compose
+        -f {{ stacks_dest }}/media-stack.yml
+        up -d --pull always --remove-orphans
+      args:
+        chdir: "{{ stacks_dest }}"
+      when: target_stack == 'all' or target_stack == 'media-stack'
+
+    - name: Deploy proxy-stack
+      # NPM joins media-net as an external network.
+      shell: >
+        docker compose
+        -f {{ stacks_dest }}/proxy-stack.yml
+        up -d --pull always --remove-orphans
+      args:
+        chdir: "{{ stacks_dest }}"
+      when: target_stack == 'all' or target_stack == 'proxy-stack'
+
+    - name: Deploy monitoring-stack
+      # node-exporter, cAdvisor, promtail — independent of media-net.
+      shell: >
+        docker compose
+        -f {{ stacks_dest }}/monitoring-stack.yml
+        up -d --pull always --remove-orphans
+      args:
+        chdir: "{{ stacks_dest }}"
+      when: target_stack == 'all' or target_stack == 'monitoring-stack'
