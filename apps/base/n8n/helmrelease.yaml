@@ -32,6 +32,10 @@ spec:
       name: n8n-secret
       valuesKey: redis-password
       targetPath: externalRedis.password
+    - kind: Secret
+      name: n8n-secret
+      valuesKey: encryption-key
+      targetPath: encryptionKey
   values:
     # Disable bundled PostgreSQL and Redis — using shared central instances.
     postgresql:
@@ -61,22 +65,18 @@ spec:
     worker:
       mode: queue
 
-    # N8N_ENCRYPTION_KEY protects stored credentials at rest.
+    # encryptionKey injected via valuesFrom.
     # WARNING: changing this after first deploy invalidates all stored credentials.
-    main:
-      extraEnvVars:
-        N8N_ENCRYPTION_KEY:
-          valueFrom:
-            secretKeyRef:
-              name: n8n-secret
-              key: encryption-key
-        GENERIC_TIMEZONE: Africa/Johannesburg
 
+    generic:
+      timezone: Africa/Johannesburg
+
+    ingress:
+      enabled: false
+
+    main:
       persistence:
         enabled: true
         storageClass: nfs-truenas
         accessMode: ReadWriteOnce
         size: 5Gi
-
-    ingress:
-      enabled: false
