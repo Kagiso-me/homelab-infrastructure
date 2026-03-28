@@ -89,7 +89,10 @@
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ktjea\\\\fix_plan.ps1\")",
       "Bash(powershell.exe -Command \":*)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ktjea\\\\splice_section10.ps1\")",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(ls grafana-dashboard-*.yaml prometheus-rules*.yaml)",
+      "Bash(python -c \":*)",
+      "Bash(where node:*)"
     ]
   }
 }

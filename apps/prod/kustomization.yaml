@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - ../base/grafana
   - ../base/nextcloud
+  - ../base/immich
+  - ../base/n8n

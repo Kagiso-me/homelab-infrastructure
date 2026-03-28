@@ -16,6 +16,14 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[DEPLOY]** add Immich and n8n deployments `8ebede7`
+- **[CONFIG]** fix node-deep-dive variable and queries to use instance labels `a2a264a`
+- **[CONFIG]** switch digest to python:3.12-alpine `799866f`
+- **[DEPLOY]** add full monitoring stack overhaul `d3a8e13`
+- **[MAINTENANCE]** encrypt daily-digest Discord webhook secret `9de947d`
+- **[DEPLOY]** add daily homelab digest CronJob `0d9a041`
+- **[DEPLOY]** add Discord webhook URLs to secret `b5d1c2b`
+- **[DEPLOY]** add CoreDNS split-horizon for kagiso.me `d98585c`
 - **[CONFIG]** enable OIDC user auto-registration `9f44645`
 - **[CONFIG]** bypass Cloudflare for OIDC discovery via hostAlias `513fa56`
 - **[DEPLOY]** add OIDC client credentials to secret `d20252b`

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library-pvc
+  namespace: apps
+spec:
+  storageClassName: nfs-truenas
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 200Gi

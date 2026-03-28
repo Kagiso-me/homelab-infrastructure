@@ -169,6 +169,29 @@ spec:
     secretRef:
       name: sops-age
 ---
+# Daily Digest — CronJob that posts a morning summary embed to Discord.
+# Queries Prometheus for node health, CPU, memory, disk, pods, and backup status.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-observability-digest
+  namespace: flux-system
+spec:
+  interval: 1h
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./platform/observability/daily-digest
+  prune: true
+  dependsOn:
+    - name: platform-observability
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+---
 # Platform Storage — NFS provisioner, StorageClasses
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

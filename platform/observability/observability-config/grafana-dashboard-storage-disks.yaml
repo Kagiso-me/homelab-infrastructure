@@ -1,0 +1,689 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-storage-disks
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  storage-disks.json: |
+    {
+      "uid": "storage-disks",
+      "title": "Storage & Disks",
+      "description": "ZFS pool health, SMART disk metrics, PVC usage, and disk I/O for TrueNAS storage",
+      "tags": ["infrastructure", "storage", "truenas"],
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "graphTooltip": 1,
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "liveNow": false,
+      "timezone": "",
+      "weekStart": "",
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "options": [],
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "row",
+          "title": "ZFS Pool Health",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "panels": []
+        },
+        {
+          "type": "gauge",
+          "title": "tera Usage",
+          "description": "Primary media storage pool",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 0, "y": 1 },
+          "id": 2,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_used_bytes{zpool=\"tera\"} / node_zfs_zpool_size_bytes{zpool=\"tera\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.7 },
+                  { "color": "red", "value": 0.8 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "tera Size",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 4, "y": 1 },
+          "id": 3,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_size_bytes{zpool=\"tera\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        },
+        {
+          "type": "gauge",
+          "title": "core Usage",
+          "description": "Application data pool",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 8, "y": 1 },
+          "id": 4,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_used_bytes{zpool=\"core\"} / node_zfs_zpool_size_bytes{zpool=\"core\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.7 },
+                  { "color": "red", "value": 0.8 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "core Size",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 12, "y": 1 },
+          "id": 5,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_size_bytes{zpool=\"core\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        },
+        {
+          "type": "gauge",
+          "title": "archive Usage",
+          "description": "Cold storage / backup pool",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 16, "y": 1 },
+          "id": 6,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_used_bytes{zpool=\"archive\"} / node_zfs_zpool_size_bytes{zpool=\"archive\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.7 },
+                  { "color": "red", "value": 0.8 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "archive Size",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 4, "x": 20, "y": 1 },
+          "id": 7,
+          "targets": [
+            {
+              "expr": "node_zfs_zpool_size_bytes{zpool=\"archive\"}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "blue", "value": null }
+                ]
+              },
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "graphMode": "none",
+            "colorMode": "value",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        },
+        {
+          "type": "row",
+          "title": "Disk Health",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+          "id": 8,
+          "panels": []
+        },
+        {
+          "type": "table",
+          "title": "SMART Disk Status",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 9 },
+          "id": 9,
+          "targets": [
+            {
+              "expr": "smartctl_device_smart_status",
+              "refId": "A",
+              "instant": true,
+              "format": "table",
+              "legendFormat": "{{device}} - {{model_name}}"
+            },
+            {
+              "expr": "smartctl_device_temperature",
+              "refId": "B",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "expr": "smartctl_device_power_on_hours / 24 / 365",
+              "refId": "C",
+              "instant": true,
+              "format": "table"
+            },
+            {
+              "expr": "smartctl_device_reallocated_sector_ct",
+              "refId": "D",
+              "instant": true,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value #A" },
+                "properties": [
+                  { "id": "displayName", "value": "SMART Status" },
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": { "text": "FAIL", "color": "red", "index": 0 },
+                          "1": { "text": "OK", "color": "green", "index": 1 }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-background", "mode": "basic" }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "red", "value": null },
+                        { "color": "green", "value": 1 }
+                      ]
+                    }
+                  },
+                  { "id": "color", "value": { "mode": "thresholds" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Value #B" },
+                "properties": [
+                  { "id": "displayName", "value": "Temperature" },
+                  { "id": "unit", "value": "celsius" },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 45 },
+                        { "color": "red", "value": 55 }
+                      ]
+                    }
+                  },
+                  { "id": "color", "value": { "mode": "thresholds" } },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-text" }
+                  }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Value #C" },
+                "properties": [
+                  { "id": "displayName", "value": "Power-On (years)" },
+                  { "id": "unit", "value": "none" },
+                  { "id": "decimals", "value": 1 }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Value #D" },
+                "properties": [
+                  { "id": "displayName", "value": "Reallocated Sectors" },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 1 },
+                        { "color": "red", "value": 10 }
+                      ]
+                    }
+                  },
+                  { "id": "color", "value": { "mode": "thresholds" } },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "color-text" }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "countRows": false },
+            "sortBy": [
+              { "displayName": "device", "desc": false }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "instance": true,
+                  "job": true
+                },
+                "indexByName": {
+                  "device": 0,
+                  "model_name": 1,
+                  "Value #A": 2,
+                  "Value #B": 3,
+                  "Value #C": 4,
+                  "Value #D": 5
+                },
+                "renameByName": {
+                  "device": "Device",
+                  "model_name": "Model"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "title": "Disk Temperatures",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+          "id": 10,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Disk Temperatures",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 21 },
+          "id": 11,
+          "targets": [
+            {
+              "expr": "smartctl_device_temperature",
+              "refId": "A",
+              "legendFormat": "{{device}} ({{model_name}})"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 45 },
+                  { "color": "red", "value": 55 }
+                ]
+              },
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "showPoints": "never",
+                "spanNulls": false,
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "",
+                "scaleDistribution": { "type": "linear" },
+                "thresholdsStyle": { "mode": "line" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }
+          }
+        },
+        {
+          "type": "row",
+          "title": "PVC Usage",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+          "id": 12,
+          "panels": []
+        },
+        {
+          "type": "table",
+          "title": "Persistent Volume Claim Usage",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 9, "w": 24, "x": 0, "y": 30 },
+          "id": 13,
+          "targets": [
+            {
+              "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes",
+              "refId": "A",
+              "instant": true,
+              "format": "table",
+              "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
+            },
+            {
+              "expr": "kubelet_volume_stats_capacity_bytes",
+              "refId": "B",
+              "instant": true,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value #A" },
+                "properties": [
+                  { "id": "displayName", "value": "Used %" },
+                  { "id": "unit", "value": "percentunit" },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 0.7 },
+                        { "color": "red", "value": 0.85 }
+                      ]
+                    }
+                  },
+                  { "id": "color", "value": { "mode": "thresholds" } },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": { "type": "gauge", "mode": "basic" }
+                  }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Value #B" },
+                "properties": [
+                  { "id": "displayName", "value": "Capacity" },
+                  { "id": "unit", "value": "bytes" }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false, "reducer": ["sum"], "countRows": false },
+            "sortBy": [
+              { "displayName": "Used %", "desc": true }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "instance": true,
+                  "job": true,
+                  "node": true,
+                  "endpoint": true,
+                  "service": true,
+                  "container": true,
+                  "pod": true,
+                  "metrics_path": true
+                },
+                "indexByName": {
+                  "namespace": 0,
+                  "persistentvolumeclaim": 1,
+                  "Value #B": 2,
+                  "Value #A": 3
+                },
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "persistentvolumeclaim": "PVC"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "title": "Disk I/O",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+          "id": 14,
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Read Throughput",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+          "id": 15,
+          "targets": [
+            {
+              "expr": "rate(node_disk_read_bytes_total{job=\"node-truenas\"}[5m])",
+              "refId": "A",
+              "legendFormat": "{{device}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "showPoints": "never",
+                "spanNulls": false,
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "",
+                "scaleDistribution": { "type": "linear" },
+                "stacking": { "mode": "none", "group": "A" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Write Throughput",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+          "id": 16,
+          "targets": [
+            {
+              "expr": "rate(node_disk_written_bytes_total{job=\"node-truenas\"}[5m])",
+              "refId": "A",
+              "legendFormat": "{{device}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
+                "showPoints": "never",
+                "spanNulls": false,
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisLabel": "",
+                "scaleDistribution": { "type": "linear" },
+                "stacking": { "mode": "none", "group": "A" }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+          }
+        }
+      ]
+    }

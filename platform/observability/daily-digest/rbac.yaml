@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: daily-digest
+  namespace: monitoring
+---
+# No ClusterRole needed — the digest script queries Prometheus (HTTP), not the
+# Kubernetes API. The ServiceAccount exists solely to avoid using the default
+# account and to make RBAC audits clean.

@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-digest
+  namespace: monitoring
+spec:
+  # 08:00 daily — after overnight backups (01:00-03:00), before the day starts.
+  schedule: "0 8 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: daily-digest
+          restartPolicy: OnFailure
+          containers:
+            - name: digest
+              image: python:3.12-alpine
+              command:
+                - python3
+                - /scripts/digest.py
+              env:
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: digest-secret
+                      key: discord-digest-url
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: daily-digest-script

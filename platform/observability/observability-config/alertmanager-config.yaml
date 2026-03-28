@@ -44,13 +44,17 @@ spec:
             key: discord-alerts-url
           channel: "#homelab-alerts"   # required field, ignored by Discord
           sendResolved: true
-          title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}'
+          title: '{{ if eq .Status "firing" }}⚠️ FIRING ({{ .Alerts.Firing | len }}){{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}'
           text: >-
-            {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Severity:* {{ .Labels.severity }}
-            *Namespace:* {{ .Labels.namespace }}
-            *Description:* {{ .Annotations.description }}
+            {{ range .Alerts -}}
+            *{{ .Labels.alertname }}* | `{{ .Labels.severity }}`
+            {{ if .Labels.instance }}📍 *Instance:* {{ .Labels.instance }}{{ end }}
+            {{ if .Labels.namespace }}📦 *Namespace:* {{ .Labels.namespace }}{{ end }}
+            {{ if .Labels.pod }}🔹 *Pod:* {{ .Labels.pod }}{{ end }}
+            {{ if .Annotations.summary }}📝 {{ .Annotations.summary }}{{ end }}
+            {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+            {{ if .StartsAt }}⏱️ *Started:* {{ .StartsAt.Format "2006-01-02 15:04 MST" }}{{ end }}
+            ---
             {{ end }}
 
     - name: discord-critical
@@ -60,13 +64,18 @@ spec:
             key: discord-critical-url
           channel: "#homelab-critical"  # required field, ignored by Discord
           sendResolved: true
-          title: ':fire: CRITICAL: {{ .CommonLabels.alertname }}'
+          title: '{{ if eq .Status "firing" }}🔥 CRITICAL ({{ .Alerts.Firing | len }}){{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}'
           text: >-
-            {{ range .Alerts }}
-            *Alert:* {{ .Annotations.summary }}
-            *Namespace:* {{ .Labels.namespace }}
-            *Description:* {{ .Annotations.description }}
-            *Runbook:* {{ .Annotations.runbook_url }}
+            {{ range .Alerts -}}
+            *{{ .Labels.alertname }}* | `critical`
+            {{ if .Labels.instance }}📍 *Instance:* {{ .Labels.instance }}{{ end }}
+            {{ if .Labels.namespace }}📦 *Namespace:* {{ .Labels.namespace }}{{ end }}
+            {{ if .Labels.pod }}🔹 *Pod:* {{ .Labels.pod }}{{ end }}
+            {{ if .Annotations.summary }}📝 {{ .Annotations.summary }}{{ end }}
+            {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+            {{ if .StartsAt }}⏱️ *Started:* {{ .StartsAt.Format "2006-01-02 15:04 MST" }}{{ end }}
+            🔗 <https://grafana.kagiso.me|Grafana>
+            ---
             {{ end }}
 
     - name: watchdog-webhook

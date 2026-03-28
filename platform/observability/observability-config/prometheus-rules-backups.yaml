@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-backup-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: backups
+      rules:
+        - alert: BackupJobFailed
+          expr: backup_job_status == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backup job {{ $labels.job_name }} failed"
+            description: "Backup job {{ $labels.job_name }} on {{ $labels.instance }} is reporting failure."
+        - alert: BackupStale
+          expr: time() - backup_last_success_timestamp > 25 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backup {{ $labels.job_name }} stale for 25+ hours"
+            description: "Backup job {{ $labels.job_name }} hasn't completed successfully in over 25 hours. Last success was {{ $value | humanizeDuration }} ago."
+        - alert: VeleroBackupFailed
+          expr: increase(velero_backup_failure_total[24h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero backup failure in last 24h"
+            description: "Velero has recorded {{ $value | printf \"%.0f\" }} backup failures in the last 24 hours."
+        - alert: B2SyncFailed
+          expr: b2_sync_last_status == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backblaze B2 sync failed"
+            description: "Off-site backup sync to Backblaze B2 is reporting failure."
+        - alert: B2SyncStale
+          expr: time() - b2_sync_last_success_timestamp > 25 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "B2 sync stale for 25+ hours"
+            description: "Backblaze B2 sync hasn't succeeded in over 25 hours."
