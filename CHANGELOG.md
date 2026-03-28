@@ -16,6 +16,8 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-03
+- **[CONFIG]** fix n8n helmrelease values schema `49c387e`
+- **[DEPLOY]** encrypt Immich and n8n secrets `4824ec6`
 - **[DEPLOY]** add Immich and n8n deployments `8ebede7`
 - **[CONFIG]** fix node-deep-dive variable and queries to use instance labels `a2a264a`
 - **[CONFIG]** switch digest to python:3.12-alpine `799866f`
