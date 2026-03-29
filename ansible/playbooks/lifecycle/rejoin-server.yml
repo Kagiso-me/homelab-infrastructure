@@ -1,0 +1,173 @@
+---
+# Rejoin a failed or replaced server node to the HA cluster.
+#
+# Requires at least 2 healthy server nodes (etcd quorum must be intact).
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/lifecycle/rejoin-server.yml \
+#     -e target_node=jaime
+#
+# If tywin is the target, specify a surviving server to coordinate through:
+#   ansible-playbook ansible/playbooks/lifecycle/rejoin-server.yml \
+#     -e target_node=tywin -e server_node=jaime
+
+- name: Remove failed node from cluster and purge k3s
+  hosts: "{{ target_node }}"
+  become: true
+  gather_facts: false
+  vars:
+    _server: "{{ server_node | default(groups['k3s_primary'][0]) }}"
+  pre_tasks:
+    - name: Require target_node
+      fail:
+        msg: "target_node is required. Pass -e target_node=<nodename>"
+      when: target_node is not defined
+      delegate_to: localhost
+      run_once: true
+
+    - name: Require target_node and server_node to differ
+      assert:
+        that: target_node != _server
+        fail_msg: >
+          target_node and server_node cannot be the same node.
+          If rejoing tywin, pass -e server_node=jaime or -e server_node=tyrion.
+      delegate_to: localhost
+      run_once: true
+
+  tasks:
+    - name: Remove node from Kubernetes
+      command: kubectl delete node {{ target_node }} --ignore-not-found
+      delegate_to: "{{ _server }}"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Kill all k3s processes
+      shell: /usr/local/bin/k3s-killall.sh || true
+
+    - name: Uninstall k3s server
+      shell: /usr/local/bin/k3s-uninstall.sh || true
+
+    - name: Remove k3s data and config directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/rancher
+        - /var/lib/rancher
+        - /var/lib/kubelet
+        - /etc/cni
+        - /opt/cni
+        - /run/k3s
+        - /run/flannel
+        - /var/lib/cni
+
+- name: Rejoin node as additional server
+  hosts: "{{ target_node }}"
+  become: true
+  gather_facts: false
+  vars:
+    _server: "{{ server_node | default(groups['k3s_primary'][0]) }}"
+    _server_ip: "{{ hostvars[server_node | default(groups['k3s_primary'][0])].ansible_host }}"
+    k3s_cluster_cidr: "10.42.0.0/16"
+    k3s_service_cidr: "10.43.0.0/16"
+    k3s_disable:
+      - traefik
+      - servicelb
+  tasks:
+    - name: Read node token from healthy server
+      command: cat /var/lib/rancher/k3s/server/node-token
+      delegate_to: "{{ _server }}"
+      register: token
+      changed_when: false
+
+    - name: Install k3s as additional server
+      shell: |
+        curl -sfL https://get.k3s.io | \
+          K3S_TOKEN="{{ token.stdout }}" \
+          INSTALL_K3S_EXEC="server \
+            --server https://{{ _server_ip }}:6443 \
+            --node-ip {{ ansible_host }} \
+            --cluster-cidr {{ k3s_cluster_cidr }} \
+            --service-cidr {{ k3s_service_cidr }} \
+            {% for item in k3s_disable %} --disable {{ item }} {% endfor %} \
+            --write-kubeconfig-mode=644 \
+            --tls-san {{ ansible_host }}" \
+          sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Enable and start k3s
+      systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+- name: Restore etcd snapshot configuration
+  hosts: "{{ target_node }}"
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/vault.yml
+  tasks:
+    - name: Ensure /etc/rancher/k3s directory exists
+      file:
+        path: /etc/rancher/k3s
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Write k3s config for etcd S3 snapshots
+      copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          # etcd snapshot configuration — managed by Ansible
+          # Snapshots every 6 hours, 7 retained, stored in MinIO
+          etcd-snapshot-schedule-cron: "0 */6 * * *"
+          etcd-snapshot-retention: 7
+          etcd-s3: true
+          etcd-s3-endpoint: "10.0.10.80:9000"
+          etcd-s3-insecure: true
+          etcd-s3-bucket: "k3s-etcd-snapshots"
+          etcd-s3-region: "minio"
+          etcd-s3-folder: "snapshots"
+          etcd-s3-access-key: "{{ vault_minio_access_key }}"
+          etcd-s3-secret-key: "{{ vault_minio_secret_key }}"
+
+    - name: Restart k3s to load snapshot config
+      systemd:
+        name: k3s
+        state: restarted
+
+    - name: Wait for k3s API to be ready
+      wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 60
+
+- name: Verify node rejoined and cluster is healthy
+  hosts: "{{ server_node | default(groups['k3s_primary'][0]) }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Wait for target node to be Ready
+      shell: |
+        kubectl get node {{ target_node }} \
+          -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}'
+      register: node_ready
+      until: node_ready.stdout == "True"
+      retries: 18
+      delay: 10
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Show cluster node status
+      command: kubectl get nodes -o wide
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+

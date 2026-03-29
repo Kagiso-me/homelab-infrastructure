@@ -100,9 +100,9 @@ graph TD
         smartctl["smartctl-exporter :9633"]
     end
 
-    subgraph rpi["Raspberry Pi bran (10.0.10.10)"]
-        ne_rpi["node-exporter :9100"]
-        rpi_txt["textfile collector\n(backup timestamps)"]
+    subgraph varys_box["varys (10.0.10.10)"]
+        ne_varys["node-exporter :9100"]
+        varys_txt["textfile collector\n(backup timestamps)"]
     end
 
     subgraph notify["Notifications"]
@@ -127,8 +127,8 @@ graph TD
     ne_truenas -->|scrape :9100| prom_stack
     smartctl -->|scrape :9633| prom_stack
 
-    ne_rpi -->|scrape :9100| prom_stack
-    rpi_txt --> ne_rpi
+    ne_varys -->|scrape :9100| prom_stack
+    varys_txt --> ne_varys
 
     prom_stack -->|dashboards + explore| grafana["Grafana\ngrafana.kagiso.me"]
     loki -->|log queries| grafana
@@ -216,7 +216,7 @@ Every signal collected by this stack, where it comes from, how to query it, and 
 |--------|--------|-----------------|----------------|
 | etcd backup age | textfile (k8s node) | `time() - etcd_backup_last_success_timestamp_seconds > 86400` | etcd backup >24h old = disaster recovery gap |
 | Docker appdata backup age | textfile (docker-host) | `time() - docker_backup_last_success_timestamp_seconds > 86400` | Docker host appdata not backed up |
-| RPi backup age | textfile (rpi) | `time() - rpi_backup_last_success_timestamp_seconds > 86400` | kubeconfig, GPG, SSH keys not protected |
+| varys backup age | textfile (varys) | `time() - varys_backup_last_success_timestamp_seconds > 86400` | kubeconfig, age key, SSH keys not protected |
 | Velero schedule status | Velero | `velero_backup_success_total` / `velero_backup_failure_total` | PVC snapshots covering stateful workloads |
 | Backup duration trend | textfile | `docker_backup_duration_seconds` | Sudden increase indicates storage or network issue |
 
@@ -328,17 +328,17 @@ Note: the node-exporter DaemonSet already scrapes the k8s nodes via ServiceMonit
 
 ## 5. External Scrape Targets
 
-External hosts (Docker server, TrueNAS, RPi) are not part of the Kubernetes cluster and cannot be discovered via ServiceMonitors. They are scraped via `additionalScrapeConfigs` in the HelmRelease values.
+External hosts (Docker server, TrueNAS, varys) are not part of the Kubernetes cluster and cannot be discovered via ServiceMonitors. They are scraped via `additionalScrapeConfigs` in the HelmRelease values.
 
 The complete external target configuration is as follows:
 
 ```yaml
 additionalScrapeConfigs:
-  - job_name: node-rpi
+  - job_name: node-varys
     static_configs:
       - targets: ['10.0.10.10:9100']
         labels:
-          instance: rpi
+          instance: varys
           role: control-hub
 
   - job_name: node-docker
@@ -381,7 +381,7 @@ additionalScrapeConfigs:
 
 | Job | Target | Labels | Notes |
 |-----|--------|--------|-------|
-| `node-rpi` | `10.0.10.10:9100` | `instance: rpi, role: control-hub` | RPi 3B+; runner, Pi-hole, cloudflared |
+| `node-varys` | `10.0.10.10:9100` | `instance: varys, role: control-hub` | Intel NUC; runner, Pi-hole, cloudflared, Grafana, Alertmanager |
 | `node-docker` | `10.0.10.20:9100` | `instance: docker, role: docker-host` | Bare-metal NUC; Plex, SABnzbd, *arr stack |
 | `node-truenas` | `10.0.10.80:9100` | `instance: truenas, role: storage` | TrueNAS with ZFS collector enabled |
 | `smartctl-truenas` | `10.0.10.80:9633` | `instance: truenas` | SMART data; 5m interval to reduce drive wear |
@@ -397,7 +397,7 @@ For Prometheus to scrape these targets, ensure the following ports are reachable
 
 | Host | Port | Service |
 |------|------|---------|
-| `10.0.10.10` | `9100` | node-exporter (RPi) |
+| `10.0.10.10` | `9100` | node-exporter (varys) |
 | `10.0.10.20` | `9100` | node-exporter (Docker host) |
 | `10.0.10.20` | `8080` | cAdvisor (Docker host) |
 | `10.0.10.80` | `9100` | node-exporter (TrueNAS) |
@@ -659,18 +659,18 @@ Create a new dashboard titled "Backup Status" with the following panels. This da
 - Thresholds: green < 12h, yellow < 24h, red > 24h
 - Title: "Docker Appdata Last Backup"
 
-### Panel 3 — RPi Last Backup (Stat)
+### Panel 3 — varys Last Backup (Stat)
 
 **Query:**
 ```promql
-(time() - rpi_backup_last_success_timestamp_seconds) / 3600
+(time() - varys_backup_last_success_timestamp_seconds) / 3600
 ```
 
 **Panel settings:**
 - Visualization: Stat
 - Unit: `hours`
-- Thresholds: green < 48h, yellow < 72h, red > 72h (RPi backup is less frequent)
-- Title: "RPi Config Last Backup"
+- Thresholds: green < 48h, yellow < 72h, red > 72h (varys backup is less frequent)
+- Title: "varys Config Last Backup"
 
 ### Panel 4 — Velero Backup Status by Schedule (Table)
 
@@ -896,7 +896,7 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:909
 
 # Then open http://localhost:9090/targets in a browser
 # Every target should show State: UP
-# External targets (truenas, docker, rpi) must also be UP
+# External targets (truenas, docker, varys) must also be UP
 ```
 
 **Identify any DOWN targets via API:**
@@ -911,7 +911,7 @@ kubectl exec -n monitoring \
 ### Verify All 5 Hosts Are Scraping
 
 ```bash
-# Should return: tywin, jaime, tyrion, docker, truenas, rpi (instances for all external jobs)
+# Should return: tywin, jaime, tyrion, docker, truenas, varys (instances for all external jobs)
 kubectl exec -n monitoring \
   deploy/kube-prometheus-stack-prometheus \
   -c prometheus -- \
@@ -1077,11 +1077,11 @@ Procedure when a SMART alert fires:
 
 This guide is complete when all of the following are true:
 
-- [ ] All 5 external targets visible in Prometheus `/targets` — `rpi` (10.0.10.10), `docker` (10.0.10.20), `truenas` (10.0.10.80), `smartctl-truenas` (10.0.10.80:9633), `cadvisor-docker` (10.0.10.20:8080) — all showing `State: UP`
+- [ ] All 5 external targets visible in Prometheus `/targets` — `varys` (10.0.10.10), `docker` (10.0.10.20), `truenas` (10.0.10.80), `smartctl-truenas` (10.0.10.80:9633), `cadvisor-docker` (10.0.10.20:8080) — all showing `State: UP`
 - [ ] k8s node-exporter DaemonSet scraping tywin, jaime, tyrion via ServiceMonitor
 - [ ] smartctl-exporter scraping TrueNAS — `smartctl_device_attribute` metrics present in Prometheus for each physical drive
 - [ ] ZFS metrics present — `node_zfs_pool_state` series visible in Prometheus
-- [ ] All backup metrics visible — `etcd_backup_last_success_timestamp_seconds`, `docker_backup_last_success_timestamp_seconds`, `rpi_backup_last_success_timestamp_seconds`, and Velero metrics all queryable
+- [ ] All backup metrics visible — `etcd_backup_last_success_timestamp_seconds`, `docker_backup_last_success_timestamp_seconds`, `varys_backup_last_success_timestamp_seconds`, and Velero metrics all queryable
 - [ ] Grafana dashboards imported — Node Exporter Full (1860), Kubernetes Cluster Monitoring (7249), Kubernetes PVC Monitor (13646), Flux CD (16714), Traefik v3 (17346), ZFS on Linux (12081)
 - [ ] Custom Backup Status dashboard created with all 6 panels showing current data
 - [ ] Alertmanager routing verified — synthetic `TestAlert` curl delivers to `#homelab-alerts` in Discord within 60 seconds

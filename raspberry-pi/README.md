@@ -1,108 +1,64 @@
-# Raspberry Pi — Homelab Control Hub
+# Raspberry Pi — Dedicated Appliance (bran)
 
-**Hostname:** `bran` 
-**IP:** `10.0.10.10` 
+**Hostname:** `bran`
+**IP:** `10.0.10.10` (transitioning — will be reassigned a new static IP once varys takes over as control hub)
 **OS:** Raspberry Pi OS Lite (64-bit, Debian Bookworm)
-**Hardware:** Raspberry Pi 4 Model B (4GB RAM recommended)
+**Hardware:** Raspberry Pi 3B+
 
 ---
 
 ## Role
 
-The Raspberry Pi is the **central control node** for the entire homelab. It does not run any user workloads. Its function is operational: everything that requires interacting with the homelab is done from here.
+Bran is a **dedicated network appliance** — not a management or control node. It handles three persistent services that benefit from being on a low-power, always-on device.
 
-```
-Laptop / Remote Machine
-        │
-        ▼
-  Raspberry Pi (control hub)
-        │
-        ├──► k3s cluster (tywin, jaime, tyrion) via kubectl / flux / helm
-        │
-        └──► Docker media server (via SSH) — never accessed directly
-```
+| Service | Purpose |
+|---------|---------|
+| **Pi-hole** | Secondary DNS server — redundant ad blocking and LAN DNS resolution |
+| **Tailscale exit node** | WireGuard-based remote access and exit node for the homelab network |
+| **WOL proxy** | Wake-on-LAN proxy for nodes that don't support remote wake-up from WAN |
 
-The design principle is that **no production node is accessed directly** from a personal machine. The RPi acts as a jump host and management plane.
+The **control hub role** (kubectl, flux, Ansible, GitHub runner, Grafana, Alertmanager, cloudflared) has moved to **varys** — see [../README.md](../README.md).
 
 ---
 
-## Installed Tools
+## Services Running on bran
 
-| Tool | Purpose |
-|------|---------|
-| `kubectl` | Kubernetes cluster management |
-| `flux` | FluxCD CLI — reconcile, diff, check |
-| `helm` | Helm chart management |
-| `k9s` | Terminal UI for Kubernetes |
-| `age` / `sops` | Secret encryption/decryption (see Guide 11) |
-| `velero` | Backup and restore CLI |
-| `ansible` | Node automation for k3s cluster |
-| `lazygit` | Terminal git UI |
-| `htop` | System resource monitor |
+### Pi-hole (Secondary DNS)
 
----
+The primary Pi-hole runs on varys (`10.0.10.10`). Bran runs a secondary Pi-hole instance as a fallback DNS server, handed out as DNS Server 2 by the DHCP server.
 
-## Access Model
+```
+UniFi Controller → Networks → [LAN] → DHCP → DNS Server 2: <bran-ip>
+```
+
+### Tailscale Exit Node
+
+Bran acts as the Tailscale exit node for the homelab network, enabling remote access to all LAN services without requiring an open inbound port on the router.
 
 ```bash
-# From laptop → RPi
-ssh pi@10.0.10.10
-
-# From RPi → k3s control plane (for direct node access)
-ssh kagiso@10.0.10.11   # tywin
-
-# From RPi → Docker media server
-ssh kagiso@10.0.10.32    # docker VM
-
-# All kubectl commands run locally on the RPi
-kubectl get nodes
-flux get kustomizations
+# Enable exit node on bran (run once after Tailscale install)
+sudo tailscale up --advertise-exit-node --advertise-routes=10.0.10.0/24
 ```
 
-The kubeconfig is stored at `~/.kube/config` and points to the k3s API server at `10.0.10.11:6443`.
+### WOL Proxy
 
----
-
-## Services Running on the RPi
-
-The RPi is kept lean. The following lightweight services may run here:
-
-| Service | Purpose | Status |
-|---------|---------|--------|
-| SSH server | Remote access | Active |
-| `kubectl` proxy | Local k8s dashboard access | Optional |
-| Ansible | Automation host for k3s nodes | Active |
-
-> Additional services (e.g., Pi-hole, Uptime Kuma) may be added here in future. Any additions should be documented in `docs/01_setup.md` and their Ansible setup added to `ansible/playbooks/`.
-
----
-
-## Bootstrap
-
-The RPi is provisioned using Ansible. To set up a fresh RPi:
+Bran's LAN presence allows it to send Wake-on-LAN magic packets to hosts that can't be reached from WAN directly.
 
 ```bash
-# From your laptop, run the setup playbook
-ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/setup.yml
+# Wake a host by MAC address
+wakeonlan <MAC_ADDRESS>
 ```
-
-See [docs/01_setup.md](docs/01_setup.md) for the full setup walkthrough.
 
 ---
 
-## Kubeconfig Setup
-
-After k3s is installed (see [k8s Guide 02](../docs/guides/02-Kubernetes-Installation.md)), copy the kubeconfig to the RPi:
+## Access
 
 ```bash
-# On the k3s control plane (tywin)
-cat /etc/rancher/k3s/k3s.yaml
-
-# Copy to RPi, replacing 127.0.0.1 with 10.0.10.11
-scp tywin:/etc/rancher/k3s/k3s.yaml ~/.kube/config
-sed -i 's/127.0.0.1/10.0.10.11/g' ~/.kube/config
-chmod 600 ~/.kube/config
+# SSH to bran (from LAN or via Tailscale)
+ssh kagiso@<bran-ip>
 ```
+
+Bran is not a jump host. Access it directly for appliance management only.
 
 ---
 
@@ -114,10 +70,9 @@ raspberry-pi/
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── inventory/
-│   │   └── hosts.yml       # RPi host definition
+│   │   └── hosts.yml       # bran host definition
 │   └── playbooks/
-│       ├── setup.yml       # full RPi bootstrap
-│       └── tools.yml       # install/update tools only
+│       └── setup.yml       # bran bootstrap (Pi-hole, Tailscale, WOL)
 └── docs/
     └── setup.md            # setup walkthrough
 ```

@@ -19,7 +19,8 @@ All nodes are on the same Layer-2 network segment.
 | TrueNAS | 10.0.10.80 | NFS storage |
 | Router / DNS | 10.0.10.1 | Default gateway, wildcard DNS |
 | Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
-| RPi | 10.0.10.10 | Control hub (Ansible, kubectl, Pi-hole DNS, cloudflared) |
+| varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, Pi-hole, Grafana, Alertmanager, cloudflared) |
+| bran | 10.0.10.10 (retiring) | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy |
 
 ---
 
@@ -27,15 +28,14 @@ All nodes are on the same Layer-2 network segment.
 
 MetalLB provides LoadBalancer IP allocation for bare-metal nodes.
 
-**IP pool:** `10.0.10.110 – 10.0.10.125`
+**IP pool:** `10.0.10.110 – 10.0.10.115`
 
 This range is reserved exclusively for Kubernetes services. No other devices should be assigned addresses in this range.
 
 | IP | Assignment |
 |----|-----------|
 | 10.0.10.110 | Traefik ingress (primary) |
-| 10.0.10.111 | Reserved for future use |
-| 10.0.10.112–120 | Available for additional LoadBalancer services |
+| 10.0.10.111–115 | Reserved for additional LoadBalancer services |
 
 MetalLB operates in **Layer-2 mode**. It responds to ARP requests for the allocated IPs, advertising the IP as belonging to the node running the MetalLB speaker. All traffic for the IP arrives at that node and is then forwarded to the appropriate service by kube-proxy.
 
@@ -54,7 +54,7 @@ Browser
 Cloudflare Edge (public IP — TLS terminated here)
   │  (encrypted tunnel — outbound connection initiated by cloudflared)
   ▼
-cloudflared daemon (running on RPi at 10.0.10.10)
+cloudflared daemon (running on varys at 10.0.10.10)
   │
   ▼
 Traefik (10.0.10.110 — internal routing + host matching)
@@ -101,7 +101,7 @@ All cluster services are accessed via hostnames under `kagiso.me`. DNS is split 
 
 ### Pi-hole — LAN DNS Server
 
-**Pi-hole runs on the RPi at `10.0.10.10`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.10` as DNS Server 1 to all DHCP clients.
+**Pi-hole runs on varys at `10.0.10.10`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.10` as DNS Server 1 to all DHCP clients.
 
 Pi-hole provides:
 
@@ -154,22 +154,39 @@ The service is reachable on the LAN. It is not reachable from the WAN.
 ### Adding a New Public Service
 
 1. Create an `IngressRoute` in k3s with the desired hostname.
-2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on the RPi and restart `cloudflared`.
+2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on varys and restart `cloudflared`.
 3. Add a proxied CNAME record in Cloudflare DNS pointing to the tunnel (`cloudflared tunnel route dns homelab <hostname>` handles this automatically).
 
 ---
 
 ## TLS Architecture
 
-TLS is handled by three separate systems depending on the access path. No Let's Encrypt issuers are deployed. Public TLS is Cloudflare's responsibility. Private access via Tailscale uses Tailscale's own certificate infrastructure.
+TLS is handled by cert-manager for all cluster services. cert-manager issues a wildcard `*.kagiso.me` certificate via Let's Encrypt DNS-01 challenge using the Cloudflare API.
 
-**Issuers:**
+**ClusterIssuers:**
 
 | Issuer | Type | Use case |
 |--------|------|---------|
+| `letsencrypt-prod` | Let's Encrypt (ACME, DNS-01) | Production wildcard `*.kagiso.me` certificate |
+| `letsencrypt-staging` | Let's Encrypt Staging (ACME, DNS-01) | Testing certificate issuance without rate-limiting |
 | `internal-ca` | Self-signed internal CA | Internal cluster services with no external exposure |
 
-> **Note:** No Let's Encrypt issuers are deployed. Public TLS is Cloudflare's responsibility. Private access via Tailscale uses Tailscale's own certificate infrastructure.
+Traefik is configured with a default `TLSStore` that uses the wildcard certificate for all HTTPS ingress routes automatically — no per-service certificate annotations required.
+
+**Certificate flow — all cluster services:**
+
+```
+cert-manager requests *.kagiso.me cert from Let's Encrypt
+  │
+  ▼
+Let's Encrypt DNS-01 challenge via Cloudflare API (TXT record created/deleted automatically)
+  │
+  ▼
+Wildcard certificate stored as a Kubernetes Secret in the cert-manager namespace
+  │
+  ▼
+Traefik TLSStore references the wildcard cert — served for all *.kagiso.me IngressRoutes
+```
 
 **Certificate flow — public services (Cloudflare Tunnel):**
 
@@ -177,28 +194,13 @@ TLS is handled by three separate systems depending on the access path. No Let's 
 Browser connects to Cloudflare Edge
   │
   ▼
-Cloudflare terminates TLS automatically (managed certificate)
+Cloudflare terminates its own TLS (managed certificate, separate from cert-manager)
   │
   ▼
-Encrypted tunnel to cloudflared → Traefik (internal plain or TLS)
-  │
-  ▼
-No cert-manager involvement for public TLS
+Encrypted tunnel to cloudflared → Traefik (serves wildcard *.kagiso.me cert internally)
 ```
 
-**Certificate flow — private/Tailscale access (e.g., Plex, SSH, kubectl):**
-
-```
-Tailscale client connects via encrypted peer-to-peer tunnel
-  │
-  ▼
-Tailscale handles its own TLS/certificate infrastructure
-  │
-  ▼
-No cert-manager or Let's Encrypt involvement
-```
-
-> **Note:** Plex and remote admin access use Tailscale. Cloudflare's ToS prohibits video streaming proxy through the tunnel. cert-manager is retained only for the `internal-ca` ClusterIssuer.
+> **Note:** Plex and remote admin access use Tailscale. Cloudflare's ToS prohibits video streaming proxy through the tunnel.
 
 ---
 
@@ -214,11 +216,11 @@ Three access paths serve different use cases:
 
 ### Cloudflare Tunnel — Web Services
 
-Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nextcloud, Immich UI, and other HTTP-based applications. The tunnel is an outbound connection from `cloudflared` (running on the RPi at `10.0.10.10`), so no inbound firewall rules are needed for web traffic.
+Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nextcloud, Immich UI, and other HTTP-based applications. The tunnel is an outbound connection from `cloudflared` (running on varys at `10.0.10.10`), so no inbound firewall rules are needed for web traffic.
 
 ### Tailscale / Headscale — Media Streaming and Remote Admin
 
-Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) runs on bran alongside Pi-hole and cloudflared.
+Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) runs on varys alongside Pi-hole and cloudflared.
 
 ### Direct LAN — Internal Traffic
 
@@ -233,7 +235,7 @@ All traffic from devices on the local network goes directly to `10.0.10.110` (Tr
 | Pod network (flannel) | 10.42.0.0/16 | k3s default |
 | Service ClusterIP network | 10.43.0.0/16 | k3s default |
 | Node network | 10.0.10.0/24 | Physical network |
-| MetalLB pool | 10.0.10.110/28 | Subset of node network |
+| MetalLB pool | 10.0.10.110–10.0.10.115 | Subset of node network |
 
 CoreDNS provides in-cluster DNS resolution. Services are reachable within the cluster at:
 
@@ -258,7 +260,7 @@ Applied by `playbooks/security/firewall.yml`:
 
 ### USG DHCP Configuration
 
-The UniFi Security Gateway DHCP server is configured to hand out `10.0.10.10` (RPi / Pi-hole) as the DNS server for all LAN clients:
+The UniFi Security Gateway DHCP server is configured to hand out `10.0.10.10` (varys / Pi-hole) as the DNS server for all LAN clients:
 
 ```
 UniFi Controller → Networks → [LAN network] → DHCP → DNS Server 1: 10.0.10.10

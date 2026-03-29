@@ -82,7 +82,7 @@ of the LAN.
 ```mermaid
 graph TD
     Browser["Browser"] -->|"HTTPS (public)"| CF["Cloudflare Edge<br/>TLS terminated here"]
-    CF -->|"Encrypted tunnel"| CFD["cloudflared daemon<br/>(RPi — 10.0.10.10)"]
+    CF -->|"Encrypted tunnel"| CFD["cloudflared daemon<br/>(varys — 10.0.10.10)"]
     CFD --> Traefik["Traefik Ingress Controller<br/>Host-based routing"]
     Traefik -->|"Host: grafana.kagiso.me"| Grafana["Grafana Service"]
     Traefik -->|"Host: app.kagiso.me"| App["Other App Services"]
@@ -114,7 +114,7 @@ MetalLB Speaker responds: "I do" (node MAC address)
 Traffic routed to that node → kube-proxy → Traefik pod
 ```
 
-**IP pool:** `10.0.10.110 – 10.0.10.125` (16 addresses available for LoadBalancer services)
+**IP pool:** `10.0.10.110 – 10.0.10.115` (6 addresses available for LoadBalancer services)
 **Traefik pinned to:** `10.0.10.110`
 
 ### Traefik — Ingress Controller
@@ -135,9 +135,9 @@ Before running the Flux bootstrap:
 | Requirement | Check |
 |-------------|-------|
 | k3s cluster running | `kubectl get nodes` — all nodes Ready |
-| Ansible installed on RPi | `ansible --version` |
-| RPi can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
-| Ansible Vault file created | `ansible/vars/vault.yml` exists on the RPi — see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault) |
+| Ansible installed on varys | `ansible --version` |
+| varys can SSH to tywin (10.0.10.11) | `ssh kagiso@10.0.10.11` |
+| Ansible Vault file created | `ansible/vars/vault.yml` exists on varys — see [Guide 04 — Saving the Deploy Key to Vault](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault) |
 | Flux SSH deploy key in vault | `flux_github_ssh_private_key` present in vault — see [Guide 04](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault) |
 
 > **DNS note:** Internal DNS (Pi-hole or router) should point `*.kagiso.me` to `10.0.10.110` for
@@ -240,14 +240,14 @@ This routes all internal hostnames directly to Traefik, bypassing Cloudflare. Ne
 
 Cloudflare Tunnel (`cloudflared`) creates an outbound encrypted connection from the homelab to Cloudflare's edge. No inbound ports need to be opened on the router or firewall — the tunnel is initiated from inside the network.
 
-**How it works:** `cloudflared` on the RPi establishes persistent outbound connections to Cloudflare's edge. When a request arrives at `grafana.kagiso.me`, Cloudflare routes it through the tunnel to `cloudflared`, which forwards it to Traefik at `10.0.10.110`. Traefik matches the `Host` header and routes to the correct backend service.
+**How it works:** `cloudflared` on varys establishes persistent outbound connections to Cloudflare's edge. When a request arrives at `grafana.kagiso.me`, Cloudflare routes it through the tunnel to `cloudflared`, which forwards it to Traefik at `10.0.10.110`. Traefik matches the `Host` header and routes to the correct backend service.
 
-### Installation on RPi (arm64)
+### Installation on varys (amd64)
 
 ```bash
-# On the Raspberry Pi (10.0.10.10)
+# On varys (10.0.10.10)
 curl -L --output cloudflared.deb \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
 sudo dpkg -i cloudflared.deb
 cloudflared --version
 ```
@@ -316,14 +316,14 @@ cloudflared tunnel route dns homelab newservice.kagiso.me
 
 ## Pi-hole (Split DNS + Ad Blocking)
 
-Pi-hole runs on the RPi at `10.0.10.10` alongside `cloudflared`. It serves as the DNS resolver for every device on the LAN and provides two key capabilities:
+Pi-hole runs on varys at `10.0.10.10` alongside `cloudflared`. It serves as the DNS resolver for every device on the LAN and provides two key capabilities:
 
 - **Split DNS:** The wildcard entry `*.kagiso.me → 10.0.10.110` means all internal services with a `*.kagiso.me` hostname resolve directly to Traefik on the LAN — without being publicly exposed.
 - **Ad blocking:** Network-wide DNS-based ad filtering for all LAN clients.
 
 ### Installation
 
-Pi-hole is installed via an Ansible playbook. Run from inside the `ansible/` directory on the RPi:
+Pi-hole is installed via an Ansible playbook. Run from inside the `ansible/` directory on varys:
 
 ```bash
 cd ~/homelab-infrastructure/ansible
@@ -408,13 +408,13 @@ sudo tailscale up --advertise-exit-node
 
 **In the Tailscale admin console:**
 
-Go to [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines), find the RPi, and approve the exit node under **Edit route settings**.
+Go to [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines), find bran, and approve the exit node under **Edit route settings**.
 
 **On client devices** (when you want to use the exit node):
 
 ```bash
 # Enable exit node
-sudo tailscale up --exit-node=<rpi-tailscale-ip>
+sudo tailscale up --exit-node=<bran-tailscale-ip>
 
 # Disable exit node
 sudo tailscale up --exit-node=
@@ -562,7 +562,7 @@ kubectl get pods -n metallb-system
 
 # MetalLB — IP pool configured
 kubectl get ipaddresspool -n metallb-system
-# Expected: homelab-pool with 10.0.10.110-10.0.10.125
+# Expected: homelab-pool with 10.0.10.110-10.0.10.115
 
 # Traefik — running and assigned LoadBalancer IP
 kubectl get svc traefik -n ingress
@@ -610,7 +610,7 @@ kubectl get ipaddresspool -n metallb-system      # Pool must exist
 kubectl get pods -n metallb-system               # Speakers must be Running
 ```
 
-Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.125`).
+Ensure `10.0.10.110` is within the configured pool range (`10.0.10.110-10.0.10.115`).
 
 **Traefik returning 404 for a deployed service**
 

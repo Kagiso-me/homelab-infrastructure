@@ -1,34 +1,25 @@
 # Docker — Media Server
 
-> **Infrastructure note (2026-03-16):** This host is being converted to a **Proxmox VE
-> hypervisor**. The Docker stack will move into a VM (`docker-vm`) running on Proxmox.
-> A second VM (`staging-k3s`) will host the staging Kubernetes cluster.
-> This directory documents the current bare-metal Docker configuration and will remain
-> as a historical reference. See [ADR-006](../docs/adr/ADR-006-proxmox-pivot.md)
-> and the [ops-log entry](../docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md) for context.
-
 **Hostname:** `docked`
-**IP:** `10.0.10.32`
+**IP:** `10.0.10.20`
 
+**Hardware:** Intel NUC i3-7100U — 16 GB RAM, 256 GB NVMe
 **OS:** Ubuntu Server 22.04 LTS
-**Role:** Self-hosted media stack running as Docker containers
+**Role:** Self-hosted media acquisition and streaming stack running as Docker containers
 
 ---
 
 ## Access Model
 
-This host is **not accessed directly** from your laptop. All SSH sessions go through the Raspberry Pi:
-
-```
-Laptop → Raspberry Pi (10.0.10.10) → Docker VM (10.0.10.32)
-```
+SSH directly from your laptop or from varys:
 
 ```bash
-# From the RPi
-ssh kagiso@10.0.10.32
-```
+# From your laptop (via Tailscale or LAN)
+ssh kagiso@10.0.10.20
 
-This keeps the media server off the direct-access list and centralises management through the control hub.
+# Or via varys if needed
+ssh -J kagiso@10.0.10.10 kagiso@10.0.10.20
+```
 
 ---
 
@@ -36,62 +27,80 @@ This keeps the media server off the direct-access list and centralises managemen
 
 | Service | Purpose | Port / URL |
 |---------|---------|-----------|
-| Jellyfin | Media server (movies, TV, music) | http://10.0.10.32:8096 |
-| Sonarr | TV show automation | http://10.0.10.32:8989 |
-| Radarr | Movie automation | http://10.0.10.32:7878 |
-| Prowlarr | Indexer management | http://10.0.10.32:9696 |
-| qBittorrent | Download client | http://10.0.10.32:8080 |
-| Nginx Proxy Manager | Reverse proxy + SSL | http://10.0.10.32:81 |
-| Portainer | Docker management UI | http://10.0.10.32:9000 |
-| Watchtower | Automatic container updates | *(runs on schedule)* |
-
-> Update this table to match your actual running services.
+| Plex | Media server (movies, TV, music) | http://10.0.10.20:32400 |
+| Sonarr | TV show automation | http://10.0.10.20:8989 |
+| Radarr | Movie automation | http://10.0.10.20:7878 |
+| Lidarr | Music automation | http://10.0.10.20:8686 |
+| Prowlarr | Indexer management | http://10.0.10.20:9696 |
+| Overseerr | Media request management | http://10.0.10.20:5055 |
+| SABnzbd | Usenet download client | http://10.0.10.20:8085 |
+| Bazarr | Subtitle management | http://10.0.10.20:6767 |
+| Navidrome | Music streaming server | http://10.0.10.20:4533 |
+| Nginx Proxy Manager | Reverse proxy + TLS (Let's Encrypt DNS-01) | http://10.0.10.20:81 |
+| Node Exporter | Prometheus metrics for this host | http://10.0.10.20:9100 |
+| cAdvisor | Container metrics | http://10.0.10.20:8080 |
 
 ---
 
 ## Storage Layout
 
 ```
-/mnt/media/              ← media library (NFS from TrueNAS or local disk)
+/mnt/media/              ← media library (NFS from TrueNAS)
 ├── movies/
 ├── tv/
-└── music/
+├── music/
+└── downloads/
 
-/opt/docker/             ← container config and data
-├── jellyfin/
-├── sonarr/
-├── radarr/
-├── prowlarr/
-└── nginx-proxy-manager/
+/srv/docker/             ← container config and persistent data
+├── stacks/              ← compose files (synced from Git by Ansible)
+│   ├── media-stack.yml
+│   ├── proxy-stack.yml
+│   └── monitoring-stack.yml
+└── data/                ← app data volumes (plex, sonarr, etc.)
 ```
+
+---
+
+## GitOps Model
+
+Docker compose files live in `docker/compose/` in this repo. A push to `main` that touches `docker/compose/**` or `docker/config/**` triggers the `docker-deploy` GitHub Actions workflow, which runs an Ansible playbook to sync and reconcile the stacks on docked.
+
+```bash
+# Manual deploy (from varys or your laptop)
+cd ~/homelab-infrastructure/ansible
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/docker/deploy.yml
+
+# Deploy a single stack
+ansible-playbook -i inventory/homelab.yml \
+  playbooks/docker/deploy.yml \
+  -e target_stack=media-stack
+```
+
+Secrets (`.env` file with API keys, Plex claim token, etc.) stay on the host at `/srv/docker/.env` and are never committed to Git.
 
 ---
 
 ## Relationship to TrueNAS
 
-Media files optionally live on TrueNAS via NFS mount:
+Media files live on TrueNAS via NFS:
 
 ```bash
-# /etc/fstab entry on the docker host (if using NFS for media)
-10.0.10.80:/mnt/tera /mnt/media nfs defaults,_netdev 0 0
+# /etc/fstab entry on docked
+10.0.10.80:/mnt/tera/media /mnt/media nfs defaults,_netdev 0 0
 ```
 
-This keeps media off the Docker host disk and allows TrueNAS snapshots to protect the library.
+TrueNAS snapshots protect the media library. Container config data is backed up separately.
 
 ---
 
-## Backups
+## Why Docker and Not Kubernetes
 
-Container configs are backed up by `scripts/backup_docker.sh`:
+The media stack runs on Docker rather than Kubernetes for these reasons:
 
-```bash
-# Run manually or schedule via cron
-./scripts/backup_docker.sh
-```
-
-This tarballs `/opt/docker/` and copies the archive to TrueNAS NFS. Restore with `scripts/restore_docker.sh`.
-
-See [docs/05_backups_and_disaster_recovery.md](docs/05_backups_and_disaster_recovery.md) for the full backup strategy.
+1. **Privileged hardware access** — Plex needs direct iGPU access for hardware transcoding. Kubernetes GPU passthrough on k3s requires the Intel device plugin stack and is significantly more complex.
+2. **Simpler networking** — Download clients, indexers, and VPN containers have networking requirements that are easier to manage with Docker bridge networks than Kubernetes CNI.
+3. **Isolation** — Keeping untrusted download traffic physically separated from the k3s cluster is a deliberate security choice.
 
 ---
 
@@ -100,27 +109,15 @@ See [docs/05_backups_and_disaster_recovery.md](docs/05_backups_and_disaster_reco
 ```
 docker/
 ├── README.md               # this file
-├── compose/                # docker-compose.yml files per service
-├── docs/
-│   ├── 00_plan.md          # design decisions
-│   ├── 01_host_installation_and_hardening.md
-│   ├── 02_docker_installation_and_filesystem.md
-│   ├── 03_media_stack_and_reverse_proxy.md
-│   ├── 04_monitoring_and_logging.md
-│   └── 05_backups_and_disaster_recovery.md
-└── scripts/
-    ├── backup_docker.sh
-    └── restore_docker.sh
+├── compose/                # docker-compose.yml files per stack
+│   ├── media-stack.yml
+│   ├── proxy-stack.yml
+│   └── monitoring-stack.yml
+└── docs/
+    ├── 00_plan.md
+    ├── 01_host_installation_and_hardening.md
+    ├── 02_docker_installation_and_filesystem.md
+    ├── 03_media_stack_and_reverse_proxy.md
+    ├── 04_monitoring_and_logging.md
+    └── 05_backups_and_disaster_recovery.md
 ```
-
----
-
-## Why Docker and Not Kubernetes
-
-The media stack runs on Docker rather than Kubernetes for these reasons:
-
-1. **Privileged hardware access** — Jellyfin needs direct access to GPU/iGPU for transcoding. Kubernetes GPU passthrough is complex and fragile on k3s without the NVIDIA device plugin stack.
-2. **Simpler networking** — Download clients, indexers, and VPN containers have complex networking requirements that are easier to manage with Docker networks than Kubernetes CNI.
-3. **Isolation** — Keeping untrusted download traffic physically separated from the k3s cluster is a deliberate security choice.
-
-See [docs/00_plan.md](docs/00_plan.md) for the full design rationale.

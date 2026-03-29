@@ -5,19 +5,19 @@ name: Validate & Health Check
 #
 # Jobs (on pull_request to main — infra paths only):
 #   validate     — kubeconform + kustomize build + pluto (GitHub-hosted, no cluster access)
-#   cluster-diff — flux diff posted as collapsible PR comment (self-hosted, bran)
+#   cluster-diff — flux diff posted as collapsible PR comment (self-hosted, varys)
 #
 # Jobs (on push to main — infra paths, after merge):
-#   health-check — Flux reconcile + kustomization Ready + Traefik smoke test (self-hosted, bran)
+#   health-check — Flux reconcile + kustomization Ready + Traefik smoke test (self-hosted, varys)
 #
 # Required GitHub repository secrets:
-#   KUBECONFIG — base64-encoded kubeconfig for prod cluster (server = 10.0.10.11:6443)
+#   KUBECONFIG — raw kubeconfig for prod cluster (server = 10.0.10.11:6443, NOT base64-encoded)
 #
 # Branch protection on main:
 #   Required status checks: validate, cluster-diff
 #   No reviewer required (solo operator) — auto-merge enabled for convenience
 #
-# Self-hosted runner: installed on bran (10.0.10.10) as a systemd service.
+# Self-hosted runner: installed on varys (10.0.10.10) as a systemd service.
 # Labels: [self-hosted, linux, homelab]
 # Pre-installed tools: kubectl, flux, kubeconform, kustomize, pluto, gh
 # See docs/guides/04-Flux-GitOps.md for full runner setup instructions.
@@ -36,6 +36,7 @@ on:
       - "apps/**"
       - "platform/**"
       - "clusters/**"
+      - "ansible/**"
 
 jobs:
   # ─── PR Job 1: Static validation ──────────────────────────────────────────

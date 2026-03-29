@@ -158,7 +158,7 @@ ansible/playbooks/maintenance/
 └── upgrade-nodes.yml
 ```
 
-Always run maintenance playbooks from the automation host (`bran`, 10.0.10.10) with the kubeconfig present.
+Always run maintenance playbooks from the automation host (`varys`, 10.0.10.10) with the kubeconfig present.
 
 ---
 
@@ -422,11 +422,11 @@ If the cluster must be rebuilt entirely, follow this sequence.
 
 | Item | Location | How to verify |
 |------|----------|---------------|
-| Ansible Vault password | `~/.vault_pass` on `bran` | `ansible-vault view ansible/vars/vault.yml` |
+| Ansible Vault password | `~/.vault_pass` on `varys` | `ansible-vault view ansible/vars/vault.yml` |
 | Flux SSH deploy key | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep flux_github_ssh_private_key` |
 | Cloudflare API token | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep cloudflare` |
 | etcd snapshot | TrueNAS NFS at `/mnt/backups/etcd/` | `ls -lht /mnt/backups/etcd/` |
-| age key (SOPS) | `~/age.key` on `bran` | `ls -la ~/age.key` |
+| age key (SOPS) | `~/age.key` on `varys` | `ls -la ~/age.key` |
 
 If the Flux SSH key is missing from vault, see [Guide 04 — Flux GitOps](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).
 
@@ -446,7 +446,7 @@ If the Flux SSH key is missing from vault, see [Guide 04 — Flux GitOps](./04-F
 ## Commands
 
 ```bash
-# On bran (10.0.10.10), from ~/homelab-infrastructure/ansible
+# On varys (10.0.10.10), from ~/homelab-infrastructure/ansible
 
 # Step 3 — reinstall k3s
 ansible-playbook -i inventory/homelab.yml \

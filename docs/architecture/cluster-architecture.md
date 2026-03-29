@@ -6,9 +6,9 @@ The cluster comprises three physical nodes running k3s. All nodes are on the sam
 
 | Name | IP Address | Role | Notes |
 |---|---|---|---|
-| `tywin` | 10.0.10.11 | Control-plane | Runs k3s server; hosts etcd, API server, controller-manager, scheduler |
-| `jaime` | 10.0.10.12 | Worker | Runs k3s agent; schedules workload pods |
-| `tyrion` | 10.0.10.13 | Worker | Runs k3s agent; schedules workload pods |
+| `tywin` | 10.0.10.11 | Control-plane + Worker | Initialises cluster (`--cluster-init`); runs etcd, API server, controller-manager, scheduler, and workloads |
+| `jaime` | 10.0.10.12 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
+| `tyrion` | 10.0.10.13 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
 
 > Resource sizing per node is detailed in the [Resource Sizing](#resource-sizing) section below.
 
@@ -22,9 +22,9 @@ k3s is deployed with several non-default flags to integrate cleanly with the pla
 |---|---|---|
 | `--disable traefik` | `true` | Traefik is installed separately via FluxCD HelmRelease with a pinned chart version and custom values. The bundled k3s Traefik cannot be version-pinned or fully customised via GitOps. |
 | `--disable servicelb` | `true` | MetalLB is used as the bare-metal LoadBalancer. The bundled ServiceLB (klipper-lb) conflicts with MetalLB's ARP announcements. |
-| `--cluster-init` | `true` (on `tywin`) | Enables embedded etcd on the control-plane node instead of the default SQLite backend, providing a more production-representative data store and enabling snapshot/restore operations. |
-| `--node-taint` | None applied to CP | The control-plane is allowed to schedule workloads. Given the single-CP constraint, isolating it would reduce overall cluster capacity with no HA benefit. |
-| Embedded etcd snapshots | Every 6 hours, retained for 5 | etcd snapshots are written to the local NFS mount as a fast-recovery path before Velero backup runs. |
+| `--cluster-init` | `true` (on `tywin` only) | Bootstraps the embedded etcd cluster on the first server node. `jaime` and `tyrion` join with `--server https://tywin:6443`. |
+| `--node-taint` | None applied | All three server nodes schedule workloads. With 16 GB RAM per node, tainting control-plane nodes would waste schedulable capacity for no meaningful resource isolation benefit at this scale. |
+| Embedded etcd snapshots | Every 6 hours, retained for 7 | All server nodes are configured with S3 snapshot settings. The etcd leader takes snapshots; snapshots are stored in MinIO on TrueNAS and synced offsite to Backblaze B2. |
 
 ---
 
@@ -43,9 +43,9 @@ Internet
 +--------------------------------------------+   10.0.10.0/24
 |  Node Subnet                               |
 |                                            |
-|  10.0.10.11  tywin   (control-plane)      |
-|  10.0.10.12  jaime   (worker)             |
-|  10.0.10.13  tyrion  (worker)             |
+|  10.0.10.11  tywin   (control-plane + worker)  |
+|  10.0.10.12  jaime   (control-plane + worker)  |
+|  10.0.10.13  tyrion  (control-plane + worker)  |
 |                                            |
 |  MetalLB pool:  10.0.10.110 - 10.0.10.125 |
 |  Traefik VIP:   10.0.10.110               |
@@ -72,21 +72,17 @@ Internet
 
 ## Control-Plane High Availability
 
-### Design Choice: Single Control-Plane
+### Design Choice: 3-Node HA Control-Plane
 
-This cluster intentionally runs a **single control-plane node** (`tywin`). This is a documented trade-off captured in [ADR-005](../adr/ADR-005-single-control-plane.md).
+All three nodes run both control-plane and worker roles, forming a 3-member embedded etcd cluster. This is documented in [ADR-006](../adr/ADR-006-ha-control-plane.md).
 
 | Property | Detail |
 |---|---|
-| Control-plane nodes | 1 (`tywin`) |
-| etcd quorum | Not applicable — single member, no quorum voting |
-| Failure domain | Loss of `tywin` = full cluster outage. Workers lose API connectivity and cannot schedule new pods. Running pods continue until they terminate or are evicted, but no new scheduling occurs. |
-| Recovery path | Restore etcd snapshot to a freshly provisioned node; re-join workers. See [`cluster-rebuild.md`](../operations/runbooks/cluster-rebuild.md). |
-| Accepted risk | Documented and accepted per ADR-005. RTO target: 60–90 minutes from snapshot restore. |
-
-### Why Not Multi-Master?
-
-Three-node etcd HA requires either three nodes with equivalent roles (removing the worker capacity benefit) or a dedicated etcd VM (additional hardware cost). For a homelab with a rebuild target of under 2 hours and nightly offsite backups, the operational complexity of HA etcd outweighs the availability benefit. See ADR-005 for the full rationale.
+| Control-plane nodes | 3 (`tywin`, `jaime`, `tyrion`) |
+| etcd quorum | 3-member cluster; majority quorum = 2. Tolerates loss of any 1 node. |
+| Failure domain | Loss of any single node: cluster API remains available, etcd maintains quorum, workloads reschedule to remaining nodes. |
+| Recovery path | Replace failed node, re-join as additional server with `--server https://10.0.10.11:6443`. |
+| API server VIP | Not implemented. kubeconfig points to `tywin` (10.0.10.11). If tywin is unavailable, update kubeconfig to point to `jaime` or `tyrion` — workloads continue running regardless. |
 
 ---
 
@@ -97,19 +93,17 @@ Node and k3s upgrades are managed by **system-upgrade-controller**, deployed via
 ### Upgrade Order
 
 ```
-1. Workers upgraded first (jaime, tyrion) — rolling, one at a time
-      |
-      v
-2. Control-plane upgraded last (tywin)
+All 3 nodes upgraded by plan-server — rolling, one at a time (concurrency: 1)
+Each node: cordon → drain → upgrade → uncordon → rejoin
 ```
 
-Upgrading workers first ensures that if a k3s version causes a regression, the control-plane remains stable and the cluster is recoverable without an etcd restore.
+Since all nodes are both control-plane and workers, a single `Plan` (targeting `node-role.kubernetes.io/control-plane: Exists`) handles all upgrades. `concurrency: 1` ensures only one node is out of service at a time, preserving etcd quorum throughout.
 
 ### Upgrade Procedure (Summary)
 
-1. Update the k3s version tag in the `Plan` manifest in Git.
-2. FluxCD reconciles the change; system-upgrade-controller cordons and drains each worker node in sequence, applies the upgrade, then uncordons.
-3. After workers are healthy, the control-plane `Plan` triggers. The node drains, upgrades, and rejoins.
+1. Update the k3s version tag in `platform/upgrade/upgrade-plans/plan-server.yaml` in Git.
+2. FluxCD reconciles the change; system-upgrade-controller picks up the new version.
+3. Each node is cordoned, drained, upgraded, and uncordoned in sequence. etcd quorum is maintained (2 of 3 members remain active at all times).
 4. Verify node versions with `kubectl get nodes` and review Prometheus alerts for post-upgrade anomalies.
 
 > Full upgrade runbook: [`docs/operations/runbooks/k3s-upgrade.md`](../operations/runbooks/k3s-upgrade.md)
@@ -122,9 +116,9 @@ All three k3s nodes are **Lenovo ThinkCentre M93p** small form-factor machines �
 
 | Node | CPU | RAM | Storage | Role |
 |---|---|---|---|---|
-| `tywin` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | Control-plane + etcd + some workloads |
-| `jaime` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | General workloads |
-| `tyrion` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | General workloads + observability stack |
+| `tywin` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | Control-plane + worker (~14 GB schedulable after CP overhead) |
+| `jaime` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | Control-plane + worker (~14 GB schedulable after CP overhead) |
+| `tyrion` | Intel Core i5-4570T (4c/4t @ 2.9GHz, 35W TDP) | 16 GB DDR3 | 256 GB SSD | Control-plane + worker (~14 GB schedulable after CP overhead) |
 
 > **Planned CPU upgrade:** All three nodes will be upgraded to Intel Core i7-4790T (4c/8t @ 2.7GHz base / 3.9GHz turbo, 45W TDP) when parts arrive, doubling thread count. No cluster changes required — nodes are drained, upgraded, and rejoined one at a time.
 

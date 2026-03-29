@@ -94,8 +94,9 @@ Because the cloud is great — until it isn't.
 | **k3s control plane** | tywin | `10.0.10.11` | Kubernetes API server, etcd, scheduler, PostgreSQL, Redis |
 | **k3s worker** | jaime | `10.0.10.12` | Application workloads |
 | **k3s worker** | tyrion | `10.0.10.13` | Application workloads |
-| **Docker host** | nuc | `10.0.10.20` | Intel NUC i3-7100U — bare metal Docker, media stack |
-| **Raspberry Pi** | rpi | `10.0.10.10` | Control hub — kubectl, flux, ansible, GitHub runner, Pi-hole |
+| **Docker host** | docked | `10.0.10.20` | Intel NUC i3-7100U — bare metal Docker, media stack |
+| **Control hub** | varys | `10.0.10.10` | Intel NUC i3-5010U — kubectl, flux, ansible, GitHub runner, Pi-hole, Grafana, Alertmanager |
+| **DNS / exit node** | bran | `10.0.10.10` (retiring) | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy |
 | **TrueNAS** | truenas | `10.0.10.80` | HP MicroServer Gen8 — NFS, MinIO S3, Backblaze B2 sync |
 
 ---
@@ -113,11 +114,11 @@ git push branch → open PR → CI validates + cluster diff → merge → Flux r
 | Orchestration | k3s | Lightweight Kubernetes, embedded etcd |
 | GitOps | FluxCD v2 | Kustomization + HelmRelease controllers |
 | Ingress | Traefik v3 | HTTP/HTTPS routing — `10.0.10.110` |
-| Load Balancer | MetalLB | Bare-metal ARP mode — pool `10.0.10.110–10.0.10.125` |
+| Load Balancer | MetalLB | Bare-metal ARP mode — pool `10.0.10.110–10.0.10.115` |
 | TLS | cert-manager + Let's Encrypt | Wildcard `*.kagiso.me` via DNS-01 Cloudflare |
 | Identity | Authentik | SSO for all cluster applications |
 | Security | CrowdSec | Community threat intelligence + Traefik bouncer |
-| Metrics | kube-prometheus-stack | Prometheus + Grafana + Alertmanager |
+| Metrics | kube-prometheus-stack | Prometheus (in-cluster) + Grafana + Alertmanager (on varys) |
 | Logs | Loki + Promtail | Log aggregation + alerting on log patterns |
 | Backups | Velero + MinIO | PVC snapshot and restore via S3 API |
 | Secrets | SOPS + age | Encrypted secrets committed to Git |

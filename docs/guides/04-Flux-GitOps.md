@@ -25,7 +25,7 @@
 1. [Overview — What GitOps Means](#1-overview--what-gitops-means)
 2. [How It Works — Branch Model and CI Pipeline](#2-how-it-works--branch-model-and-ci-pipeline)
 3. [Prerequisites](#3-prerequisites)
-4. [Setting Up the Self-Hosted Runner on bran](#4-setting-up-the-self-hosted-runner-on-bran)
+4. [Setting Up the Self-Hosted Runner on varys](#4-setting-up-the-self-hosted-runner-on-varys)
 5. [Bootstrapping Flux on the Prod Cluster](#5-bootstrapping-flux-on-the-prod-cluster)
 6. [Adding KUBECONFIG to GitHub Secrets](#6-adding-kubeconfig-to-github-secrets)
 7. [Enabling Branch Protection on main](#7-enabling-branch-protection-on-main)
@@ -169,7 +169,7 @@ flowchart TD
 
     J1 -->|needs: validate| J2
 
-    subgraph J2["Job 2 — cluster-diff (self-hosted: bran)"]
+    subgraph J2["Job 2 — cluster-diff (self-hosted: varys)"]
         D1["Configure kubeconfig from KUBECONFIG secret\n(prod cluster 10.0.10.11:6443)"]
         D2["flux diff kustomization for each kustomization"]
         D3["Post collapsible diff comment on PR via gh"]
@@ -187,7 +187,7 @@ flowchart TD
     Push["Push to main\n(after PR merge)"]
     Push --> J3
 
-    subgraph J3["Job 3 — health-check (self-hosted: bran)"]
+    subgraph J3["Job 3 — health-check (self-hosted: varys)"]
         H1["Configure kubeconfig from KUBECONFIG secret"]
         H2["flux reconcile source git flux-system\n(force immediate pull)"]
         H3["kubectl wait kustomizations Ready\n(10m timeout)"]
@@ -299,7 +299,7 @@ jobs:
           kustomize build platform/security | pluto detect - || true
 
   # ─── Job 2: Cluster diff ─────────────────────────────────────────────────────
-  # Runs on the self-hosted runner on bran (10.0.10.10), which has direct LAN
+  # Runs on the self-hosted runner on varys (10.0.10.10), which has direct LAN
   # access to the prod cluster at 10.0.10.11:6443.
   #
   # Runs flux diff kustomization against every Flux Kustomization resource in the
@@ -407,7 +407,7 @@ jobs:
           fi
 
   # ─── Job 3: Post-merge health check ──────────────────────────────────────────
-  # Runs on the self-hosted runner on bran after a push to main (i.e. after merge).
+  # Runs on the self-hosted runner on varys after a push to main (i.e. after merge).
   # Forces an immediate Flux source reconcile, then waits for all Kustomizations
   # to report Ready. Fails fast if Traefik's load-balancer IP stops responding.
   #
@@ -488,7 +488,7 @@ jobs:
 ## 3. Prerequisites
 
 Before proceeding, verify these tools are installed and configured on the machine you
-will run bootstrap commands from (the Raspberry Pi, `bran`, at `10.0.10.10`).
+will run bootstrap commands from (varys, the Intel NUC control hub, at `10.0.10.10`).
 
 ### Flux CLI
 
@@ -504,8 +504,8 @@ flux --version
 ### kubectl
 
 ```bash
-# ARM64 (bran is a Raspberry Pi)
-curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+# amd64 (varys is an Intel NUC x86_64)
+curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
   -o /usr/local/bin/kubectl
 chmod +x /usr/local/bin/kubectl
 
@@ -516,13 +516,13 @@ kubectl version --client
 ### gh CLI (GitHub CLI)
 
 The `gh` CLI is used by the `cluster-diff` job to post PR comments. It must be installed
-on `bran` with a token that has `repo` scope.
+on `varys` with a token that has `repo` scope.
 
 ```bash
-# Install (Debian/Ubuntu ARM64)
+# Install (Debian/Ubuntu amd64)
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-echo "deb [arch=arm64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
   https://cli.github.com/packages stable main" \
   | sudo tee /etc/apt/sources.list.d/github-cli.list
 sudo apt update && sudo apt install gh -y
@@ -537,12 +537,12 @@ gh auth status
 ### kubeconfig for the Prod Cluster
 
 Bootstrap commands must target the prod cluster. Copy the kubeconfig from `tywin`
-(the prod control plane) to `bran` and patch the server address:
+(the prod control plane) to `varys` and patch the server address:
 
 ```bash
-# On bran
+# On varys
 scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
-# k3s writes 127.0.0.1:6443 — correct on tywin but unreachable from bran
+# k3s writes 127.0.0.1:6443 — correct on tywin but unreachable from varys
 sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
 chmod 600 ~/.kube/prod-config
 
@@ -576,56 +576,56 @@ If this returns `NotFound`, complete Guide 03 before continuing.
 
 ---
 
-## 4. Setting Up the Self-Hosted Runner on bran
+## 4. Setting Up the Self-Hosted Runner on varys
 
 The `cluster-diff` and `health-check` jobs run on a self-hosted runner installed on
-`bran` (`10.0.10.10`). GitHub-hosted runners run in GitHub's cloud and cannot reach
+`varys` (`10.0.10.10`). GitHub-hosted runners run in GitHub's cloud and cannot reach
 private LAN addresses (`10.0.10.x`). Rather than routing through a VPN, a permanent
-runner agent on `bran` — which already has direct LAN access to both clusters — keeps
+runner agent on `varys` — which already has direct LAN access to both clusters — keeps
 CI simple and fast.
 
 See [ADR-007](../adr/ADR-007-self-hosted-runners.md) for the full rationale.
 
-### Step 1 — Install Pre-required Tools on bran
+### Step 1 — Install Pre-required Tools on varys
 
-All cluster-touching CI tools must be installed on `bran` before the runner is
+All cluster-touching CI tools must be installed on `varys` before the runner is
 registered. The runner executes jobs using whatever is already on the machine — there is
 no per-job tool installation for these.
 
 ```bash
-# kubectl (ARM64 — bran is a Raspberry Pi 4)
-curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+# kubectl (amd64 — varys is an Intel NUC x86_64)
+curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
   -o /usr/local/bin/kubectl
 chmod +x /usr/local/bin/kubectl
 kubectl version --client
 
-# flux CLI (ARM64)
+# flux CLI (amd64)
 curl -s https://fluxcd.io/install.sh | sudo bash
 flux --version
 
-# kubeconform (ARM64) — used by validate job if it ever runs on the self-hosted runner
+# kubeconform (amd64) — used by validate job if it ever runs on the self-hosted runner
 KUBECONFORM_VERSION="v0.6.7"
 curl -sSL \
-  "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-arm64.tar.gz" \
+  "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
   | tar -xz -C /usr/local/bin kubeconform
 kubeconform -v
 
-# kustomize (ARM64)
+# kustomize (amd64)
 curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
 sudo mv kustomize /usr/local/bin/
 kustomize version
 
-# pluto (ARM64) — deprecated API version detector
+# pluto (amd64) — deprecated API version detector
 PLUTO_VERSION="v5.19.0"
 curl -sSL \
-  "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_arm64.tar.gz" \
+  "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_amd64.tar.gz" \
   | tar -xz -C /usr/local/bin pluto
 pluto version
 
 # gh CLI — for posting PR comments in the cluster-diff job
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-echo "deb [arch=arm64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
   https://cli.github.com/packages stable main" \
   | sudo tee /etc/apt/sources.list.d/github-cli.list
 sudo apt update && sudo apt install gh -y
@@ -643,7 +643,7 @@ cd /opt/github-runner
 # Check https://github.com/actions/runner/releases for latest version
 RUNNER_VERSION="2.321.0"
 curl -sL \
-  "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz" \
+  "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
   | tar -xz
 ```
 
@@ -651,7 +651,7 @@ curl -sL \
 
 1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
 2. **Settings** → **Actions** → **Runners** → **New self-hosted runner**
-3. Set architecture to **Linux / ARM64**
+3. Set architecture to **Linux / x64**
 4. Copy the token from the `./config.sh` command shown on the page
 
 > The token is valid for **one hour** and is single-use. Run the config step
@@ -666,7 +666,7 @@ cd /opt/github-runner
   --url https://github.com/Kagiso-me/homelab-infrastructure \
   --token <TOKEN_FROM_GITHUB> \
   --labels homelab \
-  --name bran \
+  --name varys \
   --unattended
 ```
 
@@ -697,11 +697,11 @@ sudo ./svc.sh status
 
 1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
 2. **Settings** → **Actions** → **Runners**
-3. The runner named `bran` should appear with status **Idle**
+3. The runner named `varys` should appear with status **Idle**
 
 > **If the runner shows Offline:** Check the systemd service logs.
 > ```bash
-> journalctl -u actions.runner.Kagiso-me-homelab-infrastructure.bran.service -f
+> journalctl -u actions.runner.Kagiso-me-homelab-infrastructure.varys.service -f
 > ```
 
 ### Runner Maintenance
@@ -734,20 +734,20 @@ corresponding Kustomization will fail and may require manual recovery.
 | Prerequisite | How to verify |
 |---|---|
 | TrueNAS `core/k8s-volumes` NFS share exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
-| `nfs-common` installed on all k3s nodes | `ansible k3s_controller,k3s_workers -m shell -a "dpkg -l nfs-common" --become` |
+| `nfs-common` installed on all k3s nodes | `ansible k3s_primary,k3s_servers -m shell -a "dpkg -l nfs-common" --become` |
 | `sops-age` secret created in `flux-system` namespace (Guide 03) | `kubectl get secret sops-age -n flux-system` |
 | Cloudflare API token secret created in `cert-manager` namespace | `kubectl get secret cloudflare-api-token -n cert-manager` |
 
 If `nfs-common` is missing:
 
 ```bash
-ansible k3s_controller,k3s_workers -i ansible/inventory/homelab.yml \
+ansible k3s_primary,k3s_servers -i ansible/inventory/homelab.yml \
   -m apt -a "name=nfs-common state=present" --become
 ```
 
 ### Run Bootstrap
 
-From `bran` with `KUBECONFIG` pointing at the prod cluster:
+From `varys` with `KUBECONFIG` pointing at the prod cluster:
 
 ```bash
 export KUBECONFIG=~/.kube/prod-config
@@ -911,7 +911,7 @@ On `tywin` (the prod control plane node):
 
 ```bash
 # k3s writes 127.0.0.1 into the kubeconfig — this is correct on tywin
-# but the runner on bran needs the LAN IP to reach the API server
+# but the runner on varys needs the LAN IP to reach the API server
 cat /etc/rancher/k3s/k3s.yaml | sed 's/127.0.0.1/10.0.10.11/'
 ```
 
@@ -1037,7 +1037,7 @@ gh pr create \
 
 **After `validate` passes:**
 
-- The `cluster-diff` job starts on `bran`
+- The `cluster-diff` job starts on `varys`
 - Flux connects to the prod cluster and diffs every Kustomization against the PR branch
 - The diff output is posted as a collapsible comment on the PR showing exactly what the
   cluster would look like after merge
@@ -1103,7 +1103,7 @@ After a PR merges to `main`, two things happen simultaneously:
 1. **Flux source-controller polls** `main` every 60 seconds. It detects the new commit
    and downloads the updated manifests.
 
-2. **The `health-check` job** starts on `bran`. It does not wait for Flux to discover
+2. **The `health-check` job** starts on `varys`. It does not wait for Flux to discover
    the commit — it forces an immediate reconcile.
 
 ### Health Check Job Sequence
@@ -1120,7 +1120,7 @@ After a PR merges to `main`, two things happen simultaneously:
 
 After the `health-check` job completes, click on it in GitHub Actions and scroll to the
 bottom. The Summary tab shows the full `flux get kustomizations` table — the same output
-you would get running `flux get kustomizations` on `bran` directly.
+you would get running `flux get kustomizations` on `varys` directly.
 
 ### What Failure Means
 
@@ -1131,7 +1131,7 @@ If the health check fails:
   stopped responding
 - The change is already on `main` — Flux has applied it or is attempting to
 
-Investigate on `bran`:
+Investigate on `varys`:
 
 ```bash
 flux get kustomizations
@@ -1152,7 +1152,7 @@ Flux will apply the revert commit within 60 seconds.
 
 ## 10. Monitoring Flux
 
-### CLI Commands (on bran)
+### CLI Commands (on varys)
 
 ```bash
 # All Flux resources at a glance
@@ -1199,7 +1199,7 @@ dashboards. After the platform converges:
 3. The **Flux Cluster Stats** dashboard shows reconciliation counts, durations,
    error rates, and source sync lag over time
 
-For day-to-day monitoring, `watch flux get kustomizations` on `bran` is sufficient.
+For day-to-day monitoring, `watch flux get kustomizations` on `varys` is sufficient.
 The Grafana dashboard is useful for spotting patterns — for example, a Kustomization
 that reconciles successfully but has been retrying every minute for hours is a sign of
 an intermittent dependency problem.
@@ -1320,7 +1320,7 @@ If the repository is in an organization with restricted default permissions, thi
 explicit `permissions` block is required. Without it, `GITHUB_TOKEN` may have read-only
 access and `gh pr comment` silently fails.
 
-**Check 2 — gh CLI authentication on bran:**
+**Check 2 — gh CLI authentication on varys:**
 
 The `cluster-diff` job uses `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` as an environment
 variable to authenticate the `gh` CLI. Verify the step sets this correctly:
@@ -1336,7 +1336,7 @@ Open the failing job in GitHub Actions, expand the "Post diff comment on PR" ste
 look for the exact `gh` error message. Common errors:
 
 - `HTTP 403` — token does not have write permission on pull requests
-- `Could not resolve host` — `bran` lost internet connectivity
+- `Could not resolve host` — `varys` lost internet connectivity
 
 ---
 
@@ -1414,7 +1414,7 @@ kubectl describe kustomization <name> -n flux-system
 **Quick check:**
 
 ```bash
-# From bran
+# From varys
 kubectl exec -n flux-system deployment/source-controller -- \
   wget -qO- https://github.com 2>&1 | head -1
 ```

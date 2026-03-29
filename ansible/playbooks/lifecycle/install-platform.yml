@@ -22,14 +22,8 @@
 # Those components are fully managed by Flux via GitOps. Installing them here
 # creates duplicate resources that conflict with Flux-managed deployments.
 #
-# TARGET: prod cluster (k3s_controller group — tywin, 10.0.10.11)
-# This playbook is for the PRODUCTION cluster only. The prod cluster watches the
-# `prod` branch of the repository. Before running, ensure `prod` branch is up to date:
-#   git push origin main:prod
-#
-# For the STAGING cluster (single-node VM on Proxmox), bootstrap is done manually
-# via flux bootstrap (see Guide 04). The staging cluster reconciles itself once
-# flux-system is running and gotk-sync.yaml (watching main) is applied.
+# TARGET: prod cluster (k3s_primary group — tywin, 10.0.10.11)
+# This playbook is for the PRODUCTION cluster only. Flux watches the `main` branch.
 #
 # Prerequisites:
 #   - k3s cluster running (install-cluster.yml completed successfully)
@@ -50,7 +44,7 @@
 # To re-run after a cluster rebuild, the same command applies — fully idempotent.
 
 - name: Bootstrap Flux GitOps and wait for platform convergence
-  hosts: k3s_controller
+  hosts: k3s_primary
   become: true
   gather_facts: true
 

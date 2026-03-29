@@ -187,7 +187,8 @@ graph TD
 # Node Topology
 
 ```
-bran    → 10.0.10.10   Raspberry Pi 3B+ — automation host, self-hosted runner, Pi-hole, cloudflared
+varys   → 10.0.10.10   Intel NUC i3-5010U — control hub: Ansible, kubectl, Pi-hole (primary), cloudflared, Headscale, Grafana, Alertmanager, GitHub Actions runner, Beesly
+bran    → RPi 3B+      Tailscale exit node, secondary Pi-hole, WOL proxy
 tywin   → 10.0.10.11   k3s control-plane
 jaime   → 10.0.10.12   k3s worker
 tyrion  → 10.0.10.13   k3s worker
@@ -207,14 +208,14 @@ This platform uses a **PR-based validation** workflow. There is no staging clust
 Feature branch → Pull Request → CI validation → Merge to main → Flux reconciles prod
 ```
 
-CI runs on a self-hosted GitHub Actions runner on `bran` (10.0.10.10), which has LAN access to the production cluster for health checks.
+CI runs on a self-hosted GitHub Actions runner on `varys` (10.0.10.10), which has LAN access to the production cluster for health checks.
 
 **What CI validates on every PR:**
 
 ```
 kubeconform      → schema validation of all Kubernetes manifests
 kustomize build  → all kustomizations render without error
-kubectl dry-run  → server-side dry-run against the live cluster API
+flux diff        → cluster-diff job against live cluster API
 pluto            → detect deprecated API versions
 ```
 

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Date** | 2026-03-14 |
-| **Status** | Accepted |
+| **Status** | Superseded by [ADR-006](ADR-006-ha-control-plane.md) |
 | **Deciders** | Platform owner |
 
 ---

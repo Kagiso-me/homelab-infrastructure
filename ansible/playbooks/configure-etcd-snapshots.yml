@@ -12,15 +12,16 @@
 #     -i ansible/inventory.ini \
 #     --vault-password-file ~/.vault_pass
 #
-# After running: verify with
+# After running: verify with (run on any server node)
 #   ssh tywin "sudo k3s etcd-snapshot list --s3 \
 #     --s3-endpoint http://10.0.10.80:9000 \
 #     --s3-bucket k3s-etcd-snapshots \
 #     --s3-insecure"
 
-- name: Configure k3s etcd S3 snapshots on control plane
-  hosts: tywin
+- name: Configure k3s etcd S3 snapshots on all server nodes
+  hosts: k3s_primary,k3s_servers
   become: true
+  serial: 1
 
   vars_files:
     - ../vars/vault.yml

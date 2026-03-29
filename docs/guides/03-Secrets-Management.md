@@ -73,7 +73,7 @@ different consumer:
 to the age private key via the `sops-age` Kubernetes Secret and performs all decryption in memory.
 
 **GitHub repository secrets** (like `KUBECONFIG`) are consumed by the GitHub Actions CI pipeline,
-which runs on `bran` as a self-hosted runner. The runner is outside the cluster and cannot use
+which runs on `varys` as a self-hosted runner. The runner is outside the cluster and cannot use
 Flux's decryption mechanism. GitHub's built-in secret storage is the correct tool for CI credentials.
 
 This guide covers only SOPS secrets. The `KUBECONFIG` GitHub secret was set up in Guide 00.5.
@@ -82,7 +82,7 @@ This guide covers only SOPS secrets. The `KUBECONFIG` GitHub secret was set up i
 
 # Step 1 — Install SOPS and age on the Automation Host
 
-These tools are installed on **bran** (the Raspberry Pi at 10.0.10.10), which is the machine
+These tools are installed on **varys** (the Intel NUC at 10.0.10.10), which is the machine
 you run all `kubectl` and `flux` commands from.
 
 ```bash
@@ -95,11 +95,11 @@ age --version
 
 ```bash
 # Install SOPS
-# bran is arm64 (Raspberry Pi). Use amd64 if your automation host is x86.
+# varys is amd64 (Intel NUC x86_64)
 SOPS_VERSION=3.8.1
-curl -LO https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.arm64
-sudo install -m 755 sops-v${SOPS_VERSION}.linux.arm64 /usr/local/bin/sops
-rm sops-v${SOPS_VERSION}.linux.arm64
+curl -LO https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64
+sudo install -m 755 sops-v${SOPS_VERSION}.linux.amd64 /usr/local/bin/sops
+rm sops-v${SOPS_VERSION}.linux.amd64
 
 # Verify
 sops --version
@@ -109,7 +109,7 @@ sops --version
 
 # Step 2 — Generate the age Key Pair
 
-Run this **once** on bran. Never run it again unless you are intentionally rotating keys.
+Run this **once** on varys. Never run it again unless you are intentionally rotating keys.
 
 ```bash
 age-keygen -o ~/age.key
@@ -546,7 +546,7 @@ Flux will then decrypt and apply all secrets automatically when it reconciles.
 This guide is complete when all of the following are true:
 
 ```
-✓ SOPS and age installed on bran (sops --version and age --version both succeed)
+✓ SOPS and age installed on varys (sops --version and age --version both succeed)
 ✓ age key pair generated at ~/age.key and private key backed up offline
 ✓ .sops.yaml committed with your real public key (not a placeholder)
 ✓ All three repository secrets encrypted and committed (grep -l "ENC[" shows all three files)

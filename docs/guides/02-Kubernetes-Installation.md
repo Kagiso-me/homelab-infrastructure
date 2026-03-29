@@ -8,7 +8,7 @@
 
 > In this phase we install Kubernetes using **k3s** and the existing Ansible automation.
 >
-> By the end of this guide, a three-node k3s cluster will be running and accessible from `bran`.
+> By the end of this guide, a three-node k3s cluster will be running and accessible from `varys`.
 
 ---
 
@@ -169,7 +169,7 @@ implementation. The bundled versions conflict with the GitOps-managed ones.
 
 # Running the Installation
 
-From the automation host (`bran`), run from the repository root:
+From the automation host (`varys`), run from the repository root:
 
 ```bash
 cd ~/homelab-infrastructure
@@ -181,7 +181,7 @@ complete in 3–5 minutes on a healthy network.
 
 ```mermaid
 graph TD
-    A["bran — Ansible Automation Host"] --> B["Install nfs-common on all nodes"]
+    A["varys — Ansible Automation Host"] --> B["Install nfs-common on all nodes"]
     B --> C["Install k3s server on tywin<br/>(control-plane, embedded etcd,<br/>--disable traefik --disable servicelb)"]
     C --> D["Retrieve cluster join token from tywin"]
     D --> E["Install k3s agent on jaime + tyrion<br/>(join workers to cluster)"]
@@ -195,12 +195,12 @@ graph TD
 # Retrieving the Kubeconfig
 
 After installation, copy the kubeconfig from the control-plane node (`tywin`) to the
-automation host (`bran`) and configure `kubectl` to use it.
+automation host (`varys`) and configure `kubectl` to use it.
 
 k3s writes `127.0.0.1` as the API server address in the generated kubeconfig. This address
-is only reachable on tywin itself. Replace it with tywin's LAN IP so bran can connect.
+is only reachable on tywin itself. Replace it with tywin's LAN IP so varys can connect.
 
-Run on **bran**:
+Run on **varys**:
 
 ```bash
 # Create the .kube directory if it does not exist
@@ -412,14 +412,14 @@ The `install-cluster.yml` playbook installs `nfs-common` as part of node prepara
 skipped for any reason, verify manually:
 
 ```bash
-ansible k3s_controller,k3s_workers \
+ansible k3s_primary,k3s_servers \
   -m shell -a "dpkg -l nfs-common | grep '^ii'" --become
 ```
 
 If missing on any node:
 
 ```bash
-ansible k3s_controller,k3s_workers \
+ansible k3s_primary,k3s_servers \
   -m apt -a "name=nfs-common state=present update_cache=yes" --become
 ```
 
@@ -429,7 +429,7 @@ ansible k3s_controller,k3s_workers \
 
 This phase is complete when the following are all true.
 
-**Cluster is reachable from bran:**
+**Cluster is reachable from varys:**
 
 ```bash
 export KUBECONFIG=~/.kube/prod-config
@@ -470,7 +470,7 @@ kubectl get nodes --show-labels | grep "node-role"
 **nfs-common is installed on all nodes:**
 
 ```bash
-ansible k3s_controller,k3s_workers \
+ansible k3s_primary,k3s_servers \
   -m shell -a "dpkg -l nfs-common | grep '^ii'" --become
 # All nodes return the installed package line
 ```

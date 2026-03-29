@@ -43,12 +43,12 @@ Automation is used from the very beginning.
 # Platform Topology
 
 The platform consists of the following machines. This guide covers the k3s cluster nodes and
-the Docker host. The Raspberry Pi (`bran`) is the automation host used to run all Ansible
+the Docker host. `varys` is the automation host used to run all Ansible
 commands throughout this guide.
 
 ```mermaid
 graph TD
-    Auto["bran — 10.0.10.10<br/>Automation Host<br/>ansible - kubectl - git"]
+    Auto["varys — 10.0.10.10<br/>Automation Host<br/>ansible - kubectl - git"]
     Auto -->|SSH + Ansible| tywin["tywin<br/>10.0.10.11<br/>k3s Control Plane"]
     Auto -->|SSH + Ansible| jaime["jaime<br/>10.0.10.12<br/>k3s Worker"]
     Auto -->|SSH + Ansible| tyrion["tyrion<br/>10.0.10.13<br/>k3s Worker"]
@@ -61,7 +61,7 @@ graph TD
 
 | Node | Role | IP |
 |---|---|---|
-| bran | Automation host, self-hosted runner, Pi-hole, cloudflared | 10.0.10.10 |
+| varys | Control hub: Ansible, kubectl, Pi-hole (primary), cloudflared, Headscale, Grafana, Alertmanager, GitHub Actions runner, Beesly | 10.0.10.10 |
 | tywin | k3s control-plane | 10.0.10.11 |
 | jaime | k3s worker | 10.0.10.12 |
 | tyrion | k3s worker | 10.0.10.13 |
@@ -69,27 +69,26 @@ graph TD
 
 ---
 
-# Step 1 — Install Tools on the Automation Host (bran)
+# Step 1 — Install Tools on the Automation Host (varys)
 
 Install all tools required across the entire guide series. These only need to be installed once.
 The self-hosted runner tool installations (kubeconform, pluto, etc.) are covered in Guide 00.5.
-This step covers the tools needed for day-to-day cluster management from bran.
+This step covers the tools needed for day-to-day cluster management from varys.
 
 ```bash
 sudo apt update
 sudo apt install -y ansible git nfs-common
 ```
 
-Install `kubectl` (arm64 — bran is a Raspberry Pi 3B+):
+Install `kubectl` (amd64 — varys is an Intel NUC, x86_64):
 
 ```bash
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 rm kubectl
 ```
 
-> **Architecture note:** The automation host is a Raspberry Pi (arm64). Use the `arm64` kubectl binary above.
-> For amd64 hosts, replace `arm64` with `amd64` in the URL.
+> **Architecture note:** The automation host is an Intel NUC (x86_64 / amd64). Use the `amd64` kubectl binary above.
 
 Verify:
 
@@ -136,7 +135,7 @@ Before copying SSH keys, all nodes must have stable IPs that match the inventory
 
 | Node | IP |
 |---|---|
-| bran (Raspberry Pi) | `10.0.10.10` |
+| varys (Intel NUC i3-5010U) | `10.0.10.10` |
 | tywin (k3s control-plane) | `10.0.10.11` |
 | jaime (k3s worker) | `10.0.10.12` |
 | tyrion (k3s worker) | `10.0.10.13` |
@@ -169,7 +168,7 @@ network:
           via: 10.0.10.1
       nameservers:
         addresses:
-          - 10.0.10.10   # bran runs Pi-hole
+          - 10.0.10.10   # varys runs Pi-hole
           - 1.1.1.1
 ```
 
@@ -216,22 +215,27 @@ The inventory at `ansible/inventory/homelab.yml` defines all nodes and groups:
 ```yaml
 all:
   children:
-    rpi:
+    control_hub:
       hosts:
-        rpi:
+        varys:
           ansible_host: 10.0.10.10
 
-    k3s_controller:
+    k3s_primary:
       hosts:
         tywin:
           ansible_host: 10.0.10.11
 
-    k3s_workers:
+    k3s_servers:
       hosts:
         jaime:
           ansible_host: 10.0.10.12
         tyrion:
           ansible_host: 10.0.10.13
+
+    docker:
+      hosts:
+        nuc:
+          ansible_host: 10.0.10.20
 
   vars:
     ansible_user: kagiso
@@ -283,7 +287,7 @@ ansible all -m ping
 Expected output (one SUCCESS block per host):
 
 ```
-bran | SUCCESS => {"ping": "pong"}
+varys | SUCCESS => {"ping": "pong"}
 tywin | SUCCESS => {"ping": "pong"}
 jaime | SUCCESS => {"ping": "pong"}
 tyrion | SUCCESS => {"ping": "pong"}
@@ -298,25 +302,25 @@ If any node fails, check:
 
 ---
 
-# Step 8 — Harden the Raspberry Pi (Automation Host)
+# Step 8 — Harden the Automation Host (varys)
 
-The Raspberry Pi (`bran`, `10.0.10.10`) is both the automation host and a managed node. It
-must be hardened before it starts managing others. Harden it first, targeting the `rpi` group only.
+`varys` (`10.0.10.10`) is both the automation host and a managed node. It
+must be hardened before it starts managing others. Harden it first, targeting the `control_hub` group only.
 
 ```bash
-ansible-playbook ansible/playbooks/security/firewall.yml -l rpi
-ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l rpi
-ansible-playbook ansible/playbooks/security/fail2ban.yml -l rpi
+ansible-playbook ansible/playbooks/security/firewall.yml -l control_hub
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml -l control_hub
+ansible-playbook ansible/playbooks/security/fail2ban.yml -l control_hub
 ```
 
 > **Important:** Ensure your SSH public key is already present in `~/.ssh/authorized_keys` on
-> bran before running `ssh-hardening.yml`. Password login will be permanently disabled.
+> varys before running `ssh-hardening.yml`. Password login will be permanently disabled.
 
-### What each playbook does for the RPi
+### What each playbook does for varys
 
 **Firewall (`firewall.yml`)**
 
-UFW is configured with a default-deny policy. The RPi is only allowed inbound traffic from the LAN (`10.0.10.0/24`):
+UFW is configured with a default-deny policy. varys is only allowed inbound traffic from the LAN (`10.0.10.0/24`):
 
 | Port | Protocol | Reason |
 |---|---|---|
@@ -349,7 +353,7 @@ Installs Fail2Ban and enables the SSH jail:
 | `findtime` | 10 minutes |
 | `maxretry` (SSH) | 3 attempts |
 
-### Verify bran hardening
+### Verify varys hardening
 
 ```bash
 # Check UFW status
@@ -382,8 +386,8 @@ graph LR
     F --> G[Nodes Ready]
 ```
 
-Run each playbook in order. The `-l k3s_controller,k3s_workers` limit targets only the cluster
-nodes, not bran (which was already hardened in Step 8).
+Run each playbook in order. The `-l k3s_primary,k3s_servers` limit targets only the cluster
+nodes, not varys (which was already hardened in Step 8).
 
 ### Upgrade Nodes
 
@@ -392,7 +396,7 @@ nodes with outdated packages introduces known CVEs and compatibility issues.
 
 ```bash
 ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 This performs a package index refresh, upgrades all installed packages, and installs security
@@ -405,7 +409,7 @@ refuse to start.
 
 ```bash
 ansible-playbook ansible/playbooks/security/disable-swap.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 This disables swap immediately and removes swap entries from `/etc/fstab` so the change
@@ -414,7 +418,7 @@ survives reboots.
 Verify swap is off:
 
 ```bash
-ansible k3s_controller,k3s_workers -m shell -a "swapon --show" --become
+ansible k3s_primary,k3s_servers -m shell -a "swapon --show" --become
 # Expected: no output (empty = no swap active)
 ```
 
@@ -426,7 +430,7 @@ and certificates to be rejected.
 
 ```bash
 ansible-playbook ansible/playbooks/security/time-sync.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 This installs and enables `chrony` (or `systemd-timesyncd`) to synchronize with NTP servers.
@@ -434,7 +438,7 @@ This installs and enables `chrony` (or `systemd-timesyncd`) to synchronize with 
 Verify time sync is active:
 
 ```bash
-ansible k3s_controller,k3s_workers -m shell -a "timedatectl show | grep NTPSynchronized"
+ansible k3s_primary,k3s_servers -m shell -a "timedatectl show | grep NTPSynchronized"
 # Expected: NTPSynchronized=yes
 ```
 
@@ -446,17 +450,17 @@ access.
 
 ```bash
 ansible-playbook ansible/playbooks/security/firewall.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 ### Harden SSH
 
-Apply SSH configuration hardening to all cluster nodes. The same settings applied to bran in
+Apply SSH configuration hardening to all cluster nodes. The same settings applied to varys in
 Step 8 are applied here — no password authentication, no root login, key-only access.
 
 ```bash
 ansible-playbook ansible/playbooks/security/ssh-hardening.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 > **Important:** Verify that your SSH public key is in `~/.ssh/authorized_keys` on each node
@@ -468,7 +472,7 @@ Protect all cluster nodes against brute-force SSH attempts.
 
 ```bash
 ansible-playbook ansible/playbooks/security/fail2ban.yml \
-  -l k3s_controller,k3s_workers
+  -l k3s_primary,k3s_servers
 ```
 
 ---
@@ -489,7 +493,7 @@ Install **Ubuntu Server 24.04 LTS** from a USB installer. During installation:
 
 ## Copy SSH Key
 
-After the OS is installed, copy your SSH key from bran:
+After the OS is installed, copy your SSH key from varys:
 
 ```bash
 ssh-copy-id kagiso@10.0.10.20
@@ -587,12 +591,12 @@ sudo ufw status
 Before continuing to Guide 02, confirm every item below:
 
 ```
-✓ ~/.vault_pass exists on bran with chmod 600
+✓ ~/.vault_pass exists on varys with chmod 600
 ✓ SSH key-only access works to every k3s node (tywin, jaime, tyrion)
 ✓ ansible all -m ping returns SUCCESS for all hosts
-✓ bran: UFW enabled, SSH (22/tcp) + DNS (53) from LAN only
-✓ bran: password authentication disabled
-✓ bran: Fail2Ban running (sudo fail2ban-client status sshd)
+✓ varys: UFW enabled, SSH (22/tcp) + DNS (53) from LAN only
+✓ varys: password authentication disabled
+✓ varys: Fail2Ban running (sudo fail2ban-client status sshd)
 ✓ k3s nodes: swap disabled (swapon --show shows no output)
 ✓ k3s nodes: time synchronized (timedatectl shows NTPSynchronized=yes)
 ✓ k3s nodes: UFW enabled with Kubernetes ports open
@@ -612,7 +616,7 @@ Before continuing to Guide 02, confirm every item below:
 This phase is complete when:
 
 - Ansible can connect to every node without passwords
-- baseline security configuration is applied to bran and all k3s nodes
+- baseline security configuration is applied to varys and all k3s nodes
 - Docker host is configured with Docker CE, NFS client, and basic hardening
 - nodes are ready for Kubernetes installation
 

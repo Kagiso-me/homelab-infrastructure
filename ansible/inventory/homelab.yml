@@ -5,12 +5,12 @@ all:
         varys:
           ansible_host: 10.0.10.10
 
-    k3s_controller:
+    k3s_primary:
       hosts:
         tywin:
           ansible_host: 10.0.10.11
 
-    k3s_workers:
+    k3s_servers:
       hosts:
         jaime:
           ansible_host: 10.0.10.12

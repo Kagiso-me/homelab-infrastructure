@@ -16,5 +16,8 @@ spec:
         operator: Exists
   serviceAccountName: system-upgrade
   cordon: true
+  drain:
+    force: true
+    skipWaitForDeleteTimeout: 60
   upgrade:
     image: rancher/k3s-upgrade

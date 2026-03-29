@@ -1,7 +1,44 @@
-- name: Reboot nodes
-  hosts: all
+- name: Reboot k3s server nodes (drain-first, one at a time)
+  hosts: k3s_primary,k3s_servers
   become: true
-  serial: 1   # VERY important for clusters
+  serial: 1
+  tasks:
+    - name: Drain node
+      command: >
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --timeout=120s
+      delegate_to: "{{ ((groups['k3s_primary'] + groups['k3s_servers']) | difference([inventory_hostname])) | first }}"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Reboot the node
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible"
+        reboot_timeout: 300
+        connect_timeout: 5
+        pre_reboot_delay: 5
+        post_reboot_delay: 30
+        test_command: uptime
+
+    - name: Wait for node to be Ready
+      command: kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+      delegate_to: "{{ ((groups['k3s_primary'] + groups['k3s_servers']) | difference([inventory_hostname])) | first }}"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+
+    - name: Uncordon node
+      command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: "{{ ((groups['k3s_primary'] + groups['k3s_servers']) | difference([inventory_hostname])) | first }}"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Reboot non-cluster nodes
+  hosts: control_hub,docker
+  become: true
+  serial: 1
   tasks:
     - name: Reboot the node safely
       ansible.builtin.reboot:

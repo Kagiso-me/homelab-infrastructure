@@ -515,7 +515,7 @@ Each backup script writes five Prometheus textfile metrics directly on completio
 | `backup_duration_seconds{job="..."}` | Duration of last run in seconds |
 | `backup_failures_total{job="..."}` | Cumulative failure count (never reset on success) |
 
-Job labels in use: `etcd`, `docker-appdata`, `rpi-keys`.
+Job labels in use: `etcd`, `docker-appdata`, `varys-keys`.
 
 Metrics are written to `/var/lib/node_exporter/textfile_collector/` and scraped by node-exporter on each host. Alert rules are defined in `docker/config/prometheus/alerts/backups.yml` — they fire generically across all jobs, so adding a new backup target requires no new alert rules.
 

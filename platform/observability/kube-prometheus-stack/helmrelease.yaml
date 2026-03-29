@@ -64,11 +64,11 @@ spec:
         ruleSelectorNilUsesHelmValues: false
         # External scrape targets — hosts outside the k3s cluster.
         additionalScrapeConfigs:
-          - job_name: node-rpi
+          - job_name: node-varys
             static_configs:
               - targets: ["10.0.10.10:9100"]
                 labels:
-                  instance: rpi
+                  instance: varys
                   role: control-hub
 
           - job_name: node-docker

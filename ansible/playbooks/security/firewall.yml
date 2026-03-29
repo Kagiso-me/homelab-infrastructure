@@ -4,7 +4,7 @@
 
   vars:
     lan_subnet: "10.0.10.0/24"
-    bran_ip: "10.0.10.10"
+    varys_ip: "10.0.10.10"
 
   tasks:
     - name: Install UFW
@@ -15,24 +15,24 @@
 
     # -------------------------------------------------------------------------
     # SSH
-    # k3s nodes: bran only (10.0.10.10 is the only Ansible control hub).
-    # RPi (bran): LAN only — accessed from workstations on the LAN.
+    # k3s nodes: varys only (10.0.10.10 is the only Ansible control hub).
+    # varys: LAN only — accessed from workstations on the LAN.
     # -------------------------------------------------------------------------
-    - name: Allow SSH from bran only (k3s nodes)
+    - name: Allow SSH from varys only (k3s nodes)
       ufw:
         rule: allow
-        from_ip: "{{ bran_ip }}"
+        from_ip: "{{ varys_ip }}"
         to_port: "22"
         proto: tcp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
-    - name: Allow SSH from LAN (RPi)
+    - name: Allow SSH from LAN (varys)
       ufw:
         rule: allow
         from_ip: "{{ lan_subnet }}"
         to_port: "22"
         proto: tcp
-      when: inventory_hostname in groups['rpi']
+      when: inventory_hostname in groups['control_hub']
 
     # -------------------------------------------------------------------------
     # Kubernetes API — controller only, LAN only
@@ -44,7 +44,7 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "6443"
         proto: tcp
-      when: inventory_hostname in groups['k3s_controller']
+      when: inventory_hostname in groups['k3s_primary']
 
     # -------------------------------------------------------------------------
     # Kubernetes internals — k3s nodes only, LAN only
@@ -55,7 +55,7 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "10250"
         proto: tcp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     - name: Allow Flannel VXLAN (k3s nodes, LAN only)
       ufw:
@@ -63,11 +63,11 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "8472"
         proto: udp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     # -------------------------------------------------------------------------
     # Ingress — k3s nodes only, LAN only
-    # Cloudflare Tunnel (cloudflared) connects from 10.0.10.10 (bran) which is
+    # Cloudflare Tunnel (cloudflared) connects from 10.0.10.10 (varys) which is
     # within the LAN subnet. No public inbound HTTP/HTTPS is ever needed.
     # -------------------------------------------------------------------------
     - name: Allow HTTP (k3s nodes, LAN only)
@@ -76,7 +76,7 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "80"
         proto: tcp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     - name: Allow HTTPS (k3s nodes, LAN only)
       ufw:
@@ -84,7 +84,7 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "443"
         proto: tcp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     # -------------------------------------------------------------------------
     # NodePort — k3s nodes, LAN only
@@ -95,34 +95,34 @@
         from_ip: "{{ lan_subnet }}"
         to_port: "30000:32767"
         proto: tcp
-      when: inventory_hostname in (groups['k3s_controller'] + groups['k3s_workers'])
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     # -------------------------------------------------------------------------
-    # DNS + Web UI — RPi only (Pi-hole)
+    # DNS + Web UI — varys only (Pi-hole, secondary instance)
     # -------------------------------------------------------------------------
-    - name: Allow DNS TCP (RPi only)
+    - name: Allow DNS TCP (varys only)
       ufw:
         rule: allow
         from_ip: "{{ lan_subnet }}"
         to_port: "53"
         proto: tcp
-      when: inventory_hostname in groups['rpi']
+      when: inventory_hostname in groups['control_hub']
 
-    - name: Allow DNS UDP (RPi only)
+    - name: Allow DNS UDP (varys only)
       ufw:
         rule: allow
         from_ip: "{{ lan_subnet }}"
         to_port: "53"
         proto: udp
-      when: inventory_hostname in groups['rpi']
+      when: inventory_hostname in groups['control_hub']
 
-    - name: Allow Pi-hole web UI HTTP (RPi only)
+    - name: Allow Pi-hole web UI HTTP (varys only)
       ufw:
         rule: allow
         from_ip: "{{ lan_subnet }}"
         to_port: "80"
         proto: tcp
-      when: inventory_hostname in groups['rpi']
+      when: inventory_hostname in groups['control_hub']
 
     # -------------------------------------------------------------------------
     # Enable (LAST — do not reorder)

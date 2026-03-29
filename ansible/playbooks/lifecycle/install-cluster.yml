@@ -1,5 +1,5 @@
 - name: Install node prerequisites
-  hosts: k3s_controller,k3s_workers
+  hosts: k3s_primary,k3s_servers
   become: true
   tasks:
     - name: Install NFS client utilities
@@ -8,23 +8,24 @@
         state: present
         update_cache: yes
 
-- name: Install K3s server
-  hosts: k3s_controller
+- name: Install K3s primary server (cluster-init + etcd)
+  hosts: k3s_primary
   become: true
   roles:
     - k3s_install
 
-- name: Install K3s workers
-  hosts: k3s_workers
+- name: Install K3s additional servers (join cluster)
+  hosts: k3s_servers
   become: true
+  serial: 1
   roles:
     - k3s_install
 
 - name: Fetch kubeconfig
-  hosts: k3s_controller
+  hosts: k3s_primary
   become: true
   tasks:
-    - name: Fetch kubeconfig from control plane
+    - name: Fetch kubeconfig from primary server
       fetch:
         src: /etc/rancher/k3s/k3s.yaml
         dest: "{{ lookup('env','HOME') }}/.kube/config"
@@ -33,14 +34,14 @@
 - name: Fix kubeconfig endpoint
   hosts: localhost
   tasks:
-    - name: Replace 127.0.0.1 with control plane IP in kubeconfig
+    - name: Replace 127.0.0.1 with primary server IP in kubeconfig
       replace:
         path: "{{ lookup('env','HOME') }}/.kube/config"
         regexp: '^(\s*server: https://).*(:6443.*)$'
-        replace: '\g<1>{{ hostvars[groups["k3s_controller"][0]].ansible_host }}\g<2>'
+        replace: '\g<1>{{ hostvars[groups["k3s_primary"][0]].ansible_host }}\g<2>'
 
 - name: Verify cluster health
-  hosts: k3s_controller
+  hosts: k3s_primary
   become: true
   tasks:
     - name: Wait for all nodes to be Ready
