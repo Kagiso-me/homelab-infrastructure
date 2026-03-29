@@ -1,215 +1,254 @@
-
-# 08 — Storage Architecture
-## Persistent Storage via TrueNAS NFS
+# 08 - Storage Architecture
+## Persistent Storage via TrueNAS NFS and Local Disks
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
+**Difficulty:** ******---- (6/10)
 **Guide:** 08 of 13
 
-> Kubernetes workloads that need persistent state — databases, monitoring time-series data, media libraries — require storage that outlives pods.
+> Storage is where infrastructure intent becomes painfully real.
 >
-> This guide documents how the platform provisions persistent volumes using TrueNAS as the backing store via NFS.
+> The wrong storage choice can make a clean platform feel unreliable:
+>
+> - apps restart and come back fine, but databases corrupt or stall
+> - PVCs look portable, but latency-sensitive services become fragile
+> - recovery is documented, yet the steady-state path is still unpleasant
+>
+> This guide explains the platform's storage model and the reasoning behind it:
+>
+> - NFS for shared and portable application state
+> - local disks for database and TSDB workloads that do not behave well on NFS
 
 ---
 
-# TrueNAS Pool Architecture
+![Storage lanes](../../assets/storage-lanes.svg)
 
-TrueNAS at `10.0.10.80` uses three ZFS pools with distinct purposes:
+---
 
-| Pool | Mount point | Purpose |
+## Table of Contents
+
+1. [Why Storage Needs Two Lanes](#why-storage-needs-two-lanes)
+2. [Current StorageClasses](#current-storageclasses)
+3. [When to Use NFS](#when-to-use-nfs)
+4. [Why Databases Stay Off NFS](#why-databases-stay-off-nfs)
+5. [What the Platform Uses Today](#what-the-platform-uses-today)
+6. [Recommended Next Steps for Better Data Resilience](#recommended-next-steps-for-better-data-resilience)
+7. [NFS Provisioner Deployment](#nfs-provisioner-deployment)
+8. [PVC Lifecycle](#pvc-lifecycle)
+9. [Sizing and Verification](#sizing-and-verification)
+10. [Exit Criteria](#exit-criteria)
+
+---
+
+## Why Storage Needs Two Lanes
+
+Not all persistent workloads want the same kind of storage.
+
+The platform deliberately separates them into two lanes:
+
+| Lane | Storage type | Best for |
 |---|---|---|
-| `tera` | `/mnt/tera` | Bulk cold storage — large media files, archives |
-| `core` | `/mnt/core` | Hot storage — Kubernetes PVCs, actively accessed by the cluster |
-| `archive` | `/mnt/archive` | Backup storage — etcd snapshots, Velero data via MinIO |
+| Shared / portable lane | TrueNAS NFS via `nfs-truenas` | Application configs, media metadata, portable PVCs, general app state |
+| Latency-sensitive lane | Node-local disk via `local-path` | PostgreSQL, Redis, Prometheus TSDB, WAL-heavy or fsync-heavy workloads |
 
-The NFS provisioner uses `core/k8s-volumes`. Backup data lives in `archive/backups/k8s`.
-Both datasets and their NFS exports are created in
-[Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
+This is the most important storage decision in the repo.
 
----
+If you try to force everything onto NFS, you gain portability but lose the predictable write semantics databases expect. If you put everything on local disks, you gain performance but lose mobility and easy rebuilds for application PVCs.
 
-# Storage Design Principles
-
-The platform storage architecture follows two rules:
-
-**1 — Nodes are disposable. Data is not.**
-
-All persistent data lives on **TrueNAS**, not on cluster nodes. A node can be wiped, replaced, or rebuilt without any data loss.
-
-**2 — Storage is provisioned dynamically.**
-
-Applications declare a `PersistentVolumeClaim`. The NFS StorageClass provisions a backing directory on TrueNAS automatically. No manual volume creation is required.
+The current design is a deliberate split, not an accident.
 
 ---
 
-# Storage Architecture Overview
+## Current StorageClasses
 
-```mermaid
-graph TD
-    PVC["Application PersistentVolumeClaim<br/>storageClassName: nfs-truenas"] --> Provisioner["NFS Subdir External Provisioner<br/>(StorageClass: nfs-truenas)"]
-    Provisioner -->|"creates subdirectory"| NFS["TrueNAS NFS Share<br/>10.0.10.80:/mnt/core/k8s-volumes"]
-    NFS --> ZFS["TrueNAS ZFS Pool<br/>core/archive/tera pools<br/>ZFS checksums - snapshots - scrub"]
+The cluster exposes two storage classes:
 
-    PVC2["Local PVC<br/>storageClassName: local-path"] --> Local["k3s local-path provisioner<br/>(ephemeral/non-critical data)"]
-    Local --> NodeDisk["Node Local Disk<br/>/var/lib/rancher/k3s/storage"]
-```
+| StorageClass | Provisioner | Reclaim Policy | Binding Mode | Use case |
+|---|---|---|---|---|
+| `nfs-truenas` | `nfs-subdir-external-provisioner` | `Retain` | `Immediate` | Shared app PVCs and portable state |
+| `local-path` | `rancher.io/local-path` | `Delete` | `WaitForFirstConsumer` | Local disks for databases and telemetry data |
 
-The provisioner runs inside the cluster. It watches for PVC creation and automatically creates a subdirectory on the NFS share for each new volume.
+`nfs-truenas` is the default StorageClass because most application PVCs benefit from portability more than they need ultra-low latency.
 
----
-
-# TrueNAS NFS Share Setup
-
-> The `core/k8s-volumes` dataset and its NFS export were created in
-> [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md).
-> Verify the share is active before deploying the provisioner.
-
-**Required shares on TrueNAS (10.0.10.80):**
-
-| Share path | Purpose |
-|-----------|---------|
-| `/mnt/core/k8s-volumes` | Kubernetes persistent volumes |
-| `/mnt/archive/backups/k8s/etcd` | etcd snapshots |
-| `/mnt/archive/backups/k8s/velero` | Velero backup data |
-
-**NFS export settings for each share:**
-
-- Maproot User: `root`
-- Maproot Group: `wheel`
-- Allowed hosts/networks: `10.0.10.0/24` (cluster node and Docker host subnet)
-- Enable: `NFSv4`
-- Disable: `NFSv3` (if possible, for better locking semantics)
-
-> **Note on allowed networks:** The `/24` subnet covers the k3s cluster nodes (`10.0.10.11-13`), the Docker host (`10.0.10.20`), and the RPi (`10.0.10.10`). All of these systems mount or access TrueNAS NFS shares.
+`local-path` exists because some workloads need the opposite tradeoff.
 
 ---
 
-# StorageClass Hierarchy
+## When to Use NFS
 
-The platform defines two StorageClasses.
+Use `nfs-truenas` when the value is:
 
-| StorageClass | Provisioner | Reclaim Policy | Use Case |
-|-------------|-------------|----------------|----------|
-| `nfs-truenas` | nfs-subdir-external-provisioner | Retain | stateful apps, databases |
-| `local-path` | rancher.io/local-path (k3s built-in) | Delete | ephemeral scratch space, monitoring TSDB |
+- a pod can move to another node without data locality becoming a problem
+- shared or portable application state matters more than raw write performance
+- the workload benefits from simpler recovery and centralised storage on TrueNAS
 
-**Retain** means the backing directory on TrueNAS survives PVC deletion. An operator must manually clean up old directories. This is the safe default for production data.
+Good examples:
 
-**Delete** means the local directory is removed when the PVC is deleted. Appropriate for non-critical data that is managed by application-level retention (e.g., Prometheus TSDB, which has its own retention configuration).
+- Grafana dashboards and state
+- Loki storage
+- Nextcloud app state
+- Immich config and supporting data
+- Sonarr and Radarr config PVCs
+- general application config volumes
+
+### Why NFS works well here
+
+The NFS provisioner gives you:
+
+- automatic PVC creation
+- clear directory layout on TrueNAS
+- centralised backups and snapshots
+- storage that survives individual node replacement
+
+That fits the majority of app-level state in this homelab.
 
 ---
 
-# NFS Provisioner Deployment
+## Why Databases Stay Off NFS
 
-The provisioner is deployed through Flux. The HelmRelease is in `platform/storage/nfs-provisioner/`.
+This is the part that matters most for production judgement.
 
-Key values:
+### PostgreSQL and Redis are not "just another PVC"
+
+Databases are extremely sensitive to:
+
+- write latency
+- fsync behaviour
+- lock semantics
+- transient storage pauses
+
+NFS can be acceptable for light or casual workloads, but it is a poor fit for:
+
+- PostgreSQL WAL traffic
+- Redis persistence and fsync-heavy moments
+- Prometheus TSDB block compaction
+
+In practice, the failure mode is ugly:
+
+- the service is not obviously broken
+- but latency spikes, stalls, or corruption risk increase
+- and the operator ends up debugging storage behaviour instead of the application
+
+### What `local-path` gives up
+
+`local-path` is node-local, so it gives up easy portability.
+
+If the node that owns the volume dies hard, the workload does not simply remount elsewhere. Recovery is more manual.
+
+### Why it is still the right choice today
+
+For this platform size, predictable database behaviour is more valuable than pretending those workloads are portable when they are not.
+
+That is why:
+
+- PostgreSQL uses `local-path`
+- Redis uses `local-path`
+- Prometheus uses `local-path`
+
+This matches the ADRs and the live manifests.
+
+---
+
+## What the Platform Uses Today
+
+### TrueNAS-backed NFS
+
+The NFS provisioner points at:
 
 ```yaml
 nfs:
   server: 10.0.10.80
   path: /mnt/core/k8s-volumes
+```
 
+Key storage class settings:
+
+```yaml
 storageClass:
   name: nfs-truenas
   reclaimPolicy: Retain
   volumeBindingMode: Immediate
-  archiveOnDelete: true    # moves data to archived/ dir instead of deleting
+  archiveOnDelete: true
 ```
 
-`archiveOnDelete: true` means that even if a PVC is deleted, the data is moved to an `archived/` subdirectory on TrueNAS rather than being destroyed. This provides an additional safety net.
+`archiveOnDelete: true` means deleted PVC data is moved under an archive prefix instead of being destroyed immediately.
+
+### Local-path workloads
+
+The live repo currently places these on local disks:
+
+| Workload | Reason |
+|---|---|
+| PostgreSQL | WAL-heavy relational database |
+| Redis | latency-sensitive in-memory store with persistence |
+| Prometheus TSDB | high write rate, lock-sensitive time-series store |
+
+This is consistent with:
+
+- [ADR-009](../adr/ADR-009-prometheus-local-storage.md)
+- [ADR-011](../adr/ADR-011-central-databases.md)
 
 ---
 
-# Creating a PVC
+## Recommended Next Steps for Better Data Resilience
 
-Applications request storage by creating a PersistentVolumeClaim.
+If you want to improve data resilience beyond the current design, there are three realistic paths.
 
-Example — Grafana data volume:
+### Option 1 - Keep the current split
 
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: grafana-data
-  namespace: monitoring
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: nfs-truenas
-  resources:
-    requests:
-      storage: 5Gi
-```
+Use:
 
-On creation:
+- NFS for most PVCs
+- local-path for PostgreSQL, Redis, and Prometheus
 
-1. The NFS provisioner creates `/mnt/core/k8s-volumes/monitoring-grafana-data-pvc-<uid>/` on TrueNAS.
-2. A `PersistentVolume` is automatically created and bound to the PVC.
-3. The pod mounts the PVC as a volume.
+This is the simplest operational model and still the right default for this repo.
 
----
+### Option 2 - Move shared databases out of Kubernetes
 
-# PVC Lifecycle
+Run PostgreSQL and Redis on a dedicated VM or host with:
 
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant K8s as Kubernetes API
-    participant Prov as NFS Provisioner
-    participant TN as TrueNAS NFS
+- local SSD storage
+- host-level backup strategy
+- stable DNS or virtual IP
 
-    App->>K8s: Create PVC (storageClassName: nfs-truenas)
-    K8s->>Prov: PVC binding request
-    Prov->>TN: mkdir /mnt/core/k8s-volumes/namespace-pvc-uid/
-    TN-->>Prov: Directory created
-    Prov->>K8s: Create PersistentVolume + bind to PVC
-    K8s-->>App: PVC status: Bound
-    App->>K8s: Mount PVC in Pod
-    K8s->>TN: NFS mount
-```
+This is the cleanest next step if you want stronger database semantics without adding a distributed storage stack to Kubernetes itself.
 
----
-
-# PVC Naming Convention
-
-PVC names follow a consistent pattern:
-
-```
-<application>-<component>
-```
+### Option 3 - Adopt replicated block storage
 
 Examples:
 
-```
-grafana-data
-prometheus-data
-loki-data
-sonarr-config
-immich-data
-n8n-data
-```
+- Longhorn
+- OpenEBS
+- Ceph
 
-This makes it straightforward to identify the TrueNAS directory that corresponds to a given PVC.
+This gives you portable block-style storage that behaves far better for databases than NFS, but it also adds significant operational weight.
+
+For a homelab of this size, this only makes sense if:
+
+- you explicitly want to learn and operate distributed storage, or
+- you are willing to pay the complexity cost in exchange for better failover characteristics
+
+### My recommendation for this repo
+
+Stay with the current split for now:
+
+1. `nfs-truenas` for shared application PVCs
+2. `local-path` for PostgreSQL, Redis, and Prometheus
+3. move databases to a dedicated VM later if you want a cleaner production posture without adopting Longhorn or Ceph
 
 ---
 
-# Verifying Storage
+## NFS Provisioner Deployment
 
-Check that the NFS share is reachable from cluster nodes:
+The provisioner is deployed by Flux from `platform/storage/nfs-provisioner/`.
+
+Verify the HelmRelease:
 
 ```bash
-# On any cluster node
-showmount -e 10.0.10.80
+flux get helmrelease -n storage
+kubectl get pods -n storage
 ```
 
-Expected output includes:
-
-```
-/mnt/core/k8s-volumes    10.0.10.0/24
-```
-
-Check that the StorageClass exists:
+Check the StorageClasses:
 
 ```bash
 kubectl get storageclass
@@ -217,103 +256,82 @@ kubectl get storageclass
 
 Expected:
 
-```
-NAME          PROVISIONER                   RECLAIM POLICY   VOLUME BINDING MODE
-nfs-truenas   cluster.local/nfs-provisioner Retain           Immediate
-local-path    rancher.io/local-path         Delete           WaitForFirstConsumer
+```text
+NAME          PROVISIONER                    RECLAIM POLICY   VOLUME BINDING MODE
+nfs-truenas   cluster.local/nfs-provisioner  Retain           Immediate
+local-path    rancher.io/local-path          Delete           WaitForFirstConsumer
 ```
 
-Check that a PVC is bound:
+---
+
+## PVC Lifecycle
+
+### NFS-backed PVCs
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as Kubernetes API
+    participant Prov as NFS provisioner
+    participant TN as TrueNAS
+
+    App->>API: Create PVC (nfs-truenas)
+    API->>Prov: Provision request
+    Prov->>TN: Create backing directory
+    TN-->>Prov: Directory ready
+    Prov->>API: Create PV and bind
+    API-->>App: PVC Bound
+```
+
+### Local-path PVCs
+
+The first node that satisfies scheduling for the pod becomes the home of the volume. After that, the PV carries node affinity and the workload remains attached to that node unless you rebuild or migrate it deliberately.
+
+That is the portability tradeoff you accept for database-friendly behaviour.
+
+---
+
+## Sizing and Verification
+
+### Starting sizes
+
+| Workload | Recommended size | StorageClass |
+|---|---|---|
+| Grafana | 2Gi | `nfs-truenas` |
+| Loki | 20Gi | `nfs-truenas` |
+| Nextcloud | depends on usage | `nfs-truenas` |
+| PostgreSQL | 8Gi to start | `local-path` |
+| Redis | 1Gi to start | `local-path` |
+| Prometheus | 20Gi | `local-path` |
+
+These are starting points only. Grafana should tell you when reality differs from the estimate.
+
+### Verification commands
 
 ```bash
 kubectl get pvc -A
+kubectl get pv
+kubectl describe storageclass nfs-truenas
+kubectl describe storageclass local-path
+showmount -e 10.0.10.80
 ```
 
-All PVCs should show `STATUS: Bound`.
+Questions these commands answer:
+
+- are PVCs bound?
+- which PVs are NFS-backed versus node-local?
+- is the NFS export reachable from the cluster?
 
 ---
 
-# Volume Sizing Guidance
+## Exit Criteria
 
-| Workload | Recommended size | Notes |
-|----------|-----------------|-------|
-| Grafana | 2Gi | dashboards, plugins |
-| Prometheus | 20Gi | time-series retention (15 days default) |
-| Loki | 20Gi | log retention |
-| Velero | n/a | Velero writes directly to NFS share |
-| Sonarr / Radarr | 1Gi | config and database only; media is a hostPath or separate NFS mount |
-| Immich | 10Gi+ | config + ML models; media library on dedicated NFS share |
+This guide is complete when:
 
-These are starting points. Monitor actual usage via Grafana and expand as needed.
-
----
-
-# Expanding a Volume
-
-NFS volumes support online expansion without pod restart.
-
-**Step 1 — Edit the PVC:**
-
-```bash
-kubectl edit pvc grafana-data -n monitoring
-```
-
-Change `storage: 5Gi` to `storage: 10Gi`.
-
-**Step 2 — Verify expansion:**
-
-```bash
-kubectl get pvc grafana-data -n monitoring
-```
-
-Status should show `Resizing` then `Bound` with the new capacity.
-
-NFS does not have a block device to resize — the directory on TrueNAS is not size-limited. The PVC capacity is advisory and tracked by Kubernetes, but data will not be truncated when it reaches the declared size.
-
-> For strict quota enforcement, configure NFS quotas on TrueNAS per dataset.
-
----
-
-# Storage and Backup Integration
-
-The NFS provisioner creates directories under `/mnt/core/k8s-volumes/`. Velero backs up PVC data by mounting volumes and copying files.
-
-For the etcd snapshot backup, the control-plane node mounts `/mnt/archive/backups/k8s/etcd/` separately — see [Guide 10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) for the snapshot script and mount setup.
-
-The ZFS pool on TrueNAS provides:
-
-- snapshot capability at the dataset level (instant, space-efficient)
-- replication to an offsite pool (if configured)
-- scrub scheduling for data integrity
-
-Recommend configuring TrueNAS periodic ZFS snapshots as an additional layer of protection:
-
-```
-Snapshot schedule: daily
-Retention: 7 days
-Dataset: core/k8s-volumes
-```
-
----
-
-# Exit Criteria
-
-Storage is considered operational when:
-
-- TrueNAS NFS shares configured and accessible from cluster subnet
-- NFS provisioner deployed and running via Flux
-- `nfs-truenas` StorageClass present and set as default (or explicitly referenced in PVCs)
-- test PVC creates successfully and shows `Bound`
-- backing directory visible on TrueNAS at `/mnt/core/k8s-volumes/`
-- Grafana dashboard shows PVC usage metrics
-
----
-
-# Further Reading
-
-- [Architecture: Storage](../architecture/storage.md) — detailed storage design reference
-- [Runbook: Backup Restoration](../runbooks/backup-restoration.md) — Velero restore procedures
-- [Guide 10: Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) — backup strategy overview
+- the two-lane storage model is understood
+- it is explicitly documented that databases and Prometheus remain off NFS
+- the current manifests, ADRs, and guide text all tell the same story
+- the next production-quality storage options are clear: dedicated DB host or replicated block storage
 
 ---
 
@@ -321,6 +339,6 @@ Storage is considered operational when:
 
 | | Guide |
 |---|---|
-| ← Previous | [07 — Namespaces & Cluster Identity](./07-Namespaces-Cluster-Identity.md) |
-| Current | **08 — Storage Architecture** |
-| → Next | [09 — Monitoring & Observability](./09-Monitoring-Observability.md) |
+| <- Previous | [07 - Namespaces & Cluster Identity](./07-Namespaces-Cluster-Identity.md) |
+| Current | **08 - Storage Architecture** |
+| -> Next | [09 - Monitoring & Observability](./09-Monitoring-Observability.md) |

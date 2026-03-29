@@ -28,7 +28,7 @@ Convert all three nodes (`tywin`, `jaime`, `tyrion`) to **k3s server nodes**, ea
 - scheduler
 - kubelet (schedules and runs workload pods)
 
-`tywin` initialises the cluster with `--cluster-init`. `jaime` and `tyrion` join with `--server https://10.0.10.11:6443`.
+`tywin` initialises the cluster with `--cluster-init`. `jaime` and `tyrion` join with `--server https://10.0.10.100:6443`.
 
 No node is tainted. All three nodes are schedulable for workloads. No dedicated worker nodes remain.
 
@@ -46,7 +46,7 @@ No node is tainted. All three nodes are schedulable for workloads. No dedicated 
 ### Negative
 
 - **etcd runs alongside workloads.** On all three nodes, etcd shares CPU and memory with workload pods. At 16 GB per node, this is acceptable; it becomes a concern if workloads grow significantly more memory-intensive.
-- **No API server VIP.** The kubeconfig points to `tywin` (10.0.10.11). If `tywin` is unavailable, `kubectl` access is interrupted until the kubeconfig is manually updated to point to `jaime` or `tyrion`. Workloads continue running regardless — this is a management-plane limitation only.
+- **Shared stateful services remain a bottleneck.** The HA control-plane removes the API single point of failure, but PostgreSQL, Redis, and some observability paths still run as single instances and can degrade workloads during a node loss.
 - **Upgrade complexity is marginally higher.** All three nodes are upgraded by a single `Plan` (rolling, one at a time). Previously, workers were upgraded before the control-plane. The ordering distinction is no longer meaningful; `concurrency: 1` preserves quorum throughout.
 
 ---
@@ -75,17 +75,8 @@ Run `tywin` as a dedicated control-plane (no workloads), `jaime` and `tyrion` as
 
 ## API Server High Availability Note
 
-This configuration does **not** include a floating VIP for the Kubernetes API server (e.g., kube-vip). The kubeconfig is fixed to `tywin`'s IP (`10.0.10.11`).
-
-**Impact:** If `tywin` is unavailable, `kubectl`, Flux, and any in-cluster components that call the API server via the external address will lose connectivity. Pod-to-pod traffic and workloads already scheduled will continue running normally.
-
-**Mitigation:** Point the kubeconfig to any surviving server node to restore management access:
-
-```bash
-kubectl config set-cluster default --server=https://10.0.10.12:6443
-```
-
-A proper VIP (kube-vip) would eliminate this manual step and is a candidate for a future ADR if management-plane availability becomes a requirement.
+The control-plane is exposed through **kube-vip** on `10.0.10.100`. kubeconfig, Flux, and CI
+should target this VIP rather than an individual server node IP.
 
 ---
 
@@ -98,3 +89,4 @@ A proper VIP (kube-vip) would eliminate this manual step and is a candidate for 
 | **Nightly offsite copy to Backblaze B2** | Protects against NAS failure or site-level loss. |
 | **Documented recovery runbook** | [`docs/operations/runbooks/cluster-rebuild.md`](../../operations/runbooks/cluster-rebuild.md) |
 | **resource requests/limits on workloads** | Prevents workloads from consuming memory that would pressure etcd. Enforced per-deployment. |
+

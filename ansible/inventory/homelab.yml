@@ -12,14 +12,14 @@ all:
 
     k3s_servers:
       hosts:
-        jaime:
-          ansible_host: 10.0.10.12
         tyrion:
+          ansible_host: 10.0.10.12
+        jaime:
           ansible_host: 10.0.10.13
 
     docker:
       hosts:
-        nuc:
+        docked:
           ansible_host: 10.0.10.20
 
   vars:

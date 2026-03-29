@@ -98,7 +98,8 @@ Significant architectural choices are captured as Architecture Decision Records 
 
 | ADR | Title | Status |
 |---|---|---|
-| [ADR-005](../adr/ADR-005-single-control-plane.md) | Single Control-Plane Node | Accepted |
+| [ADR-006](../adr/ADR-006-ha-control-plane.md) | HA Control-Plane (3-Node etcd Cluster) | Accepted |
+| [ADR-007](../adr/ADR-007-self-hosted-runners.md) | Self-Hosted GitHub Actions Runners | Accepted |
 
 ---
 
@@ -106,10 +107,11 @@ Significant architectural choices are captured as Architecture Decision Records 
 
 | Constraint | Detail |
 |---|---|
-| **Single control-plane** | Only `tywin` (10.0.10.11) runs the control-plane. A failure of this node causes a full cluster outage. This is an accepted trade-off documented in ADR-005. |
+| **Single-instance stateful workloads** | PostgreSQL, Redis, and some observability paths still trade availability for simplicity. A node loss is survivable at the control-plane level, but these workloads can still cause partial service degradation. |
 | **Homelab hardware** | Nodes are consumer or small-form-factor machines. No redundant power, no ECC memory. Hardware failure is a realistic failure mode. |
-| **No HA etcd** | A single-node etcd instance cannot tolerate node loss. Recovery requires restoring from snapshot. |
+| **Homelab HA, not enterprise HA** | The control-plane now uses 3-node embedded etcd with a kube-vip API endpoint, but several data services remain single-instance. |
 | **Single ISP / site** | There is no multi-site redundancy. A premises outage takes down all services. |
 | **No synthetic monitoring** | External uptime checks and end-to-end synthetic probes are not currently implemented. |
 | **No distributed tracing** | Tracing (e.g., Jaeger, Tempo) is not deployed. Observability is metrics and logs only. |
 | **Domain dependency** | Public ingress depends on `kagiso.me` DNS and Let's Encrypt reachability for certificate issuance and renewal. |
+

@@ -42,7 +42,7 @@ Availability targets are defined per service tier. Actual availability is measur
 | Tier 2 | 98.0%               | ~14.4 hours                | TBD — monitored via Grafana uptime dashboards |
 | Tier 3 | Best-effort         | No target                  | TBD — monitored via Grafana uptime dashboards |
 
-> **Note:** These targets are measured excluding scheduled maintenance windows (see Section 4). The 99.0% target for Tier 1 equates to approximately 87.6 hours of allowed downtime per year — realistic for a single-operator homelab with a single control-plane node.
+> **Note:** These targets are measured excluding scheduled maintenance windows (see Section 4). The 99.0% target for Tier 1 equates to approximately 87.6 hours of allowed downtime per year — realistic for a single-operator homelab, even with an HA control-plane, because several stateful services still run as single instances.
 
 ### 2.3 Measurement Methodology
 
@@ -61,8 +61,8 @@ These values are the same as defined in the Disaster Recovery Plan and are repro
 
 | Scenario                          | RTO                 | RPO                                      |
 |-----------------------------------|---------------------|------------------------------------------|
-| Single worker node failure        | ~30 minutes         | Zero (stateless workloads reschedule)    |
-| Control-plane (tywin) failure     | ~60–90 minutes      | Up to 6 hours (etcd snapshot interval)  |
+| Single node failure               | ~15–30 minutes      | Zero for stateless workloads; app-specific for single-instance stateful services |
+| API VIP leader loss               | ~1–5 minutes        | Zero                                     |
 | Full cluster rebuild              | ~90–120 minutes     | Up to 6h (etcd) / 24h (PV data)         |
 | TrueNAS storage failure           | ~60 minutes         | Up to 24 hours (last Velero backup)      |
 
@@ -154,3 +154,4 @@ This document is reviewed quarterly. Targets may be revised based on:
 | Version | Date       | Author            | Summary of Changes     |
 |---------|------------|-------------------|------------------------|
 | 1.0     | 2026-03-14 | Platform Engineer | Initial document       |
+

@@ -104,13 +104,17 @@ This repository is the **source of truth for cluster provisioning**. The role at
 
 # Cluster Topology
 
-The cluster consists of three nodes.
+The cluster consists of three k3s server nodes behind a stable API VIP.
+
+![HA cluster topology](../../assets/cluster-topology.svg)
 
 ```mermaid
 graph TD
-    tywin["tywin — 10.0.10.11<br/>Control Plane<br/>kube-apiserver · etcd · scheduler · controller-manager"]
-    jaime["jaime — 10.0.10.12<br/>Worker Node"]
-    tyrion["tyrion — 10.0.10.13<br/>Worker Node"]
+    vip["kube-vip — 10.0.10.100<br/>Stable Kubernetes API endpoint"]
+    tywin["tywin — 10.0.10.11<br/>k3s Server"]
+    jaime["jaime — 10.0.10.13<br/>k3s Server"]
+    tyrion["tyrion — 10.0.10.12<br/>k3s Server"]
+    vip --> tywin
     tywin --> jaime
     tywin --> tyrion
     style tywin fill:#2b6cb0,color:#fff
@@ -120,15 +124,16 @@ graph TD
 
 | Node | Role | IP |
 |---|---|---|
-| tywin | control-plane | 10.0.10.11 |
-| jaime | worker | 10.0.10.12 |
-| tyrion | worker | 10.0.10.13 |
+| kube-vip | stable API VIP | 10.0.10.100 |
+| tywin | k3s server | 10.0.10.11 |
+| tyrion | k3s server | 10.0.10.12 |
+| jaime | k3s server | 10.0.10.13 |
 
 ---
 
 # Control Plane Architecture
 
-The control-plane node (`tywin`) runs all core Kubernetes control components:
+All three nodes run the full k3s server stack:
 
 ```
 kube-apiserver          → serves the Kubernetes API on port 6443
@@ -137,13 +142,9 @@ kube-scheduler          → assigns pods to nodes
 etcd                    → distributed key-value store for all cluster state
 ```
 
-This is a **single-node control plane** with embedded etcd. See [ADR-005](../adr/ADR-005-embedded-etcd.md) for the rationale — a single-node control plane is appropriate for a homelab where the added complexity of HA etcd is not justified.
-
-Worker nodes (`jaime`, `tyrion`) host:
-
-- application workloads
-- platform services (Prometheus, Loki, Traefik, etc.)
-- stateful workloads backed by NFS PVCs
+This is a **3-node HA control-plane** with embedded etcd. `tywin` bootstraps the cluster,
+`tyrion` and `jaime` join as additional servers, and `kube-vip` advertises `10.0.10.100`
+as the stable API endpoint used by kubeconfig, Flux, and CI.
 
 ---
 
@@ -156,10 +157,10 @@ The `install-cluster.yml` playbook, through the `k3s_install` role, performs the
 
 1. **Installs `nfs-common`** on all nodes — required by the NFS Subdir Provisioner that Flux deploys later. Without it, NFS PVC mounts fail with `bad option; need helper program`.
 2. **Installs k3s server on `tywin`** — starts the control plane with embedded etcd, disables the bundled Traefik ingress and bundled ServiceLB load balancer (both are managed by Flux instead).
-3. **Retrieves the cluster join token** from tywin — this token allows worker nodes to authenticate with the control plane.
-4. **Installs k3s agent on `jaime` and `tyrion`** — joins each worker to the cluster using the join token.
-5. **Applies node labels** — labels `tywin` as `node-role.kubernetes.io/control-plane` and workers as `node-role.kubernetes.io/worker`.
-6. **Configures etcd snapshots** — sets up automatic etcd snapshots to the TrueNAS NFS path `/mnt/archive/backups/k8s/etcd` on a schedule.
+3. **Retrieves the cluster join token** from tywin — this token allows the remaining servers to join the cluster.
+4. **Deploys kube-vip** on the bootstrap server — this advertises `10.0.10.100` as the stable API endpoint.
+5. **Installs k3s server on `tyrion` and `jaime`** — joins the remaining servers through the VIP.
+6. **Fetches kubeconfig and patches it** to use `10.0.10.100` instead of `127.0.0.1`.
 
 The bundled Traefik and ServiceLB are disabled because this platform manages both through
 Flux — Traefik via the `platform-networking` kustomization, and MetalLB as the LoadBalancer
@@ -184,9 +185,9 @@ graph TD
     A["varys — Ansible Automation Host"] --> B["Install nfs-common on all nodes"]
     B --> C["Install k3s server on tywin<br/>(control-plane, embedded etcd,<br/>--disable traefik --disable servicelb)"]
     C --> D["Retrieve cluster join token from tywin"]
-    D --> E["Install k3s agent on jaime + tyrion<br/>(join workers to cluster)"]
-    E --> F["Apply node labels"]
-    F --> G["Configure etcd snapshots → TrueNAS NFS"]
+    D --> E["Deploy kube-vip<br/>(10.0.10.100 API VIP)"]
+    E --> F["Install k3s server on tyrion + jaime<br/>(join through VIP)"]
+    F --> G["Fetch kubeconfig patched to 10.0.10.100"]
     G --> H["Cluster operational"]
 ```
 
@@ -198,7 +199,7 @@ After installation, copy the kubeconfig from the control-plane node (`tywin`) to
 automation host (`varys`) and configure `kubectl` to use it.
 
 k3s writes `127.0.0.1` as the API server address in the generated kubeconfig. This address
-is only reachable on tywin itself. Replace it with tywin's LAN IP so varys can connect.
+is only reachable on tywin itself. Replace it with the kube-vip endpoint so varys can connect.
 
 Run on **varys**:
 
@@ -208,7 +209,7 @@ mkdir -p ~/.kube
 
 # Copy the kubeconfig and patch the server address
 scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
-sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/prod-config
 
 # Restrict file permissions (kubectl warns if the file is world-readable)
 chmod 600 ~/.kube/prod-config
@@ -231,8 +232,8 @@ Expected output:
 ```
 NAME     STATUS   ROLES                  AGE   VERSION
 tywin    Ready    control-plane,master   2m    v1.x.x+k3s1
-jaime    Ready    worker                 1m    v1.x.x+k3s1
-tyrion   Ready    worker                 1m    v1.x.x+k3s1
+tyrion   Ready    control-plane,master   1m    v1.x.x+k3s1
+jaime    Ready    control-plane,master   1m    v1.x.x+k3s1
 ```
 
 All three nodes must show `Ready`. If any node shows `NotReady`, wait 30 seconds and retry —
@@ -276,12 +277,13 @@ of truth for:
 - ConfigMaps and Secrets
 - all custom resource definitions and their instances
 
-Because etcd runs on the control-plane node (`tywin`), the reliability of tywin is critical.
-Losing tywin without a recent etcd snapshot means losing the cluster state entirely.
+Because etcd now runs as a 3-member embedded cluster across `tywin`, `tyrion`, and `jaime`,
+the platform can tolerate the loss of a single server node without losing cluster state.
+What still matters is maintaining quorum and keeping recent snapshots available.
 
-**This is why etcd snapshots to TrueNAS NFS are configured in the playbook** — they provide a
-point-in-time consistent backup of the entire cluster state, independent of the node itself.
-Guide 10 covers the full backup and restore procedures for etcd snapshots.
+**This is why etcd snapshots to TrueNAS storage are configured in the playbook** — they provide a
+point-in-time consistent backup of the cluster state independent of any single node. Guide 10
+covers the full backup and restore procedures.
 
 ---
 
@@ -330,11 +332,12 @@ Key labels to verify:
 | Node | Expected label |
 |---|---|
 | tywin | `node-role.kubernetes.io/control-plane=true` |
-| jaime | `node-role.kubernetes.io/worker=true` |
-| tyrion | `node-role.kubernetes.io/worker=true` |
+| jaime | `node-role.kubernetes.io/control-plane=true` |
+| tyrion | `node-role.kubernetes.io/control-plane=true` |
 
-These labels are used by platform workloads to constrain scheduling — for example, ensuring
-that Prometheus does not run on the control-plane node.
+These labels are used by platform workloads and the upgrade controller to target k3s server
+nodes. In this platform all three nodes are both control-plane and workload nodes, so the label
+means "k3s server" rather than "dedicated non-workload node".
 
 ---
 
@@ -372,14 +375,14 @@ If a node fails, verify SSH key access and that the node is reachable:
 ssh kagiso@10.0.10.11
 ```
 
-### Workers fail to join the cluster
+### Additional servers fail to join the cluster
 
-The workers join using port 6443 on tywin. If the firewall is blocking this port, worker agents
-will fail to register. Verify from a worker node:
+The additional servers join through the stable API VIP on port 6443. If the firewall is blocking
+this port, the joining server will fail to register. Verify from another server node:
 
 ```bash
-ssh kagiso@10.0.10.12
-curl -k https://10.0.10.11:6443/version
+ssh kagiso@10.0.10.13
+curl -k https://10.0.10.100:6443/version
 # Expected: JSON response with Kubernetes version info
 ```
 
@@ -392,18 +395,18 @@ sudo ufw status | grep 6443
 
 ### kubectl cannot connect after copying kubeconfig
 
-The most common cause is forgetting to replace `127.0.0.1` with `10.0.10.11` in the kubeconfig.
+The most common cause is forgetting to replace `127.0.0.1` with `10.0.10.100` in the kubeconfig.
 
 ```bash
 grep server ~/.kube/prod-config
-# Expected: server: https://10.0.10.11:6443
+# Expected: server: https://10.0.10.100:6443
 # Wrong:    server: https://127.0.0.1:6443
 ```
 
 If wrong, run the `sed` command again:
 
 ```bash
-sed -i 's/127.0.0.1/10.0.10.11/' ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/prod-config
 ```
 
 ### nfs-common not installed after playbook
@@ -441,8 +444,8 @@ Expected:
 ```
 NAME     STATUS   ROLES                  AGE   VERSION
 tywin    Ready    control-plane,master   ...   v1.x.x+k3s1
-jaime    Ready    worker                 ...   v1.x.x+k3s1
-tyrion   Ready    worker                 ...   v1.x.x+k3s1
+tyrion   Ready    control-plane,master   ...   v1.x.x+k3s1
+jaime    Ready    control-plane,master   ...   v1.x.x+k3s1
 ```
 
 **All system pods are running:**
@@ -464,7 +467,7 @@ kubectl get pods -A | grep -E "traefik|svclb"
 ```bash
 kubectl get nodes --show-labels | grep "node-role"
 # tywin: control-plane label present
-# jaime, tyrion: worker label present
+# tywin, jaime, tyrion: control-plane label present
 ```
 
 **nfs-common is installed on all nodes:**
@@ -499,3 +502,4 @@ The next guide covers how secrets are encrypted, stored in Git, and decrypted by
 | ← Previous | [01 — Node Preparation & Hardening](./01-Node-Preparation-Hardening.md) |
 | Current | **02 — Kubernetes Installation** |
 | → Next | [03 — Secrets Management](./03-Secrets-Management.md) |
+

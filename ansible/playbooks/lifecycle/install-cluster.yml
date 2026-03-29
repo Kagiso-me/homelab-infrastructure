@@ -14,6 +14,40 @@
   roles:
     - k3s_install
 
+- name: Deploy kube-vip control-plane VIP on the bootstrap server
+  hosts: k3s_primary
+  become: true
+  tasks:
+    - name: Create k3s manifests directory
+      file:
+        path: /var/lib/rancher/k3s/server/manifests
+        state: directory
+        mode: "0755"
+
+    - name: Install kube-vip RBAC manifest
+      template:
+        src: ../../roles/k3s_install/templates/kube-vip-rbac.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/kube-vip-rbac.yaml
+        mode: "0644"
+
+    - name: Install kube-vip DaemonSet manifest
+      template:
+        src: ../../roles/k3s_install/templates/kube-vip-daemonset.yaml.j2
+        dest: /var/lib/rancher/k3s/server/manifests/kube-vip-daemonset.yaml
+        mode: "0644"
+
+    - name: Wait for kube-vip DaemonSet rollout
+      command: kubectl -n kube-system rollout status daemonset/kube-vip-ds --timeout=180s
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Wait for Kubernetes API VIP to respond
+      wait_for:
+        host: "{{ k3s_api_endpoint }}"
+        port: 6443
+        timeout: 180
+
 - name: Install K3s additional servers (join cluster)
   hosts: k3s_servers
   become: true
@@ -34,11 +68,11 @@
 - name: Fix kubeconfig endpoint
   hosts: localhost
   tasks:
-    - name: Replace 127.0.0.1 with primary server IP in kubeconfig
+    - name: Replace 127.0.0.1 with control-plane VIP in kubeconfig
       replace:
         path: "{{ lookup('env','HOME') }}/.kube/config"
         regexp: '^(\s*server: https://).*(:6443.*)$'
-        replace: '\g<1>{{ hostvars[groups["k3s_primary"][0]].ansible_host }}\g<2>'
+        replace: '\g<1>{{ hostvars[groups["k3s_primary"][0]].k3s_api_endpoint }}\g<2>'
 
 - name: Verify cluster health
   hosts: k3s_primary

@@ -91,7 +91,7 @@ data:
         {
           "type": "stat",
           "title": "tywin",
-          "description": "10.0.10.11 — k3s control plane",
+          "description": "10.0.10.11 — k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
           "id": 3,
@@ -130,13 +130,13 @@ data:
         {
           "type": "stat",
           "title": "jaime",
-          "description": "10.0.10.12 — k3s worker node",
+          "description": "10.0.10.13 — k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
           "id": 4,
           "targets": [
             {
-              "expr": "up{instance=\"10.0.10.12:9100\"}",
+              "expr": "up{instance=\"10.0.10.13:9100\"}",
               "refId": "A",
               "instant": true
             }
@@ -169,13 +169,13 @@ data:
         {
           "type": "stat",
           "title": "tyrion",
-          "description": "10.0.10.13 — k3s worker node",
+          "description": "10.0.10.12 — k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
           "id": 5,
           "targets": [
             {
-              "expr": "up{instance=\"10.0.10.13:9100\"}",
+              "expr": "up{instance=\"10.0.10.12:9100\"}",
               "refId": "A",
               "instant": true
             }
@@ -712,3 +712,4 @@ data:
         }
       ]
     }
+

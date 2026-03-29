@@ -17,7 +17,7 @@
 This Security Policy defines the security controls, standards, and accepted risks for the homelab Kubernetes infrastructure. It governs the k3s cluster, associated storage, secrets management, network exposure, and the GitOps pipeline.
 
 **In scope:**
-- k3s cluster nodes: tywin (10.0.10.11), jaime (10.0.10.12), tyrion (10.0.10.13)
+- k3s cluster nodes: tywin (10.0.10.11), jaime (10.0.10.13), tyrion (10.0.10.12)
 - Kubernetes workloads and namespaces managed by FluxCD
 - TrueNAS storage (10.0.10.80) and NFS-backed persistent volumes
 - External domain: kagiso.me (public-facing services)
@@ -167,7 +167,7 @@ The following risks are accepted given the homelab context and documented here f
 
 | Risk                              | Rationale / Mitigation                                                     | Reference  |
 |-----------------------------------|----------------------------------------------------------------------------|------------|
-| Single control-plane node         | No etcd HA; accepted to reduce complexity and hardware cost. Mitigated by etcd snapshots and documented recovery runbook. | ADR-005    |
+| Limited east-west isolation       | Kubernetes NetworkPolicy is not yet enforced for workload namespaces, so pod-to-pod traffic is broader than ideal. Mitigated partly by VLAN segmentation and host-level controls. | —          |
 | No Kubernetes NetworkPolicy       | CNI does not enforce NetworkPolicy by default in this configuration. East-west traffic is unrestricted within the cluster. Mitigated by VLAN segmentation at network layer. | ADR-003    |
 | No vulnerability scanning pipeline| No automated container image CVE scanning. Mitigated by staying current with upstream releases and monitoring advisories. | —          |
 | No audit logging                  | Kubernetes API audit logging is not enabled. Reduces operational complexity at the cost of forensic capability. | —          |
@@ -186,3 +186,4 @@ This policy is reviewed quarterly and after any security incident.
 | Version | Date       | Author            | Summary of Changes     |
 |---------|------------|-------------------|------------------------|
 | 1.0     | 2026-03-14 | Platform Engineer | Initial document       |
+

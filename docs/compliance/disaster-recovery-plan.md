@@ -34,8 +34,8 @@ This Disaster Recovery Plan (DRP) defines the procedures, responsibilities, and 
 
 | Scenario                          | Recovery Time Objective (RTO) | Recovery Point Objective (RPO)        |
 |-----------------------------------|-------------------------------|---------------------------------------|
-| Single worker node failure        | ~30 minutes                   | Zero (workloads reschedule)           |
-| Control-plane (tywin) failure     | ~60–90 minutes                | Up to 6 hours (last etcd snapshot)   |
+| Single node failure               | ~15–30 minutes                | Zero for stateless workloads; app-specific for single-instance stateful services |
+| API VIP leader loss               | ~1–5 minutes                  | Zero                                 |
 | Full cluster loss (all nodes)     | ~90–120 minutes               | Up to 6 hours (etcd) / 24 hours (PV) |
 | TrueNAS storage failure           | ~60 minutes (ZFS restore)     | Up to 24 hours (Velero snapshot)      |
 | GitOps repository loss            | Near-zero (GitHub hosted)     | Near-zero (mirrored to remote)        |
@@ -87,22 +87,23 @@ Recovery depends on a four-layer backup architecture providing defense in depth.
 
 Detailed step-by-step procedures are maintained in the [`docs/operations/runbooks/`](../operations/runbooks/) directory. This section summarises the recovery paths.
 
-### 4.1 Single Worker Node Failure (jaime or tyrion)
+### 4.1 Single Node Failure (tywin, tyrion, or jaime)
 
-1. Kubernetes will automatically reschedule pods to the remaining worker within minutes.
-2. If the node requires rebuild: provision the host OS, install k3s agent, and join the cluster using the stored join token.
+1. Kubernetes will keep quorum as long as two server nodes remain available.
+2. kube-vip will move the API VIP to a surviving node automatically.
+3. If the node requires rebuild: provision the host OS, install k3s server, and join the cluster using the stable API endpoint.
 3. Verify node status: `kubectl get nodes`.
 4. No data recovery is required for stateless workloads. For PVC-bound workloads, verify volume reattachment.
 5. **Estimated RTO:** ~30 minutes.
 
 **Runbook:** [`docs/operations/runbooks/node-replacement.md`](../operations/runbooks/node-replacement.md)
 
-### 4.2 Control-Plane Node Failure (tywin)
+### 4.2 Quorum Loss or Multiple Server Failures
 
 1. Provision replacement host with identical hostname and IP (10.0.10.11) where possible.
 2. Install k3s server with `--cluster-init` and restore the most recent etcd snapshot.
 3. Verify all control-plane components are healthy: `kubectl get pods -n kube-system`.
-4. Re-join worker nodes if cluster token changed.
+4. Re-join surviving or replacement server nodes if cluster token changed.
 5. Verify FluxCD reconciliation resumes: `flux get all`.
 6. **Estimated RTO:** ~60–90 minutes.
 
@@ -113,7 +114,7 @@ Detailed step-by-step procedures are maintained in the [`docs/operations/runbook
 1. Restore TrueNAS from ZFS snapshot or Backblaze B2 if storage is also affected.
 2. Provision all three nodes (tywin, jaime, tyrion) with base OS.
 3. Bootstrap k3s control-plane on tywin and restore etcd snapshot.
-4. Re-join jaime and tyrion as workers.
+4. Re-join tyrion and jaime as server nodes.
 5. Bootstrap FluxCD: `flux bootstrap github` — Flux will reconcile the full cluster state from Git.
 6. Restore PVC data from most recent Velero backup for stateful workloads.
 7. Validate ingress, TLS certificates, and monitoring stack.
@@ -159,7 +160,7 @@ Disaster recovery procedures must be tested on a quarterly basis to validate run
 | Velero restore (single namespace)  | Quarterly   | TBD         | TBD         |
 | etcd snapshot restore (test node)  | Quarterly   | TBD         | TBD         |
 | ZFS snapshot restore (single file) | Quarterly   | TBD         | TBD         |
-| Full worker node rebuild           | Semi-annual | TBD         | TBD         |
+| Full node rebuild                  | Semi-annual | TBD         | TBD         |
 | Full cluster rebuild (tabletop)    | Annual      | TBD         | TBD         |
 | Backblaze B2 restore validation    | Quarterly   | TBD         | TBD         |
 
@@ -201,3 +202,4 @@ Change history is maintained in Git. The authoritative version of this document 
 | Version | Date       | Author            | Summary of Changes     |
 |---------|------------|-------------------|------------------------|
 | 1.0     | 2026-03-14 | Platform Engineer | Initial document       |
+

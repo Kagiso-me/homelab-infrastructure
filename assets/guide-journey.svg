@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="55%" stop-color="#11233f"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1f2f47" stroke-width="0.6"/>
+    </pattern>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="280" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="280" rx="24" fill="url(#grid)" opacity="0.35"/>
+
+  <text x="80" y="56" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="24" font-weight="700">First-time deployment path</text>
+  <text x="80" y="84" fill="#83a7d6" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Follow the guides in this order and each layer arrives before the next one depends on it.</text>
+
+  <line x1="120" y1="188" x2="1080" y2="188" stroke="#25456f" stroke-width="4" filter="url(#glow)"/>
+
+  <g transform="translate(90,110)">
+    <rect width="220" height="96" rx="18" fill="#12233f" stroke="#2f5f96" stroke-width="2"/>
+    <text x="24" y="34" fill="#9bc2f4" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Guides 00 to 00.5</text>
+    <text x="24" y="58" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="18" font-weight="700">Foundations</text>
+    <text x="24" y="80" fill="#86a7cf" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Philosophy, storage, DNS, CI prerequisites</text>
+    <circle cx="110" cy="78" r="10" fill="#3b82f6"/>
+  </g>
+
+  <g transform="translate(350,110)">
+    <rect width="220" height="96" rx="18" fill="#142844" stroke="#2f7d70" stroke-width="2"/>
+    <text x="24" y="34" fill="#7edcc7" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Guides 01 to 04</text>
+    <text x="24" y="58" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="18" font-weight="700">Cluster bootstrap</text>
+    <text x="24" y="80" fill="#9fc7bf" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Node prep, k3s, secrets, Flux control plane</text>
+    <circle cx="110" cy="78" r="10" fill="#22c55e"/>
+  </g>
+
+  <g transform="translate(610,110)">
+    <rect width="220" height="96" rx="18" fill="#2a2415" stroke="#b88a2e" stroke-width="2"/>
+    <text x="24" y="34" fill="#f3d181" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Guides 05 to 11</text>
+    <text x="24" y="58" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="18" font-weight="700">Platform services</text>
+    <text x="24" y="80" fill="#d6c3a0" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Networking, TLS, storage, monitoring, DR, upgrades</text>
+    <circle cx="110" cy="78" r="10" fill="#eab308"/>
+  </g>
+
+  <g transform="translate(870,110)">
+    <rect width="220" height="96" rx="18" fill="#291b24" stroke="#b05887" stroke-width="2"/>
+    <text x="24" y="34" fill="#f1a4ca" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Guides 12 to 13</text>
+    <text x="24" y="58" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="18" font-weight="700">Applications and ops</text>
+    <text x="24" y="80" fill="#d9b3c8" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">App delivery, routine operations, incident response</text>
+    <circle cx="110" cy="78" r="10" fill="#ec4899"/>
+  </g>
+
+  <path d="M 310 158 L 350 158" stroke="#6e9ecf" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M 570 158 L 610 158" stroke="#6e9ecf" stroke-width="3"/>
+  <path d="M 830 158 L 870 158" stroke="#6e9ecf" stroke-width="3"/>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#6e9ecf"/>
+    </marker>
+  </defs>
+</svg>

@@ -7,8 +7,8 @@ The cluster comprises three physical nodes running k3s. All nodes are on the sam
 | Name | IP Address | Role | Notes |
 |---|---|---|---|
 | `tywin` | 10.0.10.11 | Control-plane + Worker | Initialises cluster (`--cluster-init`); runs etcd, API server, controller-manager, scheduler, and workloads |
-| `jaime` | 10.0.10.12 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
-| `tyrion` | 10.0.10.13 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
+| `jaime` | 10.0.10.13 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
+| `tyrion` | 10.0.10.12 | Control-plane + Worker | Joins as additional server; runs etcd, API server, controller-manager, scheduler, and workloads |
 
 > Resource sizing per node is detailed in the [Resource Sizing](#resource-sizing) section below.
 
@@ -22,7 +22,7 @@ k3s is deployed with several non-default flags to integrate cleanly with the pla
 |---|---|---|
 | `--disable traefik` | `true` | Traefik is installed separately via FluxCD HelmRelease with a pinned chart version and custom values. The bundled k3s Traefik cannot be version-pinned or fully customised via GitOps. |
 | `--disable servicelb` | `true` | MetalLB is used as the bare-metal LoadBalancer. The bundled ServiceLB (klipper-lb) conflicts with MetalLB's ARP announcements. |
-| `--cluster-init` | `true` (on `tywin` only) | Bootstraps the embedded etcd cluster on the first server node. `jaime` and `tyrion` join with `--server https://tywin:6443`. |
+| `--cluster-init` | `true` (on `tywin` only) | Bootstraps the embedded etcd cluster on the first server node. `tyrion` and `jaime` join through the stable API VIP at `https://10.0.10.100:6443`. |
 | `--node-taint` | None applied | All three server nodes schedule workloads. With 16 GB RAM per node, tainting control-plane nodes would waste schedulable capacity for no meaningful resource isolation benefit at this scale. |
 | Embedded etcd snapshots | Every 6 hours, retained for 7 | All server nodes are configured with S3 snapshot settings. The etcd leader takes snapshots; snapshots are stored in MinIO on TrueNAS and synced offsite to Backblaze B2. |
 
@@ -44,10 +44,11 @@ Internet
 |  Node Subnet                               |
 |                                            |
 |  10.0.10.11  tywin   (control-plane + worker)  |
-|  10.0.10.12  jaime   (control-plane + worker)  |
-|  10.0.10.13  tyrion  (control-plane + worker)  |
+|  10.0.10.13  jaime   (control-plane + worker)  |
+|  10.0.10.12  tyrion  (control-plane + worker)  |
 |                                            |
-|  MetalLB pool:  10.0.10.110 - 10.0.10.125 |
+|  API VIP:       10.0.10.100               |
+|  MetalLB pool:  10.0.10.110 - 10.0.10.115 |
 |  Traefik VIP:   10.0.10.110               |
 +--------------------------------------------+
     |
@@ -66,7 +67,8 @@ Internet
 - All cluster nodes are on `10.0.10.0/24`. MetalLB operates in ARP (Layer-2) mode and requires all nodes and the LoadBalancer IP pool to share a broadcast domain.
 - Traefik is pinned to `10.0.10.110` via a MetalLB `IPAddressPool` annotation on its Service. This IP is referenced in DNS and router port-forward rules and must not change.
 - TrueNAS is on a separate management subnet (`10.0.10.0/24`) reachable from all nodes. NFS traffic is not encrypted at the network layer; network isolation is relied upon for NFS security.
-- The MetalLB pool `10.0.10.110–10.0.10.125` is reserved in the router's DHCP server (excluded from dynamic assignment).
+- The Kubernetes API is exposed through kube-vip on `10.0.10.100`, giving kubectl, Flux, and CI a stable endpoint independent of any single server node.
+- The MetalLB pool `10.0.10.110–10.0.10.115` is reserved in the router's DHCP server (excluded from dynamic assignment).
 
 ---
 
@@ -81,8 +83,8 @@ All three nodes run both control-plane and worker roles, forming a 3-member embe
 | Control-plane nodes | 3 (`tywin`, `jaime`, `tyrion`) |
 | etcd quorum | 3-member cluster; majority quorum = 2. Tolerates loss of any 1 node. |
 | Failure domain | Loss of any single node: cluster API remains available, etcd maintains quorum, workloads reschedule to remaining nodes. |
-| Recovery path | Replace failed node, re-join as additional server with `--server https://10.0.10.11:6443`. |
-| API server VIP | Not implemented. kubeconfig points to `tywin` (10.0.10.11). If tywin is unavailable, update kubeconfig to point to `jaime` or `tyrion` — workloads continue running regardless. |
+| Recovery path | Replace failed node, re-join as additional server with `--server https://10.0.10.100:6443`. |
+| API server VIP | Implemented with kube-vip on `10.0.10.100`. Kubeconfig, Flux, and CI should target the VIP rather than any individual node IP. |
 
 ---
 
@@ -123,3 +125,4 @@ All three k3s nodes are **Lenovo ThinkCentre M93p** small form-factor machines �
 > **Planned CPU upgrade:** All three nodes will be upgraded to Intel Core i7-4790T (4c/8t @ 2.7GHz base / 3.9GHz turbo, 45W TDP) when parts arrive, doubling thread count. No cluster changes required — nodes are drained, upgraded, and rejoined one at a time.
 
 **Persistent storage** is provided entirely by TrueNAS via NFS. No node-local PersistentVolumes are used in steady state, which means pods can reschedule freely across workers without data affinity constraints.
+

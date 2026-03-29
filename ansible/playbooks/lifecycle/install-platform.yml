@@ -22,7 +22,7 @@
 # Those components are fully managed by Flux via GitOps. Installing them here
 # creates duplicate resources that conflict with Flux-managed deployments.
 #
-# TARGET: prod cluster (k3s_primary group — tywin, 10.0.10.11)
+# TARGET: prod cluster bootstrap server (k3s_primary group — tywin, 10.0.10.11)
 # This playbook is for the PRODUCTION cluster only. Flux watches the `main` branch.
 #
 # Prerequisites:
@@ -314,3 +314,4 @@
       loop:
         - /tmp/gotk-sync.yaml
       tags: [always]
+

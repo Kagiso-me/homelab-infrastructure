@@ -362,7 +362,7 @@ The service is reachable on the LAN. It is not reachable from the WAN.
 Three steps are required:
 
 1. Create an `IngressRoute` in k3s with the desired hostname.
-2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on the RPi and restart `cloudflared`.
+2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on `varys` and restart `cloudflared`.
 3. Add a proxied CNAME record in Cloudflare DNS pointing to the tunnel:
 
 ```bash

@@ -1,5 +1,6 @@
 # k3s installation defaults
 
+k3s_version: "v1.31.4+k3s1"
 k3s_cluster_cidr: "10.42.0.0/16"
 k3s_service_cidr: "10.43.0.0/16"
 
@@ -7,8 +8,9 @@ k3s_disable:
   - traefik
   - servicelb
 
-k3s_extra_args:
-  - "--write-kubeconfig-mode=644"
+kube_vip_version: "v0.8.9"
+kube_vip_interface: "{{ ansible_default_ipv4.interface }}"
+kube_vip_address: "10.0.10.100"
 
 # API endpoint used for TLS SAN and kubeconfig
-k3s_api_endpoint: "{{ ansible_host }}"
+k3s_api_endpoint: "{{ kube_vip_address }}"

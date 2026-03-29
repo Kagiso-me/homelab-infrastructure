@@ -49,9 +49,9 @@ commands throughout this guide.
 ```mermaid
 graph TD
     Auto["varys — 10.0.10.10<br/>Automation Host<br/>ansible - kubectl - git"]
-    Auto -->|SSH + Ansible| tywin["tywin<br/>10.0.10.11<br/>k3s Control Plane"]
-    Auto -->|SSH + Ansible| jaime["jaime<br/>10.0.10.12<br/>k3s Worker"]
-    Auto -->|SSH + Ansible| tyrion["tyrion<br/>10.0.10.13<br/>k3s Worker"]
+    Auto -->|SSH + Ansible| tywin["tywin<br/>10.0.10.11<br/>k3s Server"]
+    Auto -->|SSH + Ansible| jaime["jaime<br/>10.0.10.13<br/>k3s Server"]
+    Auto -->|SSH + Ansible| tyrion["tyrion<br/>10.0.10.12<br/>k3s Server"]
     Auto -->|SSH + Ansible| docker["docker host<br/>10.0.10.20<br/>Docker CE (bare metal NUC)"]
     style tywin fill:#2b6cb0,color:#fff
     style jaime fill:#276749,color:#fff
@@ -62,9 +62,9 @@ graph TD
 | Node | Role | IP |
 |---|---|---|
 | varys | Control hub: Ansible, kubectl, Pi-hole (primary), cloudflared, Headscale, Grafana, Alertmanager, GitHub Actions runner, Beesly | 10.0.10.10 |
-| tywin | k3s control-plane | 10.0.10.11 |
-| jaime | k3s worker | 10.0.10.12 |
-| tyrion | k3s worker | 10.0.10.13 |
+| tywin | k3s server | 10.0.10.11 |
+| tyrion | k3s server | 10.0.10.12 |
+| jaime | k3s server | 10.0.10.13 |
 | docker host | Docker CE (bare metal Intel NUC i3-7100U) | 10.0.10.20 |
 
 ---
@@ -137,8 +137,8 @@ Before copying SSH keys, all nodes must have stable IPs that match the inventory
 |---|---|
 | varys (Intel NUC i3-5010U) | `10.0.10.10` |
 | tywin (k3s control-plane) | `10.0.10.11` |
-| jaime (k3s worker) | `10.0.10.12` |
-| tyrion (k3s worker) | `10.0.10.13` |
+| jaime (k3s server) | `10.0.10.13` |
+| tyrion (k3s server) | `10.0.10.12` |
 | docker host (NUC) | `10.0.10.20` |
 
 Configure these as **DHCP reservations** in your router or UniFi controller
@@ -184,8 +184,8 @@ The automation host must be able to connect to every node without passwords.
 
 ```bash
 ssh-copy-id kagiso@10.0.10.11
-ssh-copy-id kagiso@10.0.10.12
 ssh-copy-id kagiso@10.0.10.13
+ssh-copy-id kagiso@10.0.10.12
 ```
 
 Verify access by logging in without a password:
@@ -228,9 +228,9 @@ all:
     k3s_servers:
       hosts:
         jaime:
-          ansible_host: 10.0.10.12
-        tyrion:
           ansible_host: 10.0.10.13
+        tyrion:
+          ansible_host: 10.0.10.12
 
     docker:
       hosts:
@@ -637,3 +637,4 @@ The next guide installs the Kubernetes cluster on tywin, jaime, and tyrion using
 | ← Previous | [00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md) |
 | Current | **01 — Node Preparation & Hardening** |
 | → Next | [02 — Kubernetes Installation](./02-Kubernetes-Installation.md) |
+

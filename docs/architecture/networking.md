@@ -13,14 +13,15 @@ All nodes are on the same Layer-2 network segment.
 
 | Host | IP | Role |
 |------|----|------|
-| tywin | 10.0.10.11 | Kubernetes control-plane |
-| jaime | 10.0.10.12 | Kubernetes worker |
-| tyrion | 10.0.10.13 | Kubernetes worker |
+| kube-vip | 10.0.10.100 | Kubernetes API virtual IP |
+| tywin | 10.0.10.11 | Kubernetes server node |
+| tyrion | 10.0.10.12 | Kubernetes server node |
+| jaime | 10.0.10.13 | Kubernetes server node |
 | TrueNAS | 10.0.10.80 | NFS storage |
 | Router / DNS | 10.0.10.1 | Default gateway, wildcard DNS |
 | Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
 | varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, Pi-hole, Grafana, Alertmanager, cloudflared) |
-| bran | 10.0.10.10 (retiring) | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy |
+| bran | n/a | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy (legacy / non-primary) |
 
 ---
 
@@ -274,3 +275,4 @@ This ensures all devices on the LAN use Pi-hole for DNS resolution, receiving bo
 
 - [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)
 - [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)
+

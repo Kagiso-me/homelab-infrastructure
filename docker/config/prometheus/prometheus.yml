@@ -56,9 +56,9 @@ scrape_configs:
   #    machines.
   #
   #    Nodes:
-  #      tywin  (10.0.10.11) — control plane
-  #      jaime  (10.0.10.12) — worker
-  #      tyrion (10.0.10.13) — worker
+  #      tywin  (10.0.10.11) — k3s server
+  #      tyrion (10.0.10.12) — k3s server
+  #      jaime  (10.0.10.13) — k3s server
   #
   #    Relabeling replaces the default "<ip>:<port>" instance label with a
   #    human-readable hostname so dashboards and alerts use node names.
@@ -69,11 +69,11 @@ scrape_configs:
         labels:
           instance: tywin
           role: control-plane
-      - targets: ['10.0.10.12:9100']
+      - targets: ['10.0.10.13:9100']
         labels:
           instance: jaime
           role: worker
-      - targets: ['10.0.10.13:9100']
+      - targets: ['10.0.10.12:9100']
         labels:
           instance: tyrion
           role: worker
@@ -200,3 +200,4 @@ scrape_configs:
       - targets: ['10.0.10.110:9100']
         labels:
           instance: traefik
+

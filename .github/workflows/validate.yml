@@ -11,7 +11,7 @@ name: Validate & Health Check
 #   health-check — Flux reconcile + kustomization Ready + Traefik smoke test (self-hosted, varys)
 #
 # Required GitHub repository secrets:
-#   KUBECONFIG — raw kubeconfig for prod cluster (server = 10.0.10.11:6443, NOT base64-encoded)
+#   KUBECONFIG — raw kubeconfig for prod cluster (server = 10.0.10.100:6443, NOT base64-encoded)
 #
 # Branch protection on main:
 #   Required status checks: validate, cluster-diff
@@ -83,13 +83,63 @@ jobs:
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -summary
 
-      - name: Kustomize build — apps/prod
-        run: kustomize build apps/prod
+      - name: Kustomize build — all Flux entrypoints
+        run: |
+          KUSTOMIZE_PATHS=(
+            "clusters/prod/flux-system"
+            "platform/networking"
+            "platform/networking/metallb-config"
+            "platform/networking/traefik-config"
+            "platform/security"
+            "platform/security/cluster-issuers"
+            "platform/namespaces"
+            "platform/observability"
+            "platform/observability/observability-config"
+            "platform/observability/daily-digest"
+            "platform/storage"
+            "platform/backup"
+            "platform/backup/velero-config"
+            "platform/databases"
+            "platform/upgrade"
+            "platform/upgrade/upgrade-plans"
+            "platform/security/crowdsec"
+            "platform/security/authentik"
+            "apps/prod"
+          )
+
+          for path in "${KUSTOMIZE_PATHS[@]}"; do
+            echo "--- ${path} ---"
+            kustomize build "${path}" > /dev/null
+          done
 
       - name: Check for deprecated Kubernetes APIs
         run: |
-          echo "--- apps/prod ---"
-          kustomize build apps/prod | pluto detect - || true
+          KUSTOMIZE_PATHS=(
+            "clusters/prod/flux-system"
+            "platform/networking"
+            "platform/networking/metallb-config"
+            "platform/networking/traefik-config"
+            "platform/security"
+            "platform/security/cluster-issuers"
+            "platform/namespaces"
+            "platform/observability"
+            "platform/observability/observability-config"
+            "platform/observability/daily-digest"
+            "platform/storage"
+            "platform/backup"
+            "platform/backup/velero-config"
+            "platform/databases"
+            "platform/upgrade"
+            "platform/upgrade/upgrade-plans"
+            "platform/security/crowdsec"
+            "platform/security/authentik"
+            "apps/prod"
+          )
+
+          for path in "${KUSTOMIZE_PATHS[@]}"; do
+            echo "--- ${path} ---"
+            kustomize build "${path}" | pluto detect - || true
+          done
 
   # ─── PR Job 2: Live cluster diff ──────────────────────────────────────────
   # Runs on self-hosted runner (bran, 10.0.10.10) — direct LAN access to prod.

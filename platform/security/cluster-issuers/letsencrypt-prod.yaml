@@ -7,10 +7,9 @@
 # Only use after confirming issuance works with letsencrypt-staging.
 #
 # Prerequisite: cloudflare-api-token Secret must exist in cert-manager namespace.
-# Apply it out-of-band (never commit secrets to git):
-#   kubectl create secret generic cloudflare-api-token \
-#     --namespace cert-manager \
-#     --from-literal=api-token=<your-token>
+# In this repo the bootstrap playbook creates it from Ansible Vault:
+#   ansible/playbooks/lifecycle/install-platform.yml
+# Manual creation is only needed for break-glass recovery.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

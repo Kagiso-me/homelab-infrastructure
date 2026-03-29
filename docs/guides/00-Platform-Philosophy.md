@@ -189,9 +189,10 @@ graph TD
 ```
 varys   → 10.0.10.10   Intel NUC i3-5010U — control hub: Ansible, kubectl, Pi-hole (primary), cloudflared, Headscale, Grafana, Alertmanager, GitHub Actions runner, Beesly
 bran    → RPi 3B+      Tailscale exit node, secondary Pi-hole, WOL proxy
-tywin   → 10.0.10.11   k3s control-plane
-jaime   → 10.0.10.12   k3s worker
-tyrion  → 10.0.10.13   k3s worker
+api-vip → 10.0.10.100  kube-vip control-plane endpoint
+tywin   → 10.0.10.11   k3s server
+tyrion  → 10.0.10.12   k3s server
+jaime   → 10.0.10.13   k3s server
 docker  → 10.0.10.20   Docker host (bare metal Intel NUC i3-7100U)
 truenas → 10.0.10.80   TrueNAS storage
 ```
@@ -311,7 +312,7 @@ Procedures for specific failure scenarios, tested against real recovery paths.
 
 ```
 runbooks/cluster-rebuild.md         → full cluster rebuild procedure
-runbooks/node-replacement.md        → replace a failed worker node
+runbooks/node-replacement.md        → replace a failed cluster node
 runbooks/backup-restoration.md      → restore from etcd snapshot + Velero
 runbooks/certificate-failure.md     → recover from cert-manager failures
 runbooks/alerts/                    → per-alert response procedures
@@ -326,3 +327,4 @@ runbooks/alerts/                    → per-alert response procedures
 | ← Previous | *Start of series* |
 | Current | **00 — Platform Philosophy** |
 | → Next | [00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md) |
+

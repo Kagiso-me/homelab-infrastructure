@@ -69,7 +69,7 @@ cluster access and are independent of homelab availability.
 | Job | Tool | What It Checks | Runner |
 |-----|------|----------------|--------|
 | Schema validation | kubeconform | Every YAML file in `platform/`, `apps/`, `clusters/` is valid Kubernetes. CRD schemas sourced from the datreeio CRDs catalog. | `ubuntu-latest` |
-| Overlay correctness | kustomize build | `apps/prod/` renders without errors — all referenced resources exist, no circular dependencies | `ubuntu-latest` |
+| Overlay correctness | kustomize build | Flux entrypoints under `clusters/`, `platform/`, and `apps/prod/` render without errors | `ubuntu-latest` |
 | Deprecated API detection | pluto | No manifest uses a Kubernetes API that has been removed or is deprecated in the target version | `ubuntu-latest` |
 | Cluster diff preview | flux-local diff | A full diff of what will change in the cluster is rendered and posted as a PR comment | `ubuntu-latest` |
 
@@ -79,7 +79,7 @@ replaces the "did staging stay healthy?" gate with "does this diff look correct?
 
 #### Post-Merge Health Check Phase
 
-After a PR is merged to `main`, a post-merge job runs on the self-hosted runner (`bran`,
+After a PR is merged to `main`, a post-merge job runs on the self-hosted runner (`varys`,
 10.0.10.10) which has direct LAN access to the production cluster API server.
 
 ```
@@ -125,8 +125,8 @@ do not replace pre-merge schema validation or the human diff review that the PR 
 provides. They are complementary, not a substitute.
 
 **Gate on prod health check before allowing merge (require status check)**
-This would mean the self-hosted runner on `bran` is in the critical path for all merges.
-If `bran` is offline, no PRs can merge. The current model decouples the merge gate (static
+This would mean the self-hosted runner on `varys` is in the critical path for all merges.
+If `varys` is offline, no PRs can merge. The current model decouples the merge gate (static
 analysis on GitHub-hosted runners, always available) from the post-merge health signal
 (self-hosted runner, best-effort).
 
@@ -185,7 +185,7 @@ This is mitigated by several layers:
   `flux reconcile kustomization apps --with-source` undoes a bad deployment in under 2 minutes.
 
 **Post-merge health check is best-effort.**
-If `bran` is offline when a PR is merged, the health check does not run. The failure
+If `varys` is offline when a PR is merged, the health check does not run. The failure
 mode is silent rather than noisy — there is no red check mark, only a missing one. This is
 acceptable because the merge gate (static analysis) has already validated the manifests.
 Operational checks in Grafana cover the gap.

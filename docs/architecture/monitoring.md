@@ -2,7 +2,7 @@
 
 ## Overview
 
-The observability stack is deployed in the `monitoring` namespace and is considered load-bearing platform infrastructure, not an optional add-on. All platform components expose metrics via ServiceMonitors. Log aggregation covers all workloads cluster-wide via Promtail DaemonSet.
+The observability stack spans both the cluster and the external control hub. Prometheus, Loki, Promtail, and kube-state-metrics run in-cluster; Grafana and Alertmanager run on `varys` (`10.0.10.10`). All platform components expose metrics via ServiceMonitors. Log aggregation covers workloads cluster-wide via Promtail DaemonSet.
 
 ---
 
@@ -10,10 +10,10 @@ The observability stack is deployed in the `monitoring` namespace and is conside
 
 | Component | Role | Key Configuration |
 |---|---|---|
-| **Prometheus** | Metrics collection and storage | Scrape interval: 30s; Retention: 15 days / 20 GB limit; Remote-write not configured |
-| **Grafana** | Metrics visualisation and dashboards | Provisioned via ConfigMaps managed by FluxCD; persistent storage on `nfs-truenas` |
-| **Alertmanager** | Alert routing and deduplication | Routes to Slack (warnings and criticals) and webhook (criticals only); Watchdog heartbeat to `watchdog-webhook` |
-| **Loki** | Log aggregation | Retention: 14 days; Single-binary mode; Persistent storage on `nfs-truenas` |
+| **Prometheus** | Metrics collection and storage | Runs in-cluster; scrape interval 30s; retention and TSDB sizing managed in `kube-prometheus-stack` |
+| **Grafana** | Metrics visualisation and dashboards | Runs on `varys`; dashboards are provisioned from the repo |
+| **Alertmanager** | Alert routing and deduplication | Runs on `varys`; receives alerts from in-cluster Prometheus |
+| **Loki** | Log aggregation | Runs in-cluster; retention and storage managed in the `monitoring` namespace |
 | **Promtail** | Log shipping | DaemonSet on all nodes; scrapes `/var/log/pods` and `/var/log/journal`; ships to Loki |
 
 ---

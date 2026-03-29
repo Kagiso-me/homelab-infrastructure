@@ -21,9 +21,9 @@ graph LR
     Docker["Docker VM\n10.0.10.32"]
 
     subgraph k3s ["k3s Cluster (10.0.10.x)"]
-        tywin["tywin\n10.0.10.11\n(control plane)"]
-        jaime["jaime\n10.0.10.12\n(worker)"]
-        tyrion["tyrion\n10.0.10.13\n(worker)"]
+        tywin["tywin\n10.0.10.11\n(server)"]
+        jaime["jaime\n10.0.10.13\n(server)"]
+        tyrion["tyrion\n10.0.10.12\n(server)"]
     end
 
     Laptop -->|"SSH / git push"| RPi
@@ -102,7 +102,7 @@ cat /etc/rancher/k3s/k3s.yaml
 
 # On the RPi, create the config pointing to the actual API server
 mkdir -p ~/.kube
-# Paste the k3s.yaml content and change 127.0.0.1 to 10.0.10.11
+# Paste the k3s.yaml content and change 127.0.0.1 to 10.0.10.100
 nano ~/.kube/config
 chmod 600 ~/.kube/config
 
@@ -162,7 +162,7 @@ ansible-playbook -i inventory/hosts.yml playbooks/tools.yml
 
 **kubectl: connection refused**
 - Check that k3s is running on tywin: `ssh kagiso@10.0.10.11 systemctl status k3s`
-- Verify the API server IP in `~/.kube/config` is `10.0.10.11`, not `127.0.0.1`
+- Verify the API server IP in `~/.kube/config` is `10.0.10.100`, not `127.0.0.1`
 
 **Flux reconciliation stuck**
 - Check the sops-age Secret is present: `kubectl get secret sops-age -n flux-system`
@@ -180,3 +180,4 @@ ansible-playbook -i inventory/hosts.yml playbooks/tools.yml
 |---|---|
 | **Current** | 01 — Setup |
 | **Next** | [02 — Optional Services](02_services.md) |
+

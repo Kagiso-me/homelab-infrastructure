@@ -34,8 +34,8 @@ graph TD
         TrueNAS["TrueNAS 10.0.10.80"]
         Docker["Docker VM 10.0.10.32"]
         tywin["tywin 10.0.10.11"]
-        jaime["jaime 10.0.10.12"]
-        tyrion["tyrion 10.0.10.13"]
+        jaime["jaime 10.0.10.13"]
+        tyrion["tyrion 10.0.10.12"]
     end
 
     subgraph clients ["Clients"]
@@ -173,10 +173,10 @@ docker compose up -d
 |------|------|------------|
 | TrueNAS UI | HTTP(s) | `http://10.0.10.80` |
 | Docker VM | TCP Port | `10.0.10.32:22` |
-| k3s API | TCP Port | `10.0.10.11:6443` |
+| k3s API | TCP Port | `10.0.10.100:6443` |
 | tywin SSH | TCP Port | `10.0.10.11:22` |
-| jaime SSH | TCP Port | `10.0.10.12:22` |
-| tyrion SSH | TCP Port | `10.0.10.13:22` |
+| jaime SSH | TCP Port | `10.0.10.13:22` |
+| tyrion SSH | TCP Port | `10.0.10.12:22` |
 | Grafana | HTTP(s) | Grafana ingress URL |
 | Jellyfin | HTTP(s) | Jellyfin ingress URL |
 | NPM (Nginx Proxy Manager) | HTTP(s) | NPM ingress URL |
@@ -337,3 +337,4 @@ This leaves substantial headroom on a 4 GB model. Do not add services that push 
 | **Previous** | [01 — Setup](01_setup.md) |
 | **Current** | 02 — Optional Services |
 | **Next** | [03 — Backup Strategy](03_backup.md) |
+

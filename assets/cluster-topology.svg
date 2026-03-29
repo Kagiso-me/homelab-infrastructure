@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#10213d"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#1f3049" stroke-width="0.55"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="360" rx="24" fill="url(#grid)" opacity="0.35"/>
+
+  <text x="70" y="56" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="24" font-weight="700">HA k3s topology</text>
+  <text x="70" y="84" fill="#84a9d6" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">All three physical nodes are k3s servers and schedulable workers. kube-vip keeps the API stable at 10.0.10.100.</text>
+
+  <g transform="translate(430,108)">
+    <rect width="340" height="84" rx="18" fill="#102742" stroke="#4e8bd6" stroke-width="2"/>
+    <text x="170" y="38" text-anchor="middle" fill="#9dc8ff" font-family="'SF Mono','Cascadia Code',monospace" font-size="14">Stable API endpoint</text>
+    <text x="170" y="64" text-anchor="middle" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="28" font-weight="700">kube-vip 10.0.10.100</text>
+  </g>
+
+  <line x1="600" y1="192" x2="600" y2="224" stroke="#5a8ccc" stroke-width="3"/>
+  <line x1="320" y1="226" x2="880" y2="226" stroke="#24476f" stroke-width="3"/>
+  <line x1="320" y1="226" x2="320" y2="248" stroke="#5a8ccc" stroke-width="3"/>
+  <line x1="600" y1="226" x2="600" y2="248" stroke="#5a8ccc" stroke-width="3"/>
+  <line x1="880" y1="226" x2="880" y2="248" stroke="#5a8ccc" stroke-width="3"/>
+
+  <g transform="translate(170,248)">
+    <rect width="300" height="86" rx="18" fill="#16283f" stroke="#2b6cb0" stroke-width="2"/>
+    <text x="150" y="34" text-anchor="middle" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="20" font-weight="700">tywin 10.0.10.11</text>
+    <text x="150" y="58" text-anchor="middle" fill="#9cb8d7" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">k3s server | etcd member | workload scheduling</text>
+  </g>
+
+  <g transform="translate(450,248)">
+    <rect width="300" height="86" rx="18" fill="#142d33" stroke="#2f855a" stroke-width="2"/>
+    <text x="150" y="34" text-anchor="middle" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="20" font-weight="700">tyrion 10.0.10.12</text>
+    <text x="150" y="58" text-anchor="middle" fill="#a8cbc3" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">k3s server | etcd member | workload scheduling</text>
+  </g>
+
+  <g transform="translate(730,248)">
+    <rect width="300" height="86" rx="18" fill="#2b2415" stroke="#c28c28" stroke-width="2"/>
+    <text x="150" y="34" text-anchor="middle" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="20" font-weight="700">jaime 10.0.10.13</text>
+    <text x="150" y="58" text-anchor="middle" fill="#dec89a" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">k3s server | etcd member | workload scheduling</text>
+  </g>
+</svg>

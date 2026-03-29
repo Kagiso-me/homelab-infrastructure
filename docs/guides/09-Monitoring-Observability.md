@@ -81,12 +81,12 @@ The monitoring data flow covers all five physical systems in the homelab. Metric
 graph TD
     subgraph k8s["Kubernetes Cluster (10.0.10.11-13)"]
         tywin["tywin (control-plane)\n10.0.10.11"]
-        jaime["jaime (worker)\n10.0.10.12"]
-        tyrion["tyrion (worker)\n10.0.10.13"]
+        jaime["jaime (server)\n10.0.10.13"]
+        tyrion["tyrion (server)\n10.0.10.12"]
         ne_k8s["node-exporter DaemonSet"]
         ksm["kube-state-metrics"]
         promtail["Promtail DaemonSet"]
-        prom_stack["kube-prometheus-stack\n(Prometheus + Grafana + AM)"]
+        prom_stack["kube-prometheus-stack\n(Prometheus + kube-state-metrics)"]
     end
 
     subgraph docker["Docker Host — bare metal NUC (10.0.10.20)"]
@@ -130,10 +130,10 @@ graph TD
     ne_varys -->|scrape :9100| prom_stack
     varys_txt --> ne_varys
 
-    prom_stack -->|dashboards + explore| grafana["Grafana\ngrafana.kagiso.me"]
+    prom_stack -->|metrics queries| grafana["Grafana on varys\ngrafana.kagiso.me"]
     loki -->|log queries| grafana
 
-    prom_stack -->|alerts| am["Alertmanager"]
+    prom_stack -->|alerts| am["Alertmanager on varys"]
     am -->|severity: warning| discord_warn
     am -->|severity: critical| discord_crit
     am -->|severity: critical| webhook
@@ -144,12 +144,13 @@ graph TD
 
 | Component | Where it runs | What it does |
 |-----------|--------------|-------------|
-| **kube-prometheus-stack** | Kubernetes `monitoring` namespace | Prometheus, Grafana, Alertmanager, node-exporter DaemonSet, kube-state-metrics |
+| **kube-prometheus-stack** | Kubernetes `monitoring` namespace | Prometheus, node-exporter DaemonSet, kube-state-metrics, ServiceMonitors, alert rules |
 | **Loki + Promtail** | Kubernetes `monitoring` namespace | Log aggregation from all k8s pods |
 | **node-exporter** | All 5 hosts (DaemonSet on k8s, binary on others) | Host-level metrics: CPU, memory, disk, network, textfile |
 | **smartctl-exporter** | TrueNAS (10.0.10.80) | Per-disk SMART attribute metrics |
 | **cAdvisor** | Docker host (10.0.10.20) | Per-container resource metrics |
-| **Alertmanager** | Kubernetes `monitoring` namespace | Alert routing, deduplication, grouping, inhibition |
+| **Grafana** | `varys` (10.0.10.10) | Dashboards, Explore, alert investigation UI |
+| **Alertmanager** | `varys` (10.0.10.10) | Alert routing, deduplication, grouping, inhibition |
 
 ---
 
@@ -312,11 +313,11 @@ prometheus:
             labels:
               instance: tywin
               role: control-plane
-          - targets: ['10.0.10.12:9100']
+          - targets: ['10.0.10.13:9100']
             labels:
               instance: jaime
               role: worker
-          - targets: ['10.0.10.13:9100']
+          - targets: ['10.0.10.12:9100']
             labels:
               instance: tyrion
               role: worker
@@ -1102,3 +1103,4 @@ This guide is complete when all of the following are true:
 | ← Previous | [08 — Storage Architecture](./08-Storage-Architecture.md) |
 | Current | **09 — Monitoring & Observability** |
 | → Next | [10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |
+

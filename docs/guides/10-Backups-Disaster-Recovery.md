@@ -566,7 +566,7 @@ etcd restore:
   2. k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
   3. Start k3s
   4. Verify node readiness
-  5. Restart worker nodes
+  5. Restart the remaining server nodes
 
 Velero restore:
   1. velero backup get                                        # list available backups + their status

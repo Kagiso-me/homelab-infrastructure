@@ -1,506 +1,385 @@
-
-# 13 — Platform Operations & Lifecycle Management
-## Running the Platform Day-to-Day
+# 13 - Platform Operations & Lifecycle Management
+## Running the Platform Day to Day
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
+**Difficulty:** ********-- (8/10)
 **Guide:** 13 of 13
 
-> Building a Kubernetes platform is only half the work.
-> Operating it reliably over time is where real platform engineering begins.
+> Building the platform is the first half of the job.
 >
-> This chapter documents day-to-day operational lifecycle management:
+> Operating it well is the real test.
 >
-> - making changes safely through the PR workflow
-> - cluster upgrades
-> - node maintenance
-> - platform component upgrades
-> - incident response
-> - routine operational checks
-
-This guide aligns with the **Ansible playbooks present in the repository**, ensuring that routine operations remain repeatable and automated.
+> This guide documents the day-two workflow:
+>
+> - how change moves from Git to cluster
+> - how to do maintenance safely
+> - how to upgrade k3s and platform services
+> - how to respond to incidents without improvising
 
 ---
 
-# The Platform Lifecycle
+## Table of Contents
 
-Once the platform is live, it enters a continuous operational cycle.
+1. [The Operating Loop](#the-operating-loop)
+2. [Core Responsibilities](#core-responsibilities)
+3. [Making Changes Safely](#making-changes-safely)
+4. [Routine Checks](#routine-checks)
+5. [Node Maintenance](#node-maintenance)
+6. [k3s Upgrades](#k3s-upgrades)
+7. [Platform and App Upgrades](#platform-and-app-upgrades)
+8. [Adding or Replacing a Cluster Node](#adding-or-replacing-a-cluster-node)
+9. [Incident Response](#incident-response)
+10. [Disaster Recovery Flow](#disaster-recovery-flow)
+11. [Weekly Checklist](#weekly-checklist)
+12. [Exit Criteria](#exit-criteria)
+
+---
+
+## The Operating Loop
 
 ```mermaid
 graph LR
-    Change["Change<br/>PR opened"] --> Validate["Validate<br/>CI checks + diff comment"]
-    Validate --> Merge["Merge<br/>main branch"]
-    Merge --> Reconcile["Reconcile<br/>Flux applies to cluster"]
-    Reconcile --> Observe["Observe<br/>Grafana + Alerts"]
-    Observe --> Maintain["Maintain<br/>Ansible playbooks"]
-    Maintain --> Upgrade["Upgrade<br/>HelmRelease bump + k3s Plans"]
-    Upgrade --> Change
+    Change["Change in Git"] --> Validate["PR validation"]
+    Validate --> Merge["Merge to main"]
+    Merge --> Reconcile["Flux reconciles"]
+    Reconcile --> Observe["Observe in Grafana and alerts"]
+    Observe --> Maintain["Maintenance or follow-up change"]
+    Maintain --> Change
 ```
 
-The goal is to keep the cluster:
+The operational principle of this repo is simple:
 
-- stable
-- secure
-- up to date
-- fully observable
+> Git is the only normal path into production.
+
+Manual `kubectl` changes are debugging tools, not the operating model.
 
 ---
 
-# Operational Responsibilities
+## Core Responsibilities
 
-| Layer | Responsibility | Primary Tool |
-|-------|---------------|--------------|
-| Infrastructure | node reboots, OS patching | Ansible |
-| Kubernetes | k3s version upgrades | system-upgrade-controller (via Git PR) |
-| Platform services | Traefik, cert-manager, monitoring upgrades | Flux (HelmRelease version bump via PR) |
-| Applications | deployment and scaling | Flux (Git PR → merge → reconcile) |
-| Backups | daily etcd snapshots, Velero schedules | cron + Velero |
-| Secrets | key rotation, re-encryption | SOPS + age |
+| Layer | Responsibility | Primary tool |
+|---|---|---|
+| Host OS | patches, reboots, SSH, firewall | Ansible |
+| Kubernetes version | rolling k3s upgrades | system-upgrade-controller via Git |
+| Platform services | HelmRelease and manifest changes | Flux via PR |
+| Applications | app onboarding, updates, rollback | Flux via PR |
+| Backups | etcd snapshots, Velero, host backups | cron, Velero, TrueNAS |
+| Secrets | rotation and re-encryption | SOPS + age |
 
 ---
 
-# Making a Change
+## Making Changes Safely
 
-All changes to the cluster go through the same workflow. There are no special paths for "emergency" pushes directly to `main` — direct pushes bypass CI validation and the diff preview, increasing the risk of deploying broken manifests.
+### The normal workflow
 
-## The Standard Workflow
-
-```
-1. Create a feature branch
-2. Make changes to the appropriate YAML files
-3. Push the branch and open a PR against main
-4. CI runs automatically:
-   - kubeconform validates all manifests against Kubernetes schemas
-   - kustomize build confirms the overlay renders without errors
-   - flux-local diff posts a comment showing what resources will change in the cluster
-5. Review the diff comment — verify the changes look exactly as expected
-6. Merge the PR
-7. Flux detects the new commit on main and reconciles the cluster (within the poll interval, or immediately if forced)
-8. Post-merge: verify Flux kustomizations are Ready and pods are healthy
+```text
+1. Create a branch
+2. Change the repo
+3. Open a PR
+4. Let CI validate manifests and render Flux entrypoints
+5. Review the diff
+6. Merge
+7. Verify Flux and workloads
 ```
 
-## Step-by-Step
+Typical flow:
 
 ```bash
-# 1. Create a branch
-git checkout -b feat/upgrade-traefik
-
-# 2. Make the change
-# (edit platform/networking/traefik/helmrelease.yaml, apps/prod/kustomization.yaml, etc.)
-
-# 3. Commit and push
+git checkout -b chore/upgrade-traefik
 git add -p
-git commit -m "chore: upgrade Traefik to 28.0.0"
-git push origin feat/upgrade-traefik
-
-# 4. Open a PR on GitHub and wait for CI checks to pass
-# 5. Review the flux-local diff comment on the PR
-# 6. Merge the PR
-
-# 7. (Optional) Force Flux to reconcile immediately after merge
-flux reconcile source git flux-system -n flux-system
-flux reconcile kustomization platform-networking --with-source
-
-# 8. Verify
-flux get kustomizations
-kubectl get pods -n ingress
+git commit -m "chore: upgrade Traefik"
+git push origin chore/upgrade-traefik
 ```
 
-## Forcing Flux Reconciliation
+### What validation should prove
 
-By default, Flux polls the Git source every hour. After merging a PR, you can force an immediate reconciliation:
+Before merge, the repository should prove three things:
 
-```bash
-# Force the source controller to pull from Git
-flux reconcile source git flux-system -n flux-system
+- manifests are schema-valid
+- Flux entrypoints render correctly
+- deprecated APIs are not being introduced
 
-# Then reconcile a specific kustomization
-flux reconcile kustomization apps --with-source
-flux reconcile kustomization platform-networking --with-source
-```
+After merge, the health workflow should prove:
+
+- Flux reconciled successfully
+- cluster kustomizations are healthy
+- Traefik still responds
+
+That is the production safety net.
 
 ---
 
-# Routine Operational Checks
+## Routine Checks
 
-Run these checks periodically (recommended: daily, via Grafana or cron).
+Run these checks regularly from `varys`:
 
 ```bash
-# Cluster node health
 kubectl get nodes
-
-# Non-running pods across all namespaces
-kubectl get pods -A | grep -Ev 'Running|Completed'
-
-# Flux reconciliation status
+kubectl get pods -A | grep -Ev "Running|Completed|Succeeded"
 flux get kustomizations
 flux get helmreleases -A
-
-# Recent cluster events (last 30)
 kubectl get events -A --sort-by='.lastTimestamp' | tail -30
-
-# Backup health
-ls -lht /mnt/backups/etcd/ | head -5
-velero backup get | head -10
+velero backup get
 ```
 
-All of these checks are visible in Grafana when the monitoring stack is healthy.
+These answer the daily operator questions:
+
+- are nodes healthy?
+- is anything crash-looping?
+- is Flux stuck?
+- are backups recent?
 
 ---
 
-# Node Maintenance with Ansible
+## Node Maintenance
 
-The repository contains Ansible playbooks for all node operations.
+Always treat maintenance as a controlled operation, not an SSH habit.
 
-```
-ansible/playbooks/maintenance/
-├── reboot-nodes.yml
-└── upgrade-nodes.yml
-```
+### Reboots
 
-Always run maintenance playbooks from the automation host (`varys`, 10.0.10.10) with the kubeconfig present.
-
----
-
-# Rebooting Nodes Safely
-
-**Never reboot a node without draining it first.** Draining ensures running pods migrate before the node goes offline.
-
-The reboot playbook handles the full sequence:
+Use the maintenance playbook:
 
 ```bash
 ansible-playbook ansible/playbooks/maintenance/reboot-nodes.yml
 ```
 
-What the playbook does:
-
-```
-1. cordon node          (prevents new pod scheduling)
-2. drain workloads      (evicts running pods gracefully)
-3. reboot node
-4. wait for node Ready  (polls until kubelet re-registers)
-5. uncordon node        (returns node to scheduling pool)
-```
-
-To reboot a single node:
+For a single node:
 
 ```bash
 ansible-playbook ansible/playbooks/maintenance/reboot-nodes.yml --limit jaime
 ```
 
-Verify after:
+The goal is always:
 
-```bash
-kubectl get nodes
-```
+1. cordon
+2. drain
+3. reboot
+4. wait for `Ready`
+5. uncordon
 
----
-
-# OS Package Upgrades
-
-OS packages must be kept current for security. Run:
+### OS package updates
 
 ```bash
 ansible-playbook ansible/playbooks/maintenance/upgrade-nodes.yml
 ```
 
-Always upgrade **one node at a time** in this cluster. This prevents all workers from being unavailable simultaneously.
-
-For worker nodes this is low-risk. The control-plane node (`tywin`) requires more care — ensure all workers are healthy before upgrading it.
+Because all three nodes are both servers and workers, update them **one at a time**. Never assume there is a dedicated worker pool protecting you.
 
 ---
 
-# Upgrading k3s
+## k3s Upgrades
 
-k3s upgrades require care. With an embedded etcd datastore, the control-plane node is the most critical.
+The preferred path is the upgrade controller described in [Guide 11](./11-Platform-Upgrade-Controller.md).
 
-## Recommended Approach: System Upgrade Controller
+### Current model
 
-The preferred method is the **k3s System Upgrade Controller**, which performs rolling upgrades via Kubernetes `Plan` resources. This is deployed through Flux under `platform/upgrade/`. See [Guide 11 — Platform Upgrade Controller](./11-Platform-Upgrade-Controller.md) for full detail.
+- one `Plan`
+- three matching server nodes
+- rolling one node at a time
+- kube-vip keeps the API stable at `10.0.10.100`
 
-```mermaid
-graph TD
-    Snap["1. Take etcd snapshot<br/>k3s-snapshot.sh"] --> PR["2. Open PR: update Plan version<br/>platform/upgrade/upgrade-plans/"]
-    PR --> CI["3. CI validates the Plan manifests"]
-    CI --> Merge["4. Merge to main"]
-    Merge --> CP["5. Controller upgrades tywin<br/>control-plane first"]
-    CP --> W1["6. Controller upgrades jaime"]
-    W1 --> W2["7. Controller upgrades tyrion"]
-    W2 --> Verify["8. kubectl get nodes<br/>Verify all Ready"]
-```
+### Normal upgrade path
 
-Trigger an upgrade by opening a PR that sets the new version in both Plan files:
+1. take an etcd snapshot
+2. update `platform/upgrade/upgrade-plans/plan-server.yaml`
+3. open a PR
+4. merge after CI passes
+5. watch the rollout complete node by node
+
+Example:
 
 ```yaml
-# platform/upgrade/upgrade-plans/plan-server.yaml
 spec:
   version: v1.32.1+k3s1
-
-# platform/upgrade/upgrade-plans/plan-agent.yaml
-spec:
-  version: v1.32.1+k3s1   # must match plan-server.yaml exactly
 ```
 
-Commit the change to a branch, open the PR, merge after CI passes. Flux reconciles the Plans. The controller upgrades the control-plane first, then workers sequentially.
+### Break-glass fallback
 
-## Manual Upgrade (if system-upgrade-controller is unavailable)
+If the controller is unavailable, fall back to Ansible:
 
 ```bash
-# Step 1 — upgrade control-plane
 ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit tywin
-
-# Step 2 — verify control-plane is healthy
-kubectl get nodes
-kubectl get pods -A | grep -v Running | grep -v Completed
-
-# Step 3 — upgrade workers one at a time
-ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit jaime
-kubectl wait --for=condition=Ready node/jaime --timeout=120s
-
 ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit tyrion
-kubectl wait --for=condition=Ready node/tyrion --timeout=120s
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit jaime
 ```
 
-**Always take an etcd snapshot before any k3s upgrade:**
-
-```bash
-/usr/local/bin/k3s-snapshot.sh
-```
+Do that one node at a time, verifying health in between.
 
 ---
 
-# Upgrading Platform Components via GitOps
+## Platform and App Upgrades
 
-All platform components managed by Flux (Traefik, cert-manager, Prometheus, Loki, Velero) are upgraded by changing their chart version in a PR.
+Platform services and applications are upgraded through Git the same way:
 
-Example: upgrading Traefik from `27.0.2` to `28.0.0`:
+- bump chart version
+- change values
+- merge
+- let Flux reconcile
 
-```yaml
-# platform/networking/traefik/helmrelease.yaml
-spec:
-  chart:
-    spec:
-      chart: traefik
-      version: "28.0.0"   # changed from 27.0.2
-```
+Example:
 
 ```bash
-git checkout -b chore/upgrade-traefik-28
+git checkout -b chore/upgrade-platform
 git add platform/networking/traefik/helmrelease.yaml
-git commit -m "chore: upgrade Traefik to 28.0.0"
-git push origin chore/upgrade-traefik-28
+git commit -m "chore: upgrade Traefik"
+git push origin chore/upgrade-platform
 ```
 
-Open a PR. CI validates the manifest. The flux-local diff comment shows the HelmRelease change. After review, merge to `main`. Flux reconciles the upgrade.
-
-Monitor progress:
+Post-merge checks:
 
 ```bash
-flux get helmreleases -A --watch
+flux get helmreleases -A
+kubectl get pods -A
 ```
 
-Rollback if needed:
+If the release is bad:
 
 ```bash
-git revert HEAD
+git revert <commit>
 git push origin main
 flux reconcile kustomization platform-networking --with-source
 ```
 
 ---
 
-# Scaling the Cluster
+## Adding or Replacing a Cluster Node
 
-To add a worker node:
+This is where the updated topology matters most.
 
+You are not adding a "worker." You are adding another **k3s server that is also a workload node**.
+
+### High-level process
+
+1. provision the host
+2. add it to `ansible/inventory/homelab.yml`
+3. run the security and preparation playbooks
+4. run `install-cluster.yml` for that node
+5. verify it joins behind the VIP
+
+Commands:
+
+```bash
+ansible-playbook ansible/playbooks/security/disable-swap.yml --limit <node>
+ansible-playbook ansible/playbooks/security/firewall.yml --limit <node>
+ansible-playbook ansible/playbooks/security/ssh-hardening.yml --limit <node>
+ansible-playbook ansible/playbooks/security/time-sync.yml --limit <node>
+ansible-playbook ansible/playbooks/security/fail2ban.yml --limit <node>
+ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit <node>
 ```
-1. Provision new machine with Ubuntu Server
-2. Update ansible/inventory/homelab.yml to add the new node
-3. Run node preparation playbooks:
-   ansible-playbook ansible/playbooks/security/disable-swap.yml --limit new-node
-   ansible-playbook ansible/playbooks/security/firewall.yml --limit new-node
-   ansible-playbook ansible/playbooks/security/ssh-hardening.yml --limit new-node
-   ansible-playbook ansible/playbooks/security/time-sync.yml --limit new-node
-   ansible-playbook ansible/playbooks/security/fail2ban.yml --limit new-node
-4. Join the node:
-   ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit new-node
-5. Verify:
-   kubectl get nodes
+
+Verification:
+
+```bash
+kubectl get nodes -o wide
 ```
 
-The scheduler automatically begins placing workloads on the new node.
+If this is a replacement rather than a net-new node, cleanly remove the old node record and follow the dedicated node replacement runbook if persistent local-path data is involved.
 
 ---
 
-# Incident Response — Structured Triage
+## Incident Response
 
-When something breaks, structured triage finds the root cause faster than guessing.
+When something fails, work the problem in layers.
 
-## Step 1 — Establish cluster health baseline (30 seconds)
+### 1. Establish the baseline
 
 ```bash
 kubectl get nodes
-kubectl get pods -A | grep -Ev 'Running|Completed'
+kubectl get pods -A | grep -Ev "Running|Completed|Succeeded"
 flux get kustomizations
 ```
 
-Interpretation:
-
-- Node shows `NotReady` → check kubelet on the node: `ssh kagiso@<node-ip>` then `journalctl -u k3s -f`
-- Flux reports `False` reconciliation → check the commit history and Flux logs
-- Pods in `CrashLoopBackOff` → proceed to Step 3
-
-## Step 2 — Scope the impact
+### 2. Scope impact
 
 ```bash
 kubectl get events -A --sort-by='.lastTimestamp' | tail -30
 ```
 
-Events are often the fastest path to root cause. Look for `Failed`, `OOMKilled`, `BackOff`, or `Unhealthy` reasons.
-
-## Step 3 — Inspect affected workloads
+### 3. Inspect the affected workload
 
 ```bash
-# Scheduling failures, OOMKilled, image pull errors
-kubectl describe pod <pod-name> -n <namespace>
-
-# Logs from the current container instance
-kubectl logs <pod-name> -n <namespace>
-
-# Logs from the previous (crashed) container instance
-kubectl logs <pod-name> -n <namespace> --previous
+kubectl describe pod <pod> -n <namespace>
+kubectl logs <pod> -n <namespace>
+kubectl logs <pod> -n <namespace> --previous
 ```
 
-## Step 4 — Check infrastructure components
+### 4. Check infrastructure layers
 
 ```bash
-kubectl get pods -n flux-system          # GitOps controllers
-kubectl get pods -n ingress              # Traefik
-kubectl get pods -n monitoring           # Prometheus / Grafana / Loki
-kubectl get pods -n cert-manager         # Certificate controller
-kubectl get pods -n metallb-system       # Load balancer
-kubectl get pods -n velero               # Backup controller
+kubectl get pods -n flux-system
+kubectl get pods -n ingress
+kubectl get pods -n monitoring
+kubectl get pods -n cert-manager
+kubectl get pods -n metallb-system
+kubectl get pods -n velero
 ```
 
-If the monitoring stack is healthy, **Grafana dashboards are your first stop** — the alert that fired points directly at the affected component.
+### 5. Use Grafana and alerts as the fast path
 
-## Step 5 — Check Flux reconciliation errors
+The dashboard is often faster than shelling around blindly. Start with the alert, correlate with logs, then decide whether the problem is:
+
+- application-specific
+- platform-specific
+- node-specific
+- storage-specific
+
+---
+
+## Disaster Recovery Flow
+
+If the cluster must be rebuilt, the order matters:
+
+```text
+1. Restore host access and Ansible control from varys
+2. Rebuild cluster nodes
+3. Reinstall k3s with install-cluster.yml
+4. Restore etcd if required
+5. Re-run install-platform.yml
+6. Let Flux reconstruct the platform
+7. Restore PVC data with Velero if needed
+8. Verify services
+```
+
+Key commands:
 
 ```bash
-flux get all -A
-flux logs --follow --level=error
+ansible-playbook -i ansible/inventory/homelab.yml ansible/playbooks/lifecycle/install-cluster.yml
+ansible-playbook -i ansible/inventory/homelab.yml ansible/playbooks/lifecycle/install-platform.yml
+velero restore create --from-backup <backup-name>
+```
+
+This is the production rebuild story:
+
+- infrastructure from Ansible
+- desired state from Git
+- data from snapshots and backups
+
+---
+
+## Weekly Checklist
+
+```text
+[] kubectl get nodes -> all Ready
+[] kubectl get pods -A -> no unexpected failures
+[] flux get kustomizations -> all Ready
+[] flux get helmreleases -A -> all Ready
+[] etcd snapshots present and recent
+[] Velero backups recent and Completed
+[] Grafana -> no ignored active alerts
+[] disk, memory, and certificate health within thresholds
 ```
 
 ---
 
-# Common Operational Incidents
+## Exit Criteria
 
-> Runbooks at `docs/operations/runbooks/` are living documents — use the first-check
-> commands below until they are written. See
-> [Guide 09 — Monitoring & Observability](./09-Monitoring-Observability.md#13-alert-response-runbooks)
-> for additional inline guidance per alert type.
+Platform operations are in good shape when:
 
-| Incident | First Check |
-|----------|-------------|
-| Pod in CrashLoopBackOff | `kubectl logs -n <ns> <pod> --previous` |
-| Node shows NotReady | `kubectl describe node <node>` + `journalctl -u k3s` on the node |
-| Certificate expired / pending | `kubectl describe certificate -n ingress` + `kubectl get challenges -A` |
-| Disk pressure on node | `df -h` on the node + `kubectl get pvc -A` |
-| High memory / CPU | Grafana Node Exporter dashboard — identify the process |
-| Backup too old | `ls -lht /mnt/backups/etcd/ \| head -5` |
-| Flux reconciliation failing | `flux logs --level=error` — check SOPS key and Git repo state |
-| HelmRelease stuck in upgrade | `kubectl describe helmrelease <name> -n <namespace>` — look for error in status |
-| CI failing on a PR | Check the Actions tab — kubeconform errors show the exact invalid line |
-
----
-
-# Disaster Recovery Workflow
-
-If the cluster must be rebuilt entirely, follow this sequence.
-
-## Prerequisites — verify before starting
-
-| Item | Location | How to verify |
-|------|----------|---------------|
-| Ansible Vault password | `~/.vault_pass` on `varys` | `ansible-vault view ansible/vars/vault.yml` |
-| Flux SSH deploy key | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep flux_github_ssh_private_key` |
-| Cloudflare API token | in `ansible/vars/vault.yml` | `ansible-vault view ansible/vars/vault.yml \| grep cloudflare` |
-| etcd snapshot | TrueNAS NFS at `/mnt/backups/etcd/` | `ls -lht /mnt/backups/etcd/` |
-| age key (SOPS) | `~/age.key` on `varys` | `ls -la ~/age.key` |
-
-If the Flux SSH key is missing from vault, see [Guide 04 — Flux GitOps](./04-Flux-GitOps.md#saving-the-deploy-key-to-vault).
-
-## Rebuild Steps
-
-```
-1. Reinstall OS on affected nodes (if hardware failure)
-2. Run Ansible security + preparation playbooks
-3. Run Ansible install-cluster.yml   → fresh k3s cluster
-4. Restore etcd from snapshot (only if control-plane data must be recovered)
-5. Run Ansible install-platform.yml  → bootstraps Flux from vault + Git
-6. Flux reconciles all platform services from Git automatically
-7. Velero restores PVC data (application state)
-8. Verify all services
-```
-
-## Commands
-
-```bash
-# On varys (10.0.10.10), from ~/homelab-infrastructure/ansible
-
-# Step 3 — reinstall k3s
-ansible-playbook -i inventory/homelab.yml \
-  playbooks/lifecycle/install-cluster.yml
-
-# Step 5 — bootstrap Flux (reads SSH key from vault, applies gotk manifests, waits for Ready)
-ansible-playbook -i inventory/homelab.yml \
-  playbooks/lifecycle/install-platform.yml
-
-# Step 7 — restore application data
-velero restore create --from-backup <latest-backup-name>
-
-# Step 8 — verify
-flux get kustomizations
-flux get helmreleases -A
-kubectl get pods -A | grep -Ev 'Running|Completed'
-```
-
-> **No manual `flux bootstrap` or `helm install` commands are needed.** The deploy key is in
-> vault, the platform manifests are in Git, and `install-platform.yml` wires them together.
-
-Target: full platform operational **within 90–120 minutes** of starting the rebuild.
-
----
-
-# Operational Checklist (Weekly)
-
-```
-□ kubectl get nodes — all Ready
-□ kubectl get pods -A — no unexpected non-Running pods
-□ flux get kustomizations — all Ready
-□ flux get helmreleases -A — all Ready
-□ ls /mnt/backups/etcd/ — snapshots present within last 24h
-□ velero backup get — last backup Completed
-□ Grafana — no active alerts
-□ Grafana — node disk usage < 70%
-□ Grafana — certificate expiry > 30 days for all certs
-```
-
----
-
-# Exit Criteria
-
-Platform operations are considered stable when:
-
-- maintenance playbooks run successfully without manual intervention
-- k3s version upgrades complete via system-upgrade-controller
-- platform component upgrades occur through GitOps PR → merge → Flux reconcile
-- incident response triage produces root cause within 10 minutes
-- monitoring confirms system health continuously
-
----
-
-This is the final guide in the series. The platform is now **fully operational and maintainable**.
+- every normal change flows through PR -> merge -> Flux
+- host maintenance is run from playbooks, not memory
+- k3s upgrades use the single-plan rolling model
+- the docs clearly state that all three nodes are both server and worker nodes
+- incident response starts from observability and verification, not guesswork
 
 ---
 
@@ -508,6 +387,6 @@ This is the final guide in the series. The platform is now **fully operational a
 
 | | Guide |
 |---|---|
-| ← Previous | [12 — Applications via GitOps](./12-Applications-GitOps.md) |
-| Current | **13 — Platform Operations & Lifecycle** |
-| → Next | *End of series — platform fully deployed* |
+| <- Previous | [12 - Applications via GitOps](./12-Applications-GitOps.md) |
+| Current | **13 - Platform Operations & Lifecycle** |
+| -> Next | *End of series - platform fully deployed* |

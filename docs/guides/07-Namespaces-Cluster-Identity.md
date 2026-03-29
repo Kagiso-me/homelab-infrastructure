@@ -1,586 +1,384 @@
-
-# 07 — Namespaces & Cluster Identity
-## Platform Layout, Node Labels, and Scheduling Rules
+# 07 - Namespaces & Cluster Identity
+## Platform Layout, Scheduling Intent, and Future Guardrails
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
+**Difficulty:** ******---- (6/10)
 **Guide:** 07 of 13
 
-> This guide covers two closely related topics: the namespace layout that organises the platform, and the node identity system that controls where workloads run. Both are deployed by Flux — namespaces via `platform-namespaces`, and node labels/taints via manual configuration during node preparation.
+> This guide explains how the platform is organised once Flux is in control:
+>
+> - which namespaces exist and why
+> - how workloads are grouped by responsibility
+> - how node identity works in the current 3-node HA cluster
+> - which scheduling patterns are deliberate, and which are not
+>
+> The most important mental model is simple:
+>
+> **all three cluster nodes are both k3s servers and schedulable worker nodes.**
 
 ---
 
-# Part 1 — Platform Namespaces & Layout
+![HA cluster topology](../../assets/cluster-topology.svg)
 
 ---
 
-# Why Namespaces Matter
+## Table of Contents
 
-Kubernetes does not enforce how workloads are organised.
-Without structure, clusters quickly become difficult to manage.
-
-This step might appear simple, but it is actually **foundational platform engineering work**.
-
-A clean namespace model provides:
-
-- operational clarity
-- security boundaries
-- easier troubleshooting
-- safer GitOps workflows
-
-Without namespaces everything lives in the `default` namespace.
-
-Example:
-
-```
-kubectl get pods
-
-grafana-abc123
-prometheus-abc999
-traefik-qwe888
-```
-
-This quickly becomes unmanageable.
-
-Namespaces provide **logical isolation**.
-
-```
-kubectl get pods -n monitoring
-kubectl get pods -n ingress
-kubectl get pods -n databases
-```
-
-Diagram:
-
-```
-Kubernetes Cluster
-│
-├── ingress
-├── monitoring
-├── storage
-├── databases
-└── apps
-```
-
-Each namespace represents a **layer of the platform**.
+1. [Why This Guide Matters](#why-this-guide-matters)
+2. [Namespace Model](#namespace-model)
+3. [How Namespaces Are Created](#how-namespaces-are-created)
+4. [Cluster Identity: The Real Topology](#cluster-identity-the-real-topology)
+5. [Scheduling Philosophy](#scheduling-philosophy)
+6. [Placement Patterns Used in This Platform](#placement-patterns-used-in-this-platform)
+7. [Security Boundaries to Add Next](#security-boundaries-to-add-next)
+8. [Verification](#verification)
+9. [Exit Criteria](#exit-criteria)
 
 ---
 
-# Namespace Design Philosophy
+## Why This Guide Matters
 
-The namespace model used in this platform follows a layered approach.
+Kubernetes gives you a lot of freedom. Left unmanaged, that freedom becomes ambiguity:
 
-```
-Infrastructure Layer
-Platform Layer
-Application Layer
-```
+- workloads end up in the wrong namespace
+- platform services and applications blur together
+- nobody is sure where a pod is supposed to run
+- future hardening becomes harder because the base layout is muddy
 
-Diagram:
+This guide locks in the operating model for the cluster before more workloads are added.
+
+---
+
+## Namespace Model
+
+The platform uses a layered namespace structure.
 
 ```mermaid
 graph TD
-    Cluster["Kubernetes Cluster"]
-    Cluster --> Infra["Infrastructure Layer"]
-    Cluster --> Platform["Platform Layer"]
-    Cluster --> App["Application Layer"]
+    Cluster["Kubernetes cluster"] --> GitOps["GitOps + control"]
+    Cluster --> Core["Core platform"]
+    Cluster --> Data["Data services"]
+    Cluster --> Apps["Applications"]
 
-    Infra --> NS1["metallb-system"]
-    Infra --> NS2["cert-manager"]
-    Infra --> NS3["ingress"]
-    Infra --> NS4["flux-system"]
+    GitOps --> flux["flux-system"]
+    GitOps --> upgrade["system-upgrade"]
 
-    Platform --> NS5["monitoring<br/>Prometheus - Grafana - Loki"]
-    Platform --> NS6["storage<br/>NFS provisioner"]
-    Platform --> NS7["velero<br/>Backup controller"]
+    Core --> ingress["ingress"]
+    Core --> cert["cert-manager"]
+    Core --> metallb["metallb-system"]
+    Core --> monitoring["monitoring"]
+    Core --> storage["storage"]
+    Core --> backup["velero"]
+    Core --> auth["auth"]
+    Core --> crowdsec["crowdsec"]
 
-    App --> NS8["apps<br/>User workloads"]
+    Data --> databases["databases"]
 
-    style Infra fill:#2b6cb0,color:#fff
-    style Platform fill:#276749,color:#fff
-    style App fill:#744210,color:#fff
+    Apps --> apps["apps"]
 ```
 
-This separation makes it clear **what belongs where**.
+### Repo-managed namespaces
 
----
-
-# Recommended Namespaces
-
-Create the following namespaces.
+These are declared directly in `platform/namespaces/namespaces.yaml` and reconciled by Flux:
 
 | Namespace | Purpose |
-|----------|--------|
-| `ingress` | ingress controllers |
-| `monitoring` | Prometheus / Grafana |
-| `storage` | storage infrastructure |
-| `databases` | stateful databases |
-| `apps` | user applications |
+|---|---|
+| `monitoring` | Prometheus, Loki, ServiceMonitors, dashboard provisioning |
+| `storage` | NFS provisioner and storage primitives |
+| `databases` | Shared PostgreSQL and Redis services |
+| `velero` | Backup controller and schedules |
+| `auth` | Authentik and identity workloads |
+| `crowdsec` | CrowdSec components and security integration |
+| `apps` | User-facing application workloads |
 
-Infrastructure namespaces such as `metallb-system` and `cert-manager`
-are created automatically during installation.
+### Chart-created or bootstrap namespaces
+
+These are still part of the platform, but are created by bootstrap or Helm charts rather than `platform/namespaces/`:
+
+| Namespace | Purpose |
+|---|---|
+| `flux-system` | Flux controllers and Git source |
+| `ingress` | Traefik ingress controller |
+| `metallb-system` | MetalLB controller and speakers |
+| `cert-manager` | TLS certificate automation |
+| `system-upgrade` | Rancher system-upgrade-controller |
+
+The result is a clean separation between platform layers. When something breaks, you know where to start.
 
 ---
 
-# Creating Namespaces
+## How Namespaces Are Created
 
-Namespaces in this platform are **managed by Flux** — they are defined as manifests under
-`platform/namespaces/` and reconciled automatically by the `platform-namespaces` Kustomization
-after `install-platform.yml` completes. No manual `kubectl apply` is required or expected.
+Namespaces are not created manually with `kubectl create namespace`.
 
-The namespace manifests follow this pattern:
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ingress
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: monitoring
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: storage
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: databases
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: apps
-```
-
-To add a new namespace, add a manifest to `platform/namespaces/`, commit, and push. Flux
-reconciles it into the cluster automatically. **Do not run `kubectl apply` directly** — Flux
-owns these resources and a manual apply will be overwritten on the next reconciliation.
-
-Verify Flux has reconciled them:
+They are created through GitOps.
 
 ```bash
 flux get kustomization platform-namespaces
 kubectl get namespaces
 ```
 
-Expected namespaces:
+That means:
 
-```
-ingress
-monitoring
-storage
-databases
-apps
-```
+- namespace creation is version-controlled
+- rebuilds are repeatable
+- accidental manual changes do not become hidden cluster state
+
+If you need a new namespace, add it to `platform/namespaces/`, commit the change, and let Flux reconcile it.
 
 ---
 
-# Namespaces and GitOps
+## Cluster Identity: The Real Topology
 
-Namespaces also define the **Git repository structure** used by Flux.
+This cluster is no longer "one control-plane node plus two workers."
 
-Example layout:
+It is a **3-node HA k3s server cluster**:
 
-```
-platform/
-└── clusters/
-    └── prod/
-        ├── infrastructure/
-        │   ├── metallb/
-        │   ├── traefik/
-        │   └── cert-manager/
-        │
-        ├── platform/
-        │   ├── monitoring/
-        │   ├── storage/
-        │   └── databases/
-        │
-        └── apps/
-```
+| Node | IP | Role in k3s | Schedulable for workloads |
+|---|---|---|---|
+| `tywin` | `10.0.10.11` | server, embedded etcd member | Yes |
+| `tyrion` | `10.0.10.12` | server, embedded etcd member | Yes |
+| `jaime` | `10.0.10.13` | server, embedded etcd member | Yes |
 
-This layout mirrors the namespace structure inside the cluster.
+All three nodes:
 
----
+- run the Kubernetes API server, controller-manager, and scheduler
+- participate in embedded etcd quorum
+- are valid workload placement targets
+- sit behind the kube-vip API endpoint at `10.0.10.100`
 
-# Benefits of Layered Platform Layout
+### What labels exist by default
 
-A structured layout provides several advantages.
-
-### Clear ownership
-
-```
-Infrastructure → platform engineering
-Applications → developers
-```
-
-### Safe GitOps workflows
-
-Changes to platform infrastructure remain isolated from application deployments.
-
-### Easier troubleshooting
-
-Example:
-
-```
-kubectl get pods -n monitoring
-kubectl get pods -n ingress
-```
-
-You immediately know where to look.
-
----
-
-# Namespace Resource Boundaries
-
-Namespaces can also enforce limits.
-
-Examples include:
-
-- CPU quotas
-- memory limits
-- network policies
-
-Although these controls are optional in small clusters, designing namespaces
-properly now makes it easier to introduce them later.
-
----
-
-# Observability Benefits
-
-Monitoring tools such as Prometheus and Grafana rely heavily on namespaces.
-
-Metrics are often grouped by namespace.
-
-Example Prometheus query:
-
-```
-sum(container_cpu_usage_seconds_total) by (namespace)
-```
-
-Namespaces therefore help provide **meaningful operational visibility**.
-
----
-
-# Verifying Namespace Layout
-
-Run:
-
-```bash
-kubectl get namespaces
-```
-
-You should see:
-
-```
-ingress
-monitoring
-storage
-databases
-apps
-```
-
-Check pods within each namespace:
-
-```bash
-kubectl get pods -n ingress
-kubectl get pods -n monitoring
-```
-
-This confirms workloads are correctly isolated.
-
----
-
-# Part 2 — Cluster Identity & Scheduling
-
----
-
-A Kubernetes cluster can technically run workloads anywhere.
-That flexibility is powerful — but without structure it quickly becomes chaos.
-
-This part defines **cluster identity**: which nodes are responsible for which workloads,
-and how the scheduler should behave when placing pods.
-
-Small clusters often fall into an anti-pattern:
-
-```
-All nodes are treated the same.
-Everything runs everywhere.
-```
-
-While this works initially, it leads to problems:
-
-- infrastructure services competing with applications
-- unpredictable performance
-- accidental scheduling of workloads on the control plane
-
-A well-structured cluster instead has **clear node responsibilities**.
-
----
-
-# The Nodes in This Cluster
-
-The production cluster contains three nodes:
-
-```
-tywin   → control-plane  (10.0.10.11)
-jaime   → worker         (10.0.10.12)
-tyrion  → worker         (10.0.10.13)
-```
-
-Each node plays a specific role.
-
-| Node | IP | Role |
-|-----|----|------|
-| tywin | 10.0.10.11 | Kubernetes control-plane |
-| jaime | 10.0.10.12 | application workloads |
-| tyrion | 10.0.10.13 | application workloads |
-
-The control-plane node is responsible for running the components that manage the cluster.
-
----
-
-# Control Plane Responsibilities
-
-The control plane hosts Kubernetes system services.
-
-Examples include:
-
-```
-kube-apiserver
-kube-scheduler
-kube-controller-manager
-etcd
-```
-
-These components form the **brain of the cluster**.
-
-They should remain stable and lightly loaded.
-
-For this reason we generally **avoid scheduling application workloads** on the control plane.
-
----
-
-# Worker Node Responsibilities
-
-Worker nodes host the majority of workloads.
-
-Examples:
-
-- application pods
-- monitoring stack
-- storage services
-- ingress controllers
-
-Workers provide the compute capacity for the platform.
-
----
-
-# Understanding the Kubernetes Scheduler
-
-When a pod is created the Kubernetes scheduler decides **where it should run**.
-
-The decision is based on several factors:
-
-- node availability
-- resource requests
-- node labels
-- taints and tolerations
-- affinity rules
-
-Diagram:
-
-```mermaid
-graph TD
-    P["Pod Created"] --> S["Kubernetes Scheduler"]
-    S --> E{"Evaluate Nodes"}
-    E -->|"+ Resources available<br/>+ No taint conflicts<br/>+ Affinity rules match"| N["Node Selected"]
-    E -->|"- NoSchedule taint<br/>- Insufficient resources"| Skip["Node Skipped"]
-    N --> A["Pod Assigned + Running"]
-```
-
-Without constraints the scheduler simply chooses the most suitable node.
-
----
-
-# Preventing Workloads on the Control Plane
-
-The safest practice is to prevent application workloads from running on the control-plane node.
-
-This is done using a **taint**.
-
-Run:
-
-```bash
-kubectl taint nodes tywin node-role.kubernetes.io/control-plane=:NoSchedule
-```
-
-This tells the scheduler:
-
-```
-Do not place pods on this node unless they explicitly tolerate the taint.
-```
-
-Diagram:
-
-```
-Control Plane Node
-       │
-       ▼
-[NoSchedule Taint]
-       │
-       ▼
-Scheduler avoids this node
-```
-
-Infrastructure pods that require the control plane can still run if they declare a toleration.
-
----
-
-# Node Labels
-
-Labels are key/value tags assigned to nodes.
-
-Example:
-
-```bash
-kubectl label nodes jaime node-role=worker
-kubectl label nodes tyrion node-role=worker
-```
-
-Labels allow workloads to target specific nodes.
-
-Example scheduling rule:
-
-```yaml
-nodeSelector:
-  node-role: worker
-```
-
-This ensures a pod only runs on worker nodes.
-
----
-
-# Infrastructure Placement Strategy
-
-Not all workloads should be treated the same.
-
-Infrastructure services may need different placement rules.
-
-Example platform components:
-
-```
-MetalLB
-Traefik
-cert-manager
-Flux
-```
-
-These should typically run on worker nodes rather than the control plane.
-
-Diagram:
-
-```mermaid
-graph TD
-    Cluster["Kubernetes Cluster"]
-    Cluster --> CP["tywin - Control Plane<br/>10.0.10.11<br/>kube-apiserver - etcd - scheduler - controller-manager"]
-    Cluster --> W["Workers"]
-    W --> jaime["jaime (10.0.10.12)<br/>ingress - monitoring<br/>applications"]
-    W --> tyrion["tyrion (10.0.10.13)<br/>ingress - storage<br/>applications"]
-    style CP fill:#2b6cb0,color:#fff
-    style jaime fill:#276749,color:#fff
-    style tyrion fill:#276749,color:#fff
-```
-
-This separation improves reliability.
-
----
-
-# High Availability Considerations
-
-Even in small clusters we should consider **distribution of workloads**.
-
-Example:
-
-```
-Replica 1 → jaime
-Replica 2 → tyrion
-```
-
-This ensures that if one worker node fails the service remains available.
-
-This is achieved using **replicas and anti-affinity rules**.
-
----
-
-# Verifying Node Configuration
-
-Check nodes:
-
-```bash
-kubectl get nodes
-```
-
-Example output:
-
-```
-NAME     STATUS   ROLES           AGE
-tywin    Ready    control-plane
-jaime    Ready    worker
-tyrion   Ready    worker
-```
-
-Check labels:
+Check them with:
 
 ```bash
 kubectl get nodes --show-labels
 ```
 
-Check taints:
+You should expect all three nodes to carry the built-in control-plane label:
 
-```bash
-kubectl describe node tywin
+```text
+node-role.kubernetes.io/control-plane=true
 ```
 
-You should see the `NoSchedule` taint applied.
+That label now means "this is a k3s server node." It does **not** mean "do not schedule workloads here."
+
+### What is intentionally *not* done
+
+This platform does **not** taint `tywin` or reserve a dedicated worker pool.
+
+That would waste capacity on a small homelab where each node has enough RAM and CPU to do both jobs. The current design intentionally trades strict role isolation for better aggregate utilization.
 
 ---
 
-# Why This Matters
+## Scheduling Philosophy
 
-Cluster identity may seem minor, but it forms the foundation for reliable scheduling.
+The scheduler's default behaviour is now acceptable for many workloads because every node is both a server and a worker.
 
-A cluster without scheduling rules eventually develops problems such as:
+That said, not every workload should be treated identically.
 
-- infrastructure pods competing with applications
-- uneven workload distribution
-- accidental overload of control-plane nodes
+### Default rule
 
-Defining identity early prevents these issues.
+If a workload is stateless or uses NFS-backed storage, let Kubernetes place it anywhere unless there is a strong reason not to.
+
+### Constrain only when there is an actual reason
+
+Use placement rules for one of these reasons:
+
+- the workload depends on node-local storage
+- the workload should be spread across nodes
+- the workload is especially noisy or sensitive
+- the workload needs to avoid co-locating replicas
+
+### Prefer soft guidance before hard pinning
+
+Use these tools in roughly this order:
+
+1. `topologySpreadConstraints`
+2. `podAntiAffinity`
+3. `preferredDuringSchedulingIgnoredDuringExecution`
+4. `requiredDuringSchedulingIgnoredDuringExecution`
+
+Hard pinning should be deliberate. Once you require a node or class of node, you reduce the scheduler's ability to recover automatically.
 
 ---
 
-# Exit Criteria
+## Placement Patterns Used in This Platform
 
-This guide is complete when:
+### Pattern 1 - Stateless or portable workloads
 
-**Namespaces:**
+Examples:
 
-- platform namespaces exist: `ingress`, `monitoring`, `storage`, `databases`, `apps`
-- workloads are deployed into the correct namespaces
-- repository layout mirrors namespace structure
+- Traefik
+- cert-manager
+- CrowdSec
+- most applications with NFS-backed PVCs
 
-**Cluster Identity:**
+Recommended approach:
 
-- control-plane node `tywin` is tainted `NoSchedule`
-- worker nodes `jaime` and `tyrion` are labeled
-- scheduler behaviour is predictable
+- allow scheduling on any of the three server nodes
+- add anti-affinity or topology spread when multiple replicas exist
 
-Your cluster now has a **clear organisational model** and a **well-defined node structure**.
+### Pattern 2 - Node-local stateful workloads
+
+Examples:
+
+- PostgreSQL
+- Redis
+- Prometheus TSDB
+
+These use `local-path`, not NFS. The important detail is:
+
+> the PVC itself becomes node-bound after first provisioning.
+
+So even if the initial pod is schedulable on any server node, once the `local-path` volume is created, Kubernetes will keep that workload on the node that owns the volume.
+
+This is why a single-instance local-path workload is not "portable" in the same way an NFS-backed workload is.
+
+### Pattern 3 - Multi-replica services
+
+For anything with more than one replica, the objective is simple:
+
+```text
+do not let all replicas land on one node unless there is no other option
+```
+
+Typical approach:
+
+```yaml
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: my-app
+```
+
+or:
+
+```yaml
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: my-app
+```
+
+### Pattern 4 - Infrastructure controllers
+
+Controllers such as Flux or the upgrade controller may use `nodeAffinity` for predictability, but they should still tolerate the current 3-node server layout rather than assuming a separate worker pool exists.
+
+---
+
+## Security Boundaries to Add Next
+
+Namespaces improve organization immediately, but by themselves they are **not** a full security boundary.
+
+Two additions should come next as the platform matures:
+
+### 1. Pod Security labels
+
+These namespace labels tell Kubernetes which classes of pods are acceptable:
+
+```yaml
+pod-security.kubernetes.io/enforce: baseline
+pod-security.kubernetes.io/audit: baseline
+pod-security.kubernetes.io/warn: baseline
+```
+
+For a safe rollout, start with `warn` and `audit` first so you can see what would break before you enforce it.
+
+### 2. NetworkPolicies
+
+Without NetworkPolicies, a compromised pod can usually talk to almost anything else in the cluster.
+
+The production-friendly rollout path is:
+
+1. Add default-deny ingress policies for app namespaces.
+2. Add explicit allow rules for DNS, ingress-to-app traffic, monitoring scrapes, and app-to-database traffic.
+3. Only then move on to stricter egress controls if needed.
+
+This is the cleanest way to turn namespaces from an organizational boundary into a real traffic boundary.
+
+---
+
+## Verification
+
+### 1. Confirm namespaces exist
+
+```bash
+kubectl get namespaces
+```
+
+At minimum, you should see the platform namespaces used by this repo:
+
+```text
+apps
+auth
+crowdsec
+databases
+monitoring
+storage
+velero
+```
+
+### 2. Confirm all three nodes are server nodes and schedulable
+
+```bash
+kubectl get nodes
+```
+
+Expected:
+
+```text
+NAME     STATUS   ROLES                  VERSION
+tywin    Ready    control-plane,master   v1.x.x+k3s1
+tyrion   Ready    control-plane,master   v1.x.x+k3s1
+jaime    Ready    control-plane,master   v1.x.x+k3s1
+```
+
+### 3. Confirm no manual tainting has isolated one node
+
+```bash
+kubectl describe node tywin | grep Taints
+kubectl describe node tyrion | grep Taints
+kubectl describe node jaime | grep Taints
+```
+
+Expected:
+
+```text
+Taints: <none>
+```
+
+### 4. Confirm Flux owns namespace creation
+
+```bash
+flux get kustomization platform-namespaces
+```
+
+Expected:
+
+```text
+READY=True
+```
+
+---
+
+## Exit Criteria
+
+This guide is complete when all of the following are true:
+
+- the namespace layout is clear and matches the platform layering
+- it is explicitly documented that `tywin`, `tyrion`, and `jaime` are all both server and worker nodes
+- no part of the operating model depends on a dedicated worker pool
+- scheduling decisions are made intentionally, not by inherited assumptions from the old topology
+- the next hardening steps are clear: Pod Security labels and NetworkPolicies
 
 ---
 
@@ -588,6 +386,6 @@ Your cluster now has a **clear organisational model** and a **well-defined node 
 
 | | Guide |
 |---|---|
-| ← Previous | [06 — Security: cert-manager & TLS](./06-Security-CertManager-TLS.md) |
-| Current | **07 — Namespaces & Cluster Identity** |
-| → Next | [08 — Storage Architecture](./08-Storage-Architecture.md) |
+| <- Previous | [06 - Security: cert-manager & TLS](./06-Security-CertManager-TLS.md) |
+| Current | **07 - Namespaces & Cluster Identity** |
+| -> Next | [08 - Storage Architecture](./08-Storage-Architecture.md) |

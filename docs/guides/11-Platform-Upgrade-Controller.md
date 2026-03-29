@@ -1,139 +1,126 @@
-
-# 11 — Platform Upgrade Controller
+# 11 - Platform Upgrade Controller
 ## Automated k3s Upgrades via system-upgrade-controller
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐☆☆☆☆ (6/10)
+**Difficulty:** ******---- (6/10)
 **Guide:** 11 of 13
 
-> This guide covers `platform-upgrade` and `platform-upgrade-plans` — two Flux kustomizations that deploy the system-upgrade-controller and its upgrade Plan resources. `platform-upgrade` depends on `platform-networking` (Flux must be able to pull the controller image). `platform-upgrade-plans` depends on `platform-upgrade` (the CRDs must exist before Plans can be created).
+> This guide covers the Rancher system-upgrade-controller used to roll k3s upgrades across the cluster.
+>
+> The current topology matters here:
+>
+> **all three nodes are k3s servers and schedulable workers.**
+>
+> That means the upgrade strategy is no longer "server plan first, worker plan second." Instead, the cluster now uses **one server plan targeting all three server nodes sequentially**.
 
 ---
 
-# What Is the System Upgrade Controller?
+## Table of Contents
 
-The [system-upgrade-controller](https://github.com/rancher/system-upgrade-controller) is a Kubernetes controller built by Rancher that automates node-level upgrades. It watches for `Plan` custom resources in the cluster and, when it detects a version change, orchestrates a rolling upgrade across the targeted nodes.
-
-In this platform, the controller manages **k3s binary upgrades** — the Kubernetes distribution itself. Without it, upgrading k3s across all nodes would require SSH access to each machine, manual drain/cordon operations, and careful sequencing to avoid downtime. The controller replaces that manual workflow with a declarative, Git-driven process.
-
-## Why It Exists
-
-| Problem | Solution |
-|---------|----------|
-| k3s runs as a host binary, not a container — it cannot be upgraded via Helm or kubectl | system-upgrade-controller runs privileged Jobs that replace the k3s binary on each node |
-| Upgrading the control-plane and workers must happen in a specific order | Separate Plan resources with a `prepare` dependency enforce sequencing |
-| Manual SSH upgrades are error-prone and do not fit a GitOps workflow | Plan version changes are committed to Git and reconciled by Flux |
-| Nodes must be cordoned/drained before upgrade to protect running workloads | The controller handles cordon, drain, upgrade, and uncordon automatically |
+1. [What the Controller Does](#what-the-controller-does)
+2. [Why the Upgrade Model Changed](#why-the-upgrade-model-changed)
+3. [Live File Layout](#live-file-layout)
+4. [Controller Deployment](#controller-deployment)
+5. [The Upgrade Plan](#the-upgrade-plan)
+6. [How a Rolling Upgrade Proceeds](#how-a-rolling-upgrade-proceeds)
+7. [Relationship to Ansible](#relationship-to-ansible)
+8. [How to Trigger an Upgrade](#how-to-trigger-an-upgrade)
+9. [How to Monitor and Verify](#how-to-monitor-and-verify)
+10. [Rollback and Recovery](#rollback-and-recovery)
+11. [Troubleshooting](#troubleshooting)
+12. [Exit Criteria](#exit-criteria)
 
 ---
 
-# Architecture
+## What the Controller Does
 
-## Deployed Components
+k3s is a host binary, not a normal in-cluster application. That means it cannot be upgraded with a Helm chart or a plain Kubernetes manifest.
 
-The platform deploys the system-upgrade-controller through two Flux kustomizations defined in `clusters/prod/infrastructure.yaml`:
+The system-upgrade-controller solves that by:
 
-| Flux Kustomization | Path | What It Deploys | Depends On |
-|---------------------|------|-----------------|------------|
-| `platform-upgrade` | `./platform/upgrade` | Namespace, RBAC, Deployment | `platform-networking` |
-| `platform-upgrade-plans` | `./platform/upgrade/upgrade-plans` | Plan CRDs (server + agent) | `platform-upgrade` |
+- watching `Plan` resources
+- detecting nodes that are behind the target version
+- cordoning and draining nodes
+- running privileged upgrade jobs on those nodes
+- bringing them back one at a time
 
-The split exists for the same reason other platform components are split: the controller must be running and its CRDs must be registered before Plan resources can be applied. If both were in a single kustomization, Flux's server-side dry-run would fail because the `upgrade.cattle.io/v1` API would not yet exist.
+In other words, it turns node upgrades into a declarative Git-driven workflow.
 
-## File Layout
+---
 
-```
+## Why the Upgrade Model Changed
+
+Older versions of the docs assumed:
+
+- one control-plane node
+- two worker nodes
+- one Plan for the server
+- one Plan for the agents
+
+That is no longer true.
+
+The current cluster is a 3-node HA control-plane with embedded etcd, and **every node is a k3s server**:
+
+| Node | IP | Role |
+|---|---|---|
+| `tywin` | `10.0.10.11` | server + workload node |
+| `tyrion` | `10.0.10.12` | server + workload node |
+| `jaime` | `10.0.10.13` | server + workload node |
+
+Because all three nodes carry the control-plane label, one server plan is enough. The only thing that matters is that upgrades happen **one node at a time** so etcd quorum is preserved.
+
+---
+
+## Live File Layout
+
+```text
 platform/upgrade/
-├── kustomization.yaml              # includes rbac.yaml + controller.yaml
-├── rbac.yaml                       # ServiceAccount, ClusterRole, ClusterRoleBinding
-├── controller.yaml                 # Namespace + Deployment
-└── upgrade-plans/
-    ├── kustomization.yaml          # includes plan-server.yaml + plan-agent.yaml
-    ├── plan-server.yaml            # Plan targeting control-plane nodes
-    └── plan-agent.yaml             # Plan targeting worker nodes
+|-- controller.yaml
+|-- kustomization.yaml
+|-- rbac.yaml
+`-- upgrade-plans/
+    |-- kustomization.yaml
+    `-- plan-server.yaml
 ```
+
+Flux splits this into two Kustomizations:
+
+| Flux Kustomization | Path | Purpose |
+|---|---|---|
+| `platform-upgrade` | `./platform/upgrade` | namespace, RBAC, controller deployment |
+| `platform-upgrade-plans` | `./platform/upgrade/upgrade-plans` | Plan resources |
+
+The split exists because the CRD-backed resources should only be applied after the controller and CRDs exist.
+
+---
 
 ## Controller Deployment
 
-The controller runs as a single-replica Deployment in the `system-upgrade` namespace. It is pinned to the control-plane node via a node affinity rule and tolerates the `NoSchedule` taint so it can run on `tywin`:
+The controller runs in the `system-upgrade` namespace and is deployed from `platform/upgrade/controller.yaml`.
+
+Important characteristics:
+
+- single replica
+- scheduled onto a server node
+- privileged jobs enabled
+- job deadline and retry limits explicitly configured
+
+The controller deployment still includes a control-plane toleration:
 
 ```yaml
-affinity:
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: Exists
 tolerations:
   - key: node-role.kubernetes.io/control-plane
     operator: Exists
     effect: NoSchedule
 ```
 
-**Controller image:** `rancher/system-upgrade-controller:v0.14.2`
-
-Key environment variables:
-
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `SYSTEM_UPGRADE_CONTROLLER_DEBUG` | `false` | Set to `true` for verbose logging during troubleshooting |
-| `SYSTEM_UPGRADE_CONTROLLER_THREADS` | `2` | Number of worker threads processing Plans |
-| `SYSTEM_UPGRADE_JOB_ACTIVE_DEADLINE_SECONDS` | `900` | Maximum time (15 min) an upgrade Job can run before being killed |
-| `SYSTEM_UPGRADE_JOB_BACKOFF_LIMIT` | `99` | Number of retries if an upgrade Job fails on a node |
-| `SYSTEM_UPGRADE_JOB_IMAGE_PULL_POLICY` | `Always` | Ensures the latest upgrade image is pulled each time |
-| `SYSTEM_UPGRADE_JOB_KUBECTL_IMAGE` | `rancher/kubectl:v1.31.2` | kubectl image used for drain/cordon operations |
-| `SYSTEM_UPGRADE_JOB_PRIVILEGED` | `true` | Upgrade Jobs run as privileged containers (required to replace the k3s binary on the host) |
-
-## RBAC
-
-The controller's ServiceAccount (`system-upgrade` in namespace `system-upgrade`) is bound to a ClusterRole with the following permissions:
-
-| API Group | Resources | Verbs | Purpose |
-|-----------|-----------|-------|---------|
-| `upgrade.cattle.io` | `plans`, `plans/status` | full CRUD | Read and update Plan CRDs |
-| (core) | `nodes` | get, list, watch, update, patch | Read node labels/taints, cordon/uncordon |
-| `batch` | `jobs`, `jobs/status` | full CRUD | Create upgrade Jobs per node |
-| `apps` | `daemonsets` | full CRUD | Manage drain helper DaemonSets |
-| (core) | `secrets` | get, list, watch | Read the k3s server token |
-| (core) | `pods` | get, list, watch, delete | Manage pods created by upgrade Jobs |
-| `policy` | `poddisruptionbudgets` | get, list, watch | Respect PDBs during drain |
+That is safe to keep, but in the current cluster it is mainly compatibility rather than necessity because the nodes are not intentionally tainted out of workload scheduling.
 
 ---
 
-# How Upgrades Work
+## The Upgrade Plan
 
-## The Upgrade Lifecycle
-
-When you change the `spec.version` in a Plan resource and Flux applies it, the controller executes the following sequence for each matching node:
-
-```
-1. Detect version mismatch     Plan.spec.version != node's current k3s version
-2. Cordon the node              kubectl cordon <node>  — prevents new pod scheduling
-3. Drain the node (if configured)  kubectl drain <node>  — evicts running pods
-4. Run upgrade Job              Privileged container replaces k3s binary on the host
-5. Node restarts k3s            The new binary takes over; kubelet re-registers
-6. Uncordon the node            Node returns to the scheduling pool
-7. Move to next node            Controller processes the next matching node
-```
-
-The controller creates a Kubernetes **Job** for each node being upgraded. The Job runs a container from the `rancher/k3s-upgrade` image, which:
-
-- Downloads the target k3s version
-- Replaces the k3s binary at `/usr/local/bin/k3s`
-- Restarts the k3s systemd service
-
-Because the container runs privileged with the host filesystem mounted, it can modify host-level binaries directly.
-
----
-
-# The k3s Upgrade Strategy
-
-The platform uses **two separate Plan resources** to enforce upgrade ordering: the control-plane node is always upgraded before any worker node.
-
-## Plan: k3s-server (Control-Plane)
-
-**File:** `platform/upgrade/upgrade-plans/plan-server.yaml`
+The live upgrade plan is `platform/upgrade/upgrade-plans/plan-server.yaml`.
 
 ```yaml
 apiVersion: upgrade.cattle.io/v1
@@ -149,40 +136,6 @@ spec:
         operator: Exists
   serviceAccountName: system-upgrade
   cordon: true
-  upgrade:
-    image: rancher/k3s-upgrade
-```
-
-This Plan targets the control-plane node (`tywin`) by selecting nodes with the `node-role.kubernetes.io/control-plane` label. Key behaviors:
-
-- **Version:** Pinned to `v1.31.4+k3s1` (explicit version, not a channel)
-- **Cordon:** `true` — the node is cordoned before upgrade to prevent new pod scheduling
-- **Drain:** Not configured on the server Plan — the control-plane node is cordoned but not drained, since draining the only control-plane node would remove critical system pods
-- **Upgrade image:** `rancher/k3s-upgrade` — the official k3s upgrade container
-
-## Plan: k3s-agent (Workers)
-
-**File:** `platform/upgrade/upgrade-plans/plan-agent.yaml`
-
-```yaml
-apiVersion: upgrade.cattle.io/v1
-kind: Plan
-metadata:
-  name: k3s-agent
-  namespace: system-upgrade
-spec:
-  version: v1.31.4+k3s1
-  nodeSelector:
-    matchExpressions:
-      - key: node-role.kubernetes.io/control-plane
-        operator: DoesNotExist
-  serviceAccountName: system-upgrade
-  prepare:
-    image: rancher/k3s-upgrade
-    args:
-      - prepare
-      - k3s-server
-  cordon: true
   drain:
     force: true
     skipWaitForDeleteTimeout: 60
@@ -190,446 +143,224 @@ spec:
     image: rancher/k3s-upgrade
 ```
 
-This Plan targets worker nodes (`jaime`, `tyrion`) — any node that does **not** have the control-plane label. Key behaviors:
+### What this means
 
-- **Version:** Pinned to `v1.31.4+k3s1` — must always match the server Plan
-- **Prepare step:** Before upgrading any worker, the controller runs a prepare container that waits for the `k3s-server` Plan to complete. This ensures the control-plane is fully upgraded before any worker begins
-- **Cordon:** `true` — the worker is cordoned before upgrade
-- **Drain:** Configured with `force: true` and `skipWaitForDeleteTimeout: 60` — pods are forcefully evicted, and the controller will not wait longer than 60 seconds for pods managed by a deleted controller to terminate
-- **Upgrade image:** `rancher/k3s-upgrade`
+| Field | Meaning |
+|---|---|
+| `spec.version` | target k3s version, pinned explicitly in Git |
+| `nodeSelector` | targets all three server nodes |
+| `cordon: true` | stop new scheduling before each node upgrade |
+| `drain` | evict workloads before restarting the node |
+| `upgrade.image` | official Rancher image that performs the host-level binary replacement |
 
-## Upgrade Sequence
+### Why one plan is enough
 
-The combination of these two Plans produces the following deterministic upgrade order:
+All three nodes match `node-role.kubernetes.io/control-plane`.
+
+The controller processes the matching nodes one at a time. That gives you:
+
+- sequential upgrades
+- preserved etcd quorum
+- a simpler mental model
+- no risk of server/agent plan drift in the docs
+
+---
+
+## How a Rolling Upgrade Proceeds
 
 ```mermaid
 graph TD
-    Change["Version updated in Git<br/>plan-server.yaml + plan-agent.yaml"] --> Flux["Flux reconciles Plans<br/>into the cluster"]
-    Flux --> Server["k3s-server Plan executes<br/>Upgrades tywin (control-plane)"]
-    Server --> Prepare["k3s-agent Plan prepare step<br/>Waits for k3s-server completion"]
-    Prepare --> Agent1["k3s-agent Plan executes<br/>Upgrades jaime"]
-    Agent1 --> Agent2["k3s-agent Plan executes<br/>Upgrades tyrion"]
-    Agent2 --> Done["All nodes on new version<br/>Cluster fully upgraded"]
+    Git["Version changed in plan-server.yaml"] --> Flux["Flux reconciles platform-upgrade-plans"]
+    Flux --> Plan["k3s-server Plan updated"]
+    Plan --> Node1["Node 1 cordon + drain + upgrade"]
+    Node1 --> Node2["Node 2 cordon + drain + upgrade"]
+    Node2 --> Node3["Node 3 cordon + drain + upgrade"]
+    Node3 --> Done["All three nodes converge on target version"]
 ```
 
-**Order:** tywin (control-plane) → jaime → tyrion
+At any point during the rollout:
 
-Worker nodes are upgraded one at a time because the agent Plan's default concurrency is 1 (no explicit `concurrency` field means the controller defaults to upgrading one node at a time).
+- one node may be unavailable
+- two nodes still maintain etcd quorum
+- the API remains reachable through kube-vip at `10.0.10.100`
+
+That is the entire point of the HA redesign.
 
 ---
 
-# Plan Configuration
+## Relationship to Ansible
 
-## Version Pinning vs. Channel Tracking
+Both tools still matter, but they solve different problems.
 
-The Plans in this repository use **explicit version pinning**:
+| Scenario | Preferred tool | Why |
+|---|---|---|
+| routine k3s upgrades | system-upgrade-controller | Git-driven, auditable, repeatable |
+| fresh cluster installation | Ansible | cluster does not exist yet |
+| break-glass recovery when the controller is unavailable | Ansible | external control path via SSH |
+| node rebuild or replacement | Ansible | reprovisioning, not just version bump |
 
-```yaml
-spec:
-  version: v1.31.4+k3s1
-```
+One important improvement is already in place:
 
-This means upgrades only occur when you deliberately change the version string and push to Git. The controller does not auto-upgrade.
+> the Ansible bootstrap now pins the same k3s version family used by the upgrade plan.
 
-An alternative approach is **channel tracking**, where the controller periodically polls a k3s release channel and upgrades when a new version appears:
-
-```yaml
-spec:
-  channel: https://update.k3s.io/v1-release/channels/stable
-```
-
-The server Plan includes a comment showing this channel URL for reference, but it is **commented out** in favor of the pinned version. Version pinning is the correct choice for this platform because:
-
-1. Upgrades should be deliberate and reviewed, not automatic
-2. The version is tracked in Git, providing a full audit trail
-3. Both Plans must specify the same version — automatic channel tracking could cause version skew if one Plan updates before the other
-
-## Key Plan Fields
-
-| Field | Server Plan | Agent Plan | Purpose |
-|-------|-------------|------------|---------|
-| `spec.version` | `v1.31.4+k3s1` | `v1.31.4+k3s1` | Target k3s version (must match) |
-| `spec.nodeSelector` | `control-plane: Exists` | `control-plane: DoesNotExist` | Which nodes this Plan targets |
-| `spec.cordon` | `true` | `true` | Cordon the node before upgrading |
-| `spec.drain` | (not set) | `force: true` | Drain pods before upgrading (agent only) |
-| `spec.prepare` | (not set) | `prepare k3s-server` | Wait for server Plan to finish first |
-| `spec.upgrade.image` | `rancher/k3s-upgrade` | `rancher/k3s-upgrade` | Container that performs the binary replacement |
-| `spec.serviceAccountName` | `system-upgrade` | `system-upgrade` | RBAC identity for the upgrade Jobs |
+That removes a major source of rebuild drift.
 
 ---
 
-# Relationship to the Ansible Manual Upgrade Method
+## How to Trigger an Upgrade
 
-The repository provides **two** methods for upgrading k3s. They are not interchangeable — each serves a different scenario.
-
-## When to Use Each Method
-
-| Scenario | Method | Why |
-|----------|--------|-----|
-| Routine version upgrade (patch or minor) | **system-upgrade-controller** (this guide) | GitOps-native, automated, repeatable, auditable via Git history |
-| Cluster rebuild from scratch | **Ansible** (`install-cluster.yml`) | The controller cannot upgrade nodes that do not exist yet |
-| system-upgrade-controller is broken or unreachable | **Ansible** (`install-cluster.yml --limit <node>`) | Fallback when the controller itself is down |
-| Emergency rollback on a single node | **Ansible** (SSH + manual k3s reinstall) | Faster than waiting for the controller to process a version revert |
-| Initial cluster installation | **Ansible** | The controller cannot run before the cluster exists |
-
-## How They Differ
-
-| Aspect | system-upgrade-controller | Ansible |
-|--------|---------------------------|---------|
-| Trigger | Git commit (version change in Plan YAML) | Manual `ansible-playbook` command |
-| Execution | Runs inside the cluster as privileged Jobs | Runs from the automation host (Raspberry Pi) via SSH |
-| Version selection | Explicit `spec.version` in Plan manifest | Whatever version the `get.k3s.io` install script downloads (latest stable, unless `INSTALL_K3S_VERSION` is set) |
-| Sequencing | Automatic: server first, then agents (via `prepare` step) | Manual: operator must run playbooks with `--limit` in the correct order |
-| Drain/cordon | Automatic | Not included in the playbook — must be done manually |
-| Audit trail | Git commit history | Ansible logs only |
-
-> **Important:** The Ansible install playbook (`ansible/playbooks/lifecycle/install-cluster.yml`) does not pin a k3s version. It runs `curl -sfL https://get.k3s.io | sh -` without setting `INSTALL_K3S_VERSION`, which installs the latest stable release. If you use Ansible for an upgrade, verify the installed version matches what the controller's Plans expect to avoid version skew.
-
----
-
-# Recommended Upgrade Workflow
-
-For k3s version upgrades:
-
-```
-1. Review k3s release notes for breaking changes
-2. Take an etcd snapshot on the production cluster
-3. Update spec.version in both Plan files
-4. Open a PR — CI validates the manifest changes
-5. Merge to main — Flux reconciles the Plans
-6. Monitor the rolling upgrade in production
-7. Verify all nodes and workloads
-```
-
----
-
-# How to Trigger an Upgrade
-
-## Step 1 — Check the Current Cluster Version
+### 1. Check the current version
 
 ```bash
 kubectl get nodes -o wide
 ```
 
-Expected output:
+Expected shape:
 
+```text
+NAME     STATUS   ROLES                  VERSION        INTERNAL-IP
+tywin    Ready    control-plane,master   v1.31.4+k3s1   10.0.10.11
+tyrion   Ready    control-plane,master   v1.31.4+k3s1   10.0.10.12
+jaime    Ready    control-plane,master   v1.31.4+k3s1   10.0.10.13
 ```
-NAME     STATUS   ROLES                  VERSION        INTERNAL-IP   OS-IMAGE
-tywin    Ready    control-plane,master   v1.31.4+k3s1   10.0.10.11    Ubuntu 24.04 LTS
-jaime    Ready    <none>                 v1.31.4+k3s1   10.0.10.12    Ubuntu 24.04 LTS
-tyrion   Ready    <none>                 v1.31.4+k3s1   10.0.10.13    Ubuntu 24.04 LTS
-```
 
-## Step 2 — Identify the Target Version
-
-Check the latest k3s release:
+### 2. Take an etcd snapshot first
 
 ```bash
-curl -s https://api.github.com/repos/k3s-io/k3s/releases/latest \
-  | grep '"tag_name"'
-```
-
-Review the [k3s release notes](https://github.com/k3s-io/k3s/releases) for any breaking changes or required migration steps.
-
-## Step 3 — Take an etcd Snapshot
-
-**Always take a snapshot before upgrading.** This is the only way to recover if the upgrade corrupts the cluster state.
-
-```bash
-# On tywin (the control-plane node):
 /usr/local/bin/k3s-snapshot.sh
 ```
 
-## Step 4 — Update the Plan Manifests
+Never upgrade the control plane without a recent snapshot.
 
-Edit both Plan files to set the new version. The version **must match** in both files.
+### 3. Edit the target version
 
-In `platform/upgrade/upgrade-plans/plan-server.yaml`:
+Update:
+
+```text
+platform/upgrade/upgrade-plans/plan-server.yaml
+```
+
+Example:
 
 ```yaml
 spec:
-  version: v1.32.1+k3s1    # <-- new version
+  version: v1.32.1+k3s1
 ```
 
-In `platform/upgrade/upgrade-plans/plan-agent.yaml`:
-
-```yaml
-spec:
-  version: v1.32.1+k3s1    # <-- must match plan-server.yaml
-```
-
-## Step 5 — Open a PR and Merge
+### 4. Open the PR
 
 ```bash
 git checkout -b upgrade/k3s-v1.32.1
-git add platform/upgrade/upgrade-plans/plan-server.yaml \
-        platform/upgrade/upgrade-plans/plan-agent.yaml
+git add platform/upgrade/upgrade-plans/plan-server.yaml
 git commit -m "chore: upgrade k3s to v1.32.1+k3s1"
 git push origin upgrade/k3s-v1.32.1
 ```
 
-Open a pull request against `main`. CI runs kubeconform validation. After review, merge to `main`. Flux reconciles the Plans automatically.
-
-## Step 6 — Force Flux Reconciliation (Optional)
-
-Flux polls the Git repository every hour (`interval: 1h` in the kustomization). To apply the upgrade immediately after merge:
-
-```bash
-flux reconcile kustomization platform-upgrade-plans --with-source
-```
+After merge, Flux reconciles the plan and the controller starts the rollout.
 
 ---
 
-# How to Monitor Upgrade Progress
+## How to Monitor and Verify
 
-## Watch the Plan Status
+### Watch the Plan
 
 ```bash
 kubectl get plans -n system-upgrade
 ```
 
-Expected output during an upgrade:
-
-```
-NAME         LATEST
-k3s-server   v1.32.1+k3s1
-k3s-agent    v1.32.1+k3s1
-```
-
-## Watch Upgrade Jobs
-
-The controller creates one Job per node. Watch them appear and complete:
+### Watch upgrade jobs
 
 ```bash
 kubectl get jobs -n system-upgrade --watch
 ```
 
-Typical progression:
+Typical sequence:
 
-```
-NAME                              COMPLETIONS   DURATION   AGE
-apply-k3s-server-on-tywin-xxxxx   0/1           0s         0s
-apply-k3s-server-on-tywin-xxxxx   1/1           180s       3m
-apply-k3s-agent-on-jaime-xxxxx    0/1           0s         0s
-apply-k3s-agent-on-jaime-xxxxx    1/1           150s       2m30s
-apply-k3s-agent-on-tyrion-xxxxx   0/1           0s         0s
-apply-k3s-agent-on-tyrion-xxxxx   1/1           150s       2m30s
+```text
+apply-k3s-server-on-tywin-xxxxx    1/1
+apply-k3s-server-on-tyrion-xxxxx   1/1
+apply-k3s-server-on-jaime-xxxxx    1/1
 ```
 
-## Watch Upgrade Pods
-
-```bash
-kubectl get pods -n system-upgrade --watch
-```
-
-Each upgrade Job creates a pod that runs through `Pending` → `Running` → `Completed`.
-
-## Watch Node Status
+### Watch node status
 
 ```bash
 kubectl get nodes --watch
 ```
 
-During upgrade, each node will briefly show `SchedulingDisabled` (cordoned), then return to `Ready` after the k3s binary is replaced and the service restarts.
+You should see one node cordoned and upgraded at a time, then returned to `Ready`.
 
-## Check Controller Logs
-
-If an upgrade is not progressing, inspect the controller logs:
+### Post-upgrade verification
 
 ```bash
-kubectl logs -n system-upgrade deployment/system-upgrade-controller -f
+kubectl get nodes -o wide
+kubectl get pods -A | grep -Ev "Running|Completed|Succeeded"
+flux get kustomizations
+flux get helmreleases -A
 ```
 
-For more verbose output, set the debug environment variable to `true` in `platform/upgrade/controller.yaml` and let Flux reconcile:
+The cluster is healthy when:
 
-```yaml
-- name: SYSTEM_UPGRADE_CONTROLLER_DEBUG
-  value: "true"
-```
-
-## Expected Timeline
-
-| Phase | Duration |
-|-------|----------|
-| Flux reconciliation (if forced) | 1-2 min |
-| tywin (control-plane) upgrade | 3-5 min |
-| jaime (worker) upgrade | 3-5 min |
-| tyrion (worker) upgrade | 3-5 min |
-| **Total** | **~15-25 min** |
+- all nodes report the same version
+- no node is left in `SchedulingDisabled`
+- Flux controllers and platform services are healthy
 
 ---
 
-# Rollback Procedures
+## Rollback and Recovery
 
-## Option A — Revert the Version in Git
+### Git revert
 
-If the new version causes issues but all nodes are still reachable:
+If the cluster is still reachable but the new version is bad:
 
 ```bash
-# Revert the version bump commit
-git revert HEAD
+git revert <upgrade-commit>
 git push origin main
-
-# Force Flux to apply the revert immediately
 flux reconcile kustomization platform-upgrade-plans --with-source
 ```
 
-The controller will detect that the Plan version has changed back to the previous value and execute another rolling upgrade — this time "downgrading" each node to the prior k3s version using the same cordon-drain-upgrade-uncordon sequence.
+### Rebuild a node with Ansible
 
-## Option B — Manual k3s Reinstall on a Specific Node
-
-If one node is stuck and the controller cannot recover it:
-
-```bash
-# SSH to the affected node (example: jaime at 10.0.10.12)
-ssh kagiso@10.0.10.12
-
-# For a worker node:
-sudo systemctl stop k3s-agent
-sudo /usr/local/bin/k3s-agent-uninstall.sh
-
-# For the control-plane node (tywin):
-sudo systemctl stop k3s
-sudo /usr/local/bin/k3s-uninstall.sh
-```
-
-Then reinstall from the automation host:
+If a node gets stuck badly enough that the in-cluster controller cannot recover it:
 
 ```bash
 ansible-playbook ansible/playbooks/lifecycle/install-cluster.yml --limit <node-name>
 ```
 
-After reinstall, verify the node rejoined the cluster and update the Plan version in Git to match the version that is actually running.
+### Restore etcd if required
 
-## Option C — Restore from etcd Snapshot
-
-If the control-plane is corrupted beyond recovery:
-
-```bash
-# On tywin:
-sudo systemctl stop k3s
-sudo k3s server --cluster-reset \
-  --cluster-reset-restore-path=/mnt/archive/backups/k8s/etcd/<snapshot-file>
-sudo systemctl start k3s
-```
-
-This restores the cluster state to the point when the snapshot was taken. See [Guide 10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) for the full etcd restore procedure.
+If control-plane state is damaged, use the etcd restore workflow from [Guide 10 - Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md).
 
 ---
 
-# Verification Steps
+## Troubleshooting
 
-After any upgrade completes, run through this checklist to confirm the cluster is healthy.
+| Symptom | Likely cause | What to check |
+|---|---|---|
+| Plan does not react after merge | Flux has not reconciled yet | `flux reconcile kustomization platform-upgrade-plans --with-source` |
+| Upgrade job never starts | controller unhealthy or selector mismatch | `kubectl get pods -n system-upgrade` and controller logs |
+| Node stays `SchedulingDisabled` | job failed after cordon | inspect job logs and uncordon manually if appropriate |
+| Node returns `NotReady` | k3s failed to restart | `journalctl -u k3s -n 100` on the node |
+| Version skew remains | one node failed mid-rollout | watch jobs, inspect failing node, do not assume the plan completed |
 
-## 1. All Nodes Running the Expected Version
-
-```bash
-kubectl get nodes -o wide
-```
-
-All three nodes should show the same version in the `VERSION` column.
-
-## 2. No Nodes Stuck in SchedulingDisabled
+Useful commands:
 
 ```bash
-kubectl get nodes
-```
-
-All nodes should show `Ready` without `SchedulingDisabled`. If a node is still cordoned after upgrade:
-
-```bash
-kubectl uncordon <node-name>
-```
-
-## 3. No Pods in Error State
-
-```bash
-kubectl get pods -A | grep -Ev 'Running|Completed|Succeeded'
-```
-
-This should return no output (or only column headers). If pods are stuck, investigate with:
-
-```bash
-kubectl describe pod <pod-name> -n <namespace>
-kubectl logs <pod-name> -n <namespace>
-```
-
-## 4. Flux Reconciliation Healthy
-
-```bash
-flux get kustomizations
-flux get helmreleases -A
-```
-
-All entries should show `True` in the `READY` column.
-
-## 5. Plan Objects Reflect the Current Version
-
-```bash
-kubectl get plans -n system-upgrade
-```
-
-Both Plans should show the new version and no pending upgrades.
-
-## 6. Upgrade Jobs Completed Successfully
-
-```bash
+kubectl logs -n system-upgrade deployment/system-upgrade-controller
 kubectl get jobs -n system-upgrade
-```
-
-All upgrade Jobs should show `1/1` completions. Failed or incomplete Jobs indicate a problem.
-
-## 7. System Upgrade Controller Running
-
-```bash
 kubectl get pods -n system-upgrade
 ```
 
-The `system-upgrade-controller` pod should be in `Running` state.
-
-## 8. Application Health
-
-Verify that workloads are serving traffic correctly:
-
-```bash
-# Check that Traefik is routing traffic
-curl -s -o /dev/null -w "%{http_code}" https://status.kagiso.me
-
-# Check Flux application kustomizations
-flux get kustomizations -A | grep apps
-```
-
 ---
 
-# Troubleshooting
+## Exit Criteria
 
-| Symptom | Cause | Resolution |
-|---------|-------|------------|
-| Plan objects not updating after merge to main | Flux has not reconciled yet | `flux reconcile kustomization platform-upgrade-plans --with-source` |
-| Upgrade Job stays `Pending` for >5 minutes | Controller may not be running, or node selector mismatch | Check controller logs: `kubectl logs -n system-upgrade deployment/system-upgrade-controller` |
-| Node stuck in `SchedulingDisabled` | Upgrade Job failed or is still running | Check the Job pod logs: `kubectl logs -n system-upgrade <job-pod-name>` |
-| Node shows `NotReady` after upgrade | k3s service failed to start with the new binary | SSH to the node: `journalctl -u k3s -n 50` (control-plane) or `journalctl -u k3s-agent -n 50` (worker) |
-| Version skew between nodes | One Plan was updated but not the other, or a Job failed | Ensure both Plan files specify the same version; check for failed Jobs |
-| Control-plane upgrade fails | API server issue with new version | Immediately revert the Plan version in Git; check `journalctl -u k3s -n 50` on tywin |
-| Agent Plan never starts | Prepare step is waiting for server Plan | Verify `k3s-server` Plan completed: `kubectl get plans -n system-upgrade` |
-| `SYSTEM_UPGRADE_JOB_ACTIVE_DEADLINE_SECONDS` exceeded | Upgrade took longer than 900 seconds (15 min) | Check node resources and network connectivity; the Job will be retried up to 99 times (`BACKOFF_LIMIT`) |
-| Controller pod is `CrashLoopBackOff` | RBAC misconfiguration or image pull failure | `kubectl describe pod -n system-upgrade <controller-pod>` and check events |
+This guide is complete when:
 
----
-
-# Summary
-
-The system-upgrade-controller transforms k3s upgrades from a manual, SSH-based operation into a GitOps-native workflow. Changing a version string in two YAML files, opening a PR, and merging triggers a fully automated, correctly sequenced rolling upgrade across the entire cluster.
-
-The controller handles cordon, drain, binary replacement, and uncordon for each node. The server Plan upgrades the control-plane first; the agent Plan waits for the server Plan to complete before touching any worker. Version pinning ensures upgrades are deliberate and auditable.
-
-For routine upgrades, this is the preferred method. Ansible remains available as a fallback for cluster rebuilds, emergency recovery, and situations where the controller itself is unavailable.
-
-**Related resources:**
-
-- Runbook: `docs/operations/runbooks/k3s-upgrade.md`
-- Platform Operations: [Guide 13 — Platform Operations & Lifecycle Management](./13-Platform-Operations-Lifecycle.md)
-- Backup & Recovery: [Guide 10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md)
+- it is explicitly clear that all three nodes are upgraded by one server plan
+- no documentation still depends on a separate worker or agent upgrade path
+- k3s version changes are documented as a PR against `plan-server.yaml`
+- the relationship between Flux, the upgrade controller, and Ansible is clear
 
 ---
 
@@ -637,6 +368,6 @@ For routine upgrades, this is the preferred method. Ansible remains available as
 
 | | Guide |
 |---|---|
-| ← Previous | [10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |
-| Current | **11 — Platform Upgrade Controller** |
-| → Next | [12 — Applications via GitOps](./12-Applications-GitOps.md) |
+| <- Previous | [10 - Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |
+| Current | **11 - Platform Upgrade Controller** |
+| -> Next | [12 - Applications via GitOps](./12-Applications-GitOps.md) |

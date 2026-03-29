@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="55%" stop-color="#10213d"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse">
+      <path d="M 38 0 L 0 0 0 38" fill="none" stroke="#1f3049" stroke-width="0.55"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="320" rx="24" fill="url(#grid)" opacity="0.35"/>
+
+  <text x="72" y="58" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="24" font-weight="700">Storage lanes</text>
+  <text x="72" y="86" fill="#83a7d6" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Shared app state rides on TrueNAS NFS. Latency-sensitive services stay on local disks until you adopt replicated block storage or move them out of cluster.</text>
+
+  <g transform="translate(90,122)">
+    <rect width="470" height="150" rx="20" fill="#132942" stroke="#2e6ab1" stroke-width="2"/>
+    <text x="34" y="38" fill="#9fcaff" font-family="'SF Mono','Cascadia Code',monospace" font-size="14">Lane A</text>
+    <text x="34" y="66" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="24" font-weight="700">TrueNAS NFS</text>
+    <text x="34" y="96" fill="#86a9d0" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Use for shared app PVCs, config volumes, media metadata, and portable state.</text>
+    <text x="34" y="122" fill="#dbe7f5" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Examples: Grafana, Loki, Nextcloud, Immich, Sonarr configs</text>
+    <text x="34" y="144" fill="#9dc8ff" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Strength: portability and easy recovery</text>
+  </g>
+
+  <g transform="translate(640,122)">
+    <rect width="470" height="150" rx="20" fill="#2b2415" stroke="#c18b28" stroke-width="2"/>
+    <text x="34" y="38" fill="#f0d082" font-family="'SF Mono','Cascadia Code',monospace" font-size="14">Lane B</text>
+    <text x="34" y="66" fill="#f0f6fc" font-family="'SF Mono','Cascadia Code',monospace" font-size="24" font-weight="700">Local SSD / block storage</text>
+    <text x="34" y="96" fill="#d7c49f" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Use for PostgreSQL, Redis, Prometheus, and any WAL or fsync-heavy workload.</text>
+    <text x="34" y="122" fill="#f7ecd0" font-family="'SF Mono','Cascadia Code',monospace" font-size="13">Examples: PostgreSQL, Redis, Prometheus TSDB</text>
+    <text x="34" y="144" fill="#f0d082" font-family="'SF Mono','Cascadia Code',monospace" font-size="12">Strength: predictable latency and safer database semantics</text>
+  </g>
+</svg>

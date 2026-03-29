@@ -80,7 +80,7 @@ Because the cloud is great — until it isn't.
               ▲
               │ kubectl / flux / ansible
    ┌──────────┴──────┐
-   │  Raspberry Pi   │
+   │   varys NUC     │
    │  Control hub    │
    │  10.0.10.10     │
    └─────────────────┘
@@ -91,12 +91,13 @@ Because the cloud is great — until it isn't.
 
 | Component | Host | IP | Description |
 |-----------|------|----|-------------|
-| **k3s control plane** | tywin | `10.0.10.11` | Kubernetes API server, etcd, scheduler, PostgreSQL, Redis |
-| **k3s worker** | jaime | `10.0.10.12` | Application workloads |
-| **k3s worker** | tyrion | `10.0.10.13` | Application workloads |
+| **k3s API VIP** | kube-vip | `10.0.10.100` | Stable Kubernetes API endpoint for kubeconfig, Flux, and automation |
+| **k3s server** | tywin | `10.0.10.11` | Control-plane + workload node; embedded etcd member |
+| **k3s server** | tyrion | `10.0.10.12` | Control-plane + workload node; embedded etcd member |
+| **k3s server** | jaime | `10.0.10.13` | Control-plane + workload node; embedded etcd member |
 | **Docker host** | docked | `10.0.10.20` | Intel NUC i3-7100U — bare metal Docker, media stack |
 | **Control hub** | varys | `10.0.10.10` | Intel NUC i3-5010U — kubectl, flux, ansible, GitHub runner, Pi-hole, Grafana, Alertmanager |
-| **DNS / exit node** | bran | `10.0.10.10` (retiring) | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy |
+| **Secondary node** | bran | `n/a` | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy (legacy / non-primary) |
 | **TrueNAS** | truenas | `10.0.10.80` | HP MicroServer Gen8 — NFS, MinIO S3, Backblaze B2 sync |
 
 ---
@@ -123,7 +124,7 @@ git push branch → open PR → CI validates + cluster diff → merge → Flux r
 | Backups | Velero + MinIO | PVC snapshot and restore via S3 API |
 | Secrets | SOPS + age | Encrypted secrets committed to Git |
 | Storage | NFS subdir provisioner | Dynamic PV provisioning via TrueNAS NFS |
-| Databases | PostgreSQL + Redis | Shared central instances on control plane |
+| Databases | PostgreSQL + Redis | Shared central instances, currently single-instance on local-path storage |
 | Upgrades | system-upgrade-controller | Automated k3s node upgrades via Plans |
 
 ---
@@ -147,16 +148,17 @@ TrueNAS provides NFS shares and the MinIO S3 endpoint that all other components 
 
 ---
 
-### 2. Raspberry Pi — Control hub
+### 2. varys — Control hub
 
-The RPi is the single machine from which all cluster management, secret handling, and automation runs. Set this up before touching k3s.
+`varys` is the single machine from which cluster management, secret handling, and automation runs. Set this up before touching k3s.
 
-> Full guide: [raspberry-pi/README.md](raspberry-pi/README.md)
+> Full guide: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md)
 
 ```bash
-# From your laptop — bootstrap the RPi via Ansible
-ansible-playbook -i raspberry-pi/ansible/inventory/hosts.yml \
-  raspberry-pi/ansible/playbooks/setup.yml
+# From your laptop or existing admin workstation
+# prepare varys as the automation host first
+ansible-playbook -i ansible/inventory/homelab.yml \
+  ansible/playbooks/security/ssh-hardening.yml --limit varys
 ```
 
 ---
@@ -168,7 +170,7 @@ Install k3s across all three nodes with a single Ansible playbook, then bootstra
 > Full guides: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md) → [Guide 02](docs/guides/02-Kubernetes-Installation.md) → [Guide 04](docs/guides/04-Flux-GitOps.md)
 
 ```bash
-# From the Raspberry Pi
+# From varys
 
 # 1. Prepare all nodes (SSH hardening, firewall, swap)
 ansible-playbook -i ansible/inventory/homelab.yml \
@@ -221,7 +223,7 @@ Layer 3 — Velero       PVC data via MinIO S3             Daily 03:00 → TrueN
 Layer 4 — Offsite      TrueNAS → Backblaze B2            Nightly cloud sync (30d)
 ```
 
-RPi key material (age key, SSH keys, kubeconfig) is separately backed up encrypted to TrueNAS with GPG AES-256.
+Control-hub key material (age key, SSH keys, kubeconfig) is separately backed up encrypted to TrueNAS with GPG AES-256.
 
 > Full strategy: [Guide 10 — Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md)
 
@@ -244,6 +246,8 @@ Custom applications, operational tooling, and platform initiatives built on top 
 ## Deployment Guides
 
 A 13-guide series that walks through building and operating the full platform from bare metal. Guides follow the exact Flux deployment order — what gets deployed first is documented first.
+
+![Deployment guide journey](assets/guide-journey.svg)
 
 | Phase | Guide | Topic |
 |-------|-------|-------|
@@ -292,7 +296,7 @@ homelab-infrastructure/
 │   │   └── maintenance/ # upgrade-nodes.yml, reboot-nodes.yml
 │   └── roles/k3s_install/
 │
-├── raspberry-pi/        # Raspberry Pi control hub (10.0.10.10)
+├── raspberry-pi/        # Raspberry Pi secondary-node docs and services
 ├── docker/              # Docker media server (10.0.10.20)
 ├── truenas/             # TrueNAS HP MicroServer Gen8 (10.0.10.80)
 │
@@ -315,7 +319,7 @@ homelab-infrastructure/
 | [validate.yml](.github/workflows/validate.yml) | PR (infra paths) | `flux diff` posted as collapsible PR comment (self-hosted runner) |
 | [validate.yml](.github/workflows/validate.yml) | Push to `main` | Flux reconcile + kustomization health + Traefik smoke test |
 
-All cluster-touching jobs run on a **self-hosted runner on `bran` (10.0.10.10)**, giving the pipeline direct LAN access to the prod cluster. See [ADR-007](docs/adr/ADR-007-self-hosted-runners.md).
+All cluster-touching jobs run on a **self-hosted runner on `varys` (10.0.10.10)**, giving the pipeline direct LAN access to the prod cluster. See [ADR-007](docs/adr/ADR-007-self-hosted-runners.md).
 
 ---
 
@@ -336,7 +340,7 @@ All cluster-touching jobs run on a **self-hosted runner on `bran` (10.0.10.10)**
 | Document | Description |
 |----------|-------------|
 | [Cluster Rebuild](docs/operations/runbooks/cluster-rebuild.md) | Full recovery procedure — RTO 90–120 min |
-| [Node Replacement](docs/operations/runbooks/node-replacement.md) | Replace a failed worker node |
+| [Node Replacement](docs/operations/runbooks/node-replacement.md) | Replace a failed cluster node |
 | [Backup Restoration](docs/operations/runbooks/backup-restoration.md) | Velero restore procedures |
 | [Certificate Failure](docs/operations/runbooks/certificate-failure.md) | TLS cert troubleshooting |
 | [Alert Runbooks](docs/operations/runbooks/alerts/) | Per-alert response procedures |
@@ -346,3 +350,4 @@ All cluster-touching jobs run on a **self-hosted runner on `bran` (10.0.10.10)**
 ## License
 
 MIT
+
