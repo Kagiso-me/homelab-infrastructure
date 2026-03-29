@@ -234,7 +234,7 @@ services:
       - TZ=${TZ:-Africa/Johannesburg}
     volumes:
       - /srv/docker/appdata/sabnzbd:/config
-      - /srv/downloads:/srv/downloads
+      - /srv/docker/downloads:/srv/docker/downloads
       - /mnt/downloads:/downloads
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8080/api?mode=version || exit 1"]

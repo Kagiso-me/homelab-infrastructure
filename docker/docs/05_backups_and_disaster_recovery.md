@@ -69,7 +69,7 @@ Everything in `/srv/docker/appdata/` Ã¢â‚¬â€ the entire application s
 |------|---------|---------------|
 | Media library | `/mnt/media` (TrueNAS NFS) | Lives on TrueNAS Ã¢â‚¬â€ protected by ZFS snapshots. Never touches the Docker host disk. |
 | Prometheus TSDB | n/a Ã¢â‚¬â€ not running on Docker host | Metrics scraped by k3s Prometheus. No local TSDB to back up. |
-| Download temp files | `/srv/downloads/incomplete/` | Temporary Ã¢â‚¬â€ safe to lose. SABnzbd will re-queue from NZB history. |
+| Download temp files | `/srv/docker/downloads/incomplete/` | Temporary Ã¢â‚¬â€ safe to lose. SABnzbd will re-queue from NZB history. |
 | Installed packages | OS-level | Reproduced by re-running Ubuntu + Docker setup guides. |
 | Compose files | `/srv/docker/stacks/` | In Git Ã¢â‚¬â€ always current. |
 
@@ -262,10 +262,9 @@ Follow [Guide 02 Ã¢â‚¬â€ Docker Installation & Filesystem](./02_docke
 Recreate the directory structure:
 
 ```bash
-sudo mkdir -p /srv/docker/{stacks,appdata,scripts}
-sudo mkdir -p /srv/downloads/{incomplete,complete}
+sudo mkdir -p /srv/docker/{stacks,appdata,downloads/incomplete,scripts}
 sudo mkdir -p /mnt/{media,downloads,archive/backups/docker}
-sudo chown -R kagiso:docker /srv/docker /srv/downloads
+sudo chown -R kagiso:docker /srv/docker
 ```
 
 **Step 3 Ã¢â‚¬â€ Mount NFS shares** (~5 min)

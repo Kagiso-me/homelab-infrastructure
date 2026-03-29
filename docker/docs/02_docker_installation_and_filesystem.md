@@ -38,7 +38,7 @@ graph TD
     subgraph DockerHost ["Docker Host â€” 10.0.10.20"]
         Stacks["/srv/docker/compose/\nCompose files"]
         AppData["/srv/docker/appdata/\nContainer config + DBs"]
-        Incomplete["/srv/downloads/incomplete/\nIn-progress downloads\n(local NVMe)"]
+        Incomplete["/srv/docker/downloads/incomplete/\nIn-progress downloads\n(local NVMe)"]
         Docker["Docker Engine\ncontainerd runtime"]
     end
 
@@ -210,7 +210,7 @@ The directory structure is the backbone of the platform. Predictable paths preve
 sudo mkdir -p /srv/docker/compose
 sudo mkdir -p /srv/docker/appdata
 sudo mkdir -p /srv/scripts
-sudo mkdir -p /srv/downloads/incomplete
+sudo mkdir -p /srv/docker/downloads/incomplete
 ```
 
 ### Assign Ownership
@@ -220,7 +220,7 @@ The `kagiso` user must own the Docker directories to allow compose operations wi
 ```bash
 sudo chown -R kagiso:kagiso /srv/docker
 sudo chown -R kagiso:kagiso /srv/scripts
-sudo chown -R kagiso:kagiso /srv/downloads
+sudo chown -R kagiso:kagiso /srv/docker/downloads
 ```
 
 ### Directory Purpose Reference
@@ -230,7 +230,7 @@ sudo chown -R kagiso:kagiso /srv/downloads
 | `/srv/docker/compose/` | Docker Compose files â€” one subdirectory per stack |
 | `/srv/docker/appdata/` | Container configuration, databases, and application state |
 | `/srv/scripts/` | Automation and maintenance scripts |
-| `/srv/downloads/incomplete/` | In-progress SABnzbd downloads on local NVMe |
+| `/srv/docker/downloads/incomplete/` | In-progress SABnzbd downloads on local NVMe |
 
 ### Deploy the Compose Files
 
@@ -415,7 +415,7 @@ SABnzbd downloads to local NVMe for speed. Once complete, Sonarr and Radarr impo
 
 ```mermaid
 graph TD
-    SAB["SABnzbd\ndownloading"] -->|writes to| Inc["/srv/downloads/incomplete/\nLocal NVMe â€” fast writes"]
+    SAB["SABnzbd\ndownloading"] -->|writes to| Inc["/srv/docker/downloads/incomplete/\nLocal NVMe â€” fast writes"]
     Inc -->|completed + unpacked| Comp["/mnt/downloads/complete/\nTrueNAS NFS"]
     Comp -->|hardlink import| Sonarr["Sonarr\nimports TV"]
     Comp -->|hardlink import| Radarr["Radarr\nimports Movies"]

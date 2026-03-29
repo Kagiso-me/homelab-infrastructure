@@ -63,7 +63,7 @@ The Docker host in this setup is an **Intel NUC**, but any x86-64 server or smal
 
 - the operating system
 - container configuration (`/srv/docker/appdata`)
-- in-progress downloads (`/srv/downloads/incomplete`)
+- in-progress downloads (`/srv/docker/downloads/incomplete`)
 
 ---
 
