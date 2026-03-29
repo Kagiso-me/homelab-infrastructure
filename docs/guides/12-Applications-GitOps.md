@@ -132,7 +132,7 @@ apps/base/myapp/
 
 ## HelmRelease (Recommended for Most Apps)
 
-Helm packages applications into versioned, community-maintained charts. Flux's Helm Controller manages the full install/upgrade/rollback lifecycle through a `HelmRelease` custom resource.
+Helm packages applications into versioned charts. Flux's Helm Controller manages the full install/upgrade/rollback lifecycle through a `HelmRelease` custom resource.
 
 A HelmRelease app directory looks like:
 
@@ -148,8 +148,33 @@ apps/base/myapp/
 Advantages:
 
 - Versioned, upgradeable packages with a single field change
-- Community-maintained charts with tested defaults
 - Remediation built-in: Flux retries failed installs and rolls back failed upgrades automatically
+
+### Chart sources
+
+Two chart sources are used on this platform:
+
+**First-party — `kagiso-me` chart repository**
+
+Infrastructure-critical workloads use charts from the [kagiso-me/charts](https://github.com/Kagiso-me/charts) repository, published at `https://kagiso-me.github.io/charts` and indexed on [Artifact Hub](https://artifacthub.io/packages/search?repo=kagiso-me).
+
+These charts are built to a quality standard that community charts often skip: strict JSON Schema validation, honest resource defaults, non-root security contexts, and `existingSecret` support for all credentials. The PostgreSQL chart (`platform/databases/`) uses this source today; additional charts covering the full application stack are being added incrementally.
+
+```yaml
+# HelmRepository for first-party charts
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: kagiso-me
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: https://kagiso-me.github.io/charts
+```
+
+**Third-party — upstream community charts**
+
+Applications not yet covered by a first-party chart (Nextcloud, Immich, n8n, Authentik) use their upstream community charts. These are used as-is, with values tuned for this platform. As first-party charts mature, they will replace community equivalents where the quality delta is meaningful.
 
 ---
 
@@ -514,6 +539,21 @@ resources:
 ```
 
 ### helmrepository.yaml
+
+If a first-party chart exists for the application, point to the `kagiso-me` repository:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: kagiso-me
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: https://kagiso-me.github.io/charts
+```
+
+Otherwise, point to the upstream community repository:
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1

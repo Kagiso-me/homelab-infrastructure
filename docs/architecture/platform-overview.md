@@ -38,6 +38,7 @@ All platform state is expressed as code in this repository. A new node can join,
 | **Backup storage** | MinIO on TrueNAS | S3-compatible local backup target | Yes |
 | **Backup offsite** | Backblaze B2 | Nightly offsite copy of Velero backups | N/A (external) |
 | **Upgrades** | system-upgrade-controller | Automated, rolling k3s node upgrades | Yes |
+| **Helm charts** | kagiso-me/charts | First-party charts for infrastructure-critical workloads; published to GitHub Pages + Artifact Hub | Yes |
 
 ---
 

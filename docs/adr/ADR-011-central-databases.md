@@ -50,6 +50,20 @@ is a straightforward StatefulSet, well-documented, and trivially configurable.
 If the platform scales to require HA PostgreSQL, CloudNativePG migration is
 a well-trodden path.
 
+## Migration path: first-party PostgreSQL chart
+
+A production-grade PostgreSQL chart is maintained in the
+[kagiso-me/charts](https://github.com/Kagiso-me/charts) repository
+(`https://kagiso-me.github.io/charts`, indexed on
+[Artifact Hub](https://artifacthub.io/packages/search?repo=kagiso-me)).
+
+The first-party chart enforces stricter defaults than the Bitnami chart:
+schema-validated values, non-root security context, `existingSecret` for all
+credentials, and honest resource limits. Migration from Bitnami to the
+first-party chart is the planned upgrade path and requires only a
+HelmRepository + HelmRelease swap — no data migration, since the PostgreSQL
+data format is chart-agnostic.
+
 ## Central shared instance over per-app instances
 
 | Criterion | Per-app instances | Central instance |

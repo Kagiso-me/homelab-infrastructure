@@ -160,8 +160,26 @@ Each layer has a distinct purpose:
 | Velero | persistent volume backup and restore |
 | NFS Subdir Provisioner | dynamic PV provisioning via TrueNAS |
 | TrueNAS | centralized NFS storage backend |
+| kagiso-me/charts | first-party Helm charts for infrastructure-critical workloads |
 
 Each component was selected based on operational simplicity, reliability, and suitability for a single-operator platform. Architecture Decision Records documenting each technology choice are maintained in `docs/adr/`.
+
+---
+
+## 6 — Own Your Charts for Critical Infrastructure
+
+Community Helm charts get you running. First-party charts get you running *right*.
+
+Infrastructure-critical workloads (databases, caches, platform services) are deployed from the [kagiso-me/charts](https://github.com/Kagiso-me/charts) repository — published at `https://kagiso-me.github.io/charts` and indexed on [Artifact Hub](https://artifacthub.io/packages/search?repo=kagiso-me).
+
+Every chart in this repository meets a quality bar that community charts rarely enforce:
+
+- **Schema-validated** — bad values fail at `helm install`, not at 3am
+- **Secure by default** — non-root containers, dropped capabilities, `automountServiceAccountToken: false`
+- **Honest resource defaults** — real requests and limits, not zeros
+- **Credential hygiene** — `existingSecret` support for all credentials; no passwords in `values.yaml`
+
+Applications not yet covered by a first-party chart use upstream community charts, tuned with platform-appropriate values. Migration to first-party charts happens incrementally as they are published.
 
 ---
 
