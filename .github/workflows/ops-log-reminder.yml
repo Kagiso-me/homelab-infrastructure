@@ -3,6 +3,13 @@ name: Ops Log Reminder
 on:
   push:
     branches: [main]
+    paths:
+      - "platform/**"
+      - "apps/**"
+      - "clusters/**"
+      - "ansible/playbooks/**"
+      - "truenas/**"
+      - "docker/config/**"
 
 jobs:
   check:
