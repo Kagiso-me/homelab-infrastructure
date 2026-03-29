@@ -295,6 +295,7 @@ The script:
 - Excludes logs, cache, and Plex transcodes (large, expendable)
 - Enforces a 7-day retention policy
 - Writes all five Prometheus textfile metrics with `job="docker-appdata"` (see [Backup Monitoring](#backup-monitoring))
+- Is syntax-checked in the `docker-deploy` GitHub Actions workflow on every Docker-related PR
 
 ## Step 3 — Schedule via cron
 
@@ -556,13 +557,13 @@ velero schedule get
 
 # Restoration Procedures
 
-See **[runbooks/backup-restoration.md](../runbooks/backup-restoration.md)** for the complete, step-by-step tested restoration procedure.
+See **[Backup Restoration Runbook](../operations/runbooks/backup-restoration.md)** for the complete cluster restore procedure and **[Disaster Recovery Game Day](../operations/runbooks/disaster-recovery-gameday.md)** for the rehearsal cadence and evidence checklist.
 
 Summary:
 
 ```
 etcd restore:
-  1. Stop k3s on control-plane
+  1. Stop k3s on the first server node
   2. k3s server --cluster-reset --cluster-reset-restore-path=<snapshot>
   3. Start k3s
   4. Verify node readiness
@@ -579,6 +580,49 @@ Velero restore:
 
 ---
 
+# Restore Drills and Game Days
+
+Backups are only trustworthy when restores are rehearsed.
+
+This platform now treats restore validation as a scheduled operating task, not a one-off sanity check.
+
+| Cadence | Scope | Goal |
+|---------|-------|------|
+| Monthly | Docker appdata drill restore | Prove the latest archive extracts cleanly without touching production |
+| Quarterly | Full cluster restore rehearsal | Prove etcd, Flux, and Velero recovery still work end to end |
+| After major backup changes | Targeted retest | Re-validate scripts, retention, and restore steps after changing the backup path |
+
+### Monthly Docker drill restore
+
+The Docker restore script now supports a non-destructive drill mode:
+
+```bash
+sudo bash /srv/docker/scripts/restore_docker.sh \
+  --target-root /srv/docker/restore-drill/<date> \
+  /mnt/archive/backups/docker/docker_appdata_YYYY-MM-DD_HHMMSS.tar.gz
+```
+
+This mode:
+
+- does **not** stop running containers
+- extracts the archive into a scratch directory
+- gives you a safe place to confirm expected appdata directories exist
+
+Record the tested archive, date, operator, and any anomalies in the game-day log.
+
+### Quarterly cluster restore rehearsal
+
+Run the cluster restore rehearsal from the dedicated game-day runbook:
+
+- rebuild a disposable environment or spare host set
+- restore an etcd snapshot
+- bootstrap Flux
+- run a Velero restore
+- verify at least one critical application path end to end
+
+The authoritative checklist lives in [Disaster Recovery Game Day](../operations/runbooks/disaster-recovery-gameday.md).
+
+---
 # Disaster Recovery Scenario — Control Plane Disk Failure
 
 ```
@@ -613,7 +657,8 @@ Backups are considered operational when:
 - `backup_job_status{job="etcd"} 1` and `backup_job_status{job="docker-appdata"} 1` visible in Prometheus
 - Backup Overview dashboard showing all jobs green in Grafana
 - backup age alert firing correctly in a test scenario
-- restoration runbook tested successfully
+- monthly Docker drill restore completed successfully
+- quarterly cluster restore rehearsal completed successfully
 
 The platform is now **recoverable after catastrophic failure**.
 

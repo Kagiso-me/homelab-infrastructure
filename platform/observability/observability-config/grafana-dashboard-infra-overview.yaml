@@ -12,7 +12,7 @@ data:
     {
       "uid": "infra-overview",
       "title": "Infrastructure Overview",
-      "description": "Homelab command centre — node status, cluster health, storage, and active alerts",
+      "description": "Homelab command centre â€” node status, cluster health, storage, and active alerts",
       "tags": ["homelab", "overview"],
       "schemaVersion": 39,
       "refresh": "30s",
@@ -51,14 +51,14 @@ data:
         },
         {
           "type": "stat",
-          "title": "bran",
-          "description": "10.0.10.10 — Raspberry Pi control hub",
+          "title": "varys",
+          "description": "10.0.10.10 â€” Raspberry Pi control hub",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
           "id": 2,
           "targets": [
             {
-              "expr": "up{job=\"node-rpi\"}",
+              "expr": "up{job=\"node-varys\"}",
               "refId": "A",
               "instant": true
             }
@@ -91,7 +91,7 @@ data:
         {
           "type": "stat",
           "title": "tywin",
-          "description": "10.0.10.11 — k3s server node",
+          "description": "10.0.10.11 â€” k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
           "id": 3,
@@ -130,7 +130,7 @@ data:
         {
           "type": "stat",
           "title": "jaime",
-          "description": "10.0.10.13 — k3s server node",
+          "description": "10.0.10.13 â€” k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
           "id": 4,
@@ -169,7 +169,7 @@ data:
         {
           "type": "stat",
           "title": "tyrion",
-          "description": "10.0.10.12 — k3s server node",
+          "description": "10.0.10.12 â€” k3s server node",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
           "id": 5,
@@ -208,7 +208,7 @@ data:
         {
           "type": "stat",
           "title": "docker",
-          "description": "10.0.10.20 — Docker host (bare metal NUC)",
+          "description": "10.0.10.20 â€” Docker host (bare metal NUC)",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
           "id": 6,
@@ -247,7 +247,7 @@ data:
         {
           "type": "stat",
           "title": "docker-vm",
-          "description": "10.0.10.32 — Docker media stack",
+          "description": "10.0.10.32 â€” Docker media stack",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
           "id": 7,
@@ -286,7 +286,7 @@ data:
         {
           "type": "stat",
           "title": "truenas",
-          "description": "10.0.10.80 — TrueNAS storage server",
+          "description": "10.0.10.80 â€” TrueNAS storage server",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
           "id": 8,

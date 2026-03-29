@@ -2,9 +2,9 @@
 
 <img src="https://github.com/user-attachments/assets/cba21e9d-1275-4c92-ab9b-365f31f35add" align="center" width="160px" height="160px"/>
 
-# kagiso.me &nbsp;·&nbsp; homelab-infrastructure
+# kagiso.me &nbsp;Â·&nbsp; homelab-infrastructure
 
-_Infrastructure-as-code for a fully self-hosted homelab — GitOps-reconciled by FluxCD, secrets encrypted with SOPS + age, and observable end-to-end._
+_Infrastructure-as-code for a fully self-hosted homelab â€” GitOps-reconciled by FluxCD, secrets encrypted with SOPS + age, and observable end-to-end._
 
 </div>
 
@@ -48,13 +48,13 @@ _Infrastructure-as-code for a fully self-hosted homelab — GitOps-reconciled by
 
 ## Why Self-Host?
 
-Because the cloud is great — until it isn't.
+Because the cloud is great â€” until it isn't.
 
 - **Full control** over data, routing, and uptime
-- **No surprise billing** — fixed hardware cost, zero per-GB egress
-- **Treat home like a mini-enterprise** — proper GitOps, monitoring, alerting, DR procedures
-- **Sharpen real skills** — Kubernetes, Ansible, observability, secrets management, ZFS
-- **Everything in Git** — every service, every config, every secret (encrypted), fully reproducible
+- **No surprise billing** â€” fixed hardware cost, zero per-GB egress
+- **Treat home like a mini-enterprise** â€” proper GitOps, monitoring, alerting, DR procedures
+- **Sharpen real skills** â€” Kubernetes, Ansible, observability, secrets management, ZFS
+- **Everything in Git** â€” every service, every config, every secret (encrypted), fully reproducible
 
 ---
 
@@ -62,30 +62,30 @@ Because the cloud is great — until it isn't.
 
 ```
                             Internet
-                                │
+                                â”‚
                          kagiso.me (DNS)
-                                │
-                        ┌───────▼──────────┐
-                        │  Home Network     │
-                        │  10.0.10.0/24     │
-                        └────────┬──────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              │                  │                  │
-   ┌──────────▼──────┐  ┌────────▼────────┐  ┌─────▼───────────┐
-   │  k3s Prod        │  │  Docker (bare)  │  │  TrueNAS        │
-   │  3 nodes         │  │  Intel NUC      │  │  HP MicroServer │
-   │  10.0.10.11–13   │  │  10.0.10.20     │  │  10.0.10.80     │
-   └──────────────────┘  └─────────────────┘  └─────────────────┘
-              ▲
-              │ kubectl / flux / ansible
-   ┌──────────┴──────┐
-   │   varys NUC     │
-   │  Control hub    │
-   │  10.0.10.10     │
-   └─────────────────┘
-              ▲
-              │ SSH
+                                â”‚
+                        â”Œâ”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                        â”‚  Home Network     â”‚
+                        â”‚  10.0.10.0/24     â”‚
+                        â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                 â”‚
+              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+              â”‚                  â”‚                  â”‚
+   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â–¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+   â”‚  k3s Prod        â”‚  â”‚  Docker (bare)  â”‚  â”‚  TrueNAS        â”‚
+   â”‚  3 nodes         â”‚  â”‚  Intel NUC      â”‚  â”‚  HP MicroServer â”‚
+   â”‚  10.0.10.11â€“13   â”‚  â”‚  10.0.10.20     â”‚  â”‚  10.0.10.80     â”‚
+   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+              â–²
+              â”‚ kubectl / flux / ansible
+   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”
+   â”‚   varys NUC     â”‚
+   â”‚  Control hub    â”‚
+   â”‚  10.0.10.10     â”‚
+   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+              â–²
+              â”‚ SSH
          Your Laptop
 ```
 
@@ -95,10 +95,10 @@ Because the cloud is great — until it isn't.
 | **k3s server** | tywin | `10.0.10.11` | Control-plane + workload node; embedded etcd member |
 | **k3s server** | tyrion | `10.0.10.12` | Control-plane + workload node; embedded etcd member |
 | **k3s server** | jaime | `10.0.10.13` | Control-plane + workload node; embedded etcd member |
-| **Docker host** | docked | `10.0.10.20` | Intel NUC i3-7100U — bare metal Docker, media stack |
-| **Control hub** | varys | `10.0.10.10` | Intel NUC i3-5010U — kubectl, flux, ansible, GitHub runner, Pi-hole, Grafana, Alertmanager |
-| **Secondary node** | bran | `n/a` | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy (legacy / non-primary) |
-| **TrueNAS** | truenas | `10.0.10.80` | HP MicroServer Gen8 — NFS, MinIO S3, Backblaze B2 sync |
+| **Docker host** | docked | `10.0.10.20` | Intel NUC i3-7100U â€” bare metal Docker, media stack |
+| **Control hub** | varys | `10.0.10.10` | Intel NUC i3-5010U â€” kubectl, flux, ansible, GitHub runner, Pi-hole, Grafana, Alertmanager |
+| **Secondary node** | bran | `n/a` | RPi 3B+ â€” secondary Pi-hole, Tailscale exit node, WOL proxy (legacy / non-primary) |
+| **TrueNAS** | truenas | `10.0.10.80` | HP MicroServer Gen8 â€” NFS, MinIO S3, Backblaze B2 sync |
 
 ---
 
@@ -107,15 +107,15 @@ Because the cloud is great — until it isn't.
 All cluster state is declared as YAML and continuously reconciled by FluxCD v2. A merged PR is the only way anything changes.
 
 ```
-git push branch → open PR → CI validates + cluster diff → merge → Flux reconciles → health check
+git push branch â†’ open PR â†’ CI validates + cluster diff â†’ merge â†’ Flux reconciles â†’ health check
 ```
 
 | Layer | Technology | Detail |
 |-------|-----------|--------|
 | Orchestration | k3s | Lightweight Kubernetes, embedded etcd |
 | GitOps | FluxCD v2 | Kustomization + HelmRelease controllers |
-| Ingress | Traefik v3 | HTTP/HTTPS routing — `10.0.10.110` |
-| Load Balancer | MetalLB | Bare-metal ARP mode — pool `10.0.10.110–10.0.10.115` |
+| Ingress | Traefik v3 | HTTP/HTTPS routing â€” `10.0.10.110` |
+| Load Balancer | MetalLB | Bare-metal ARP mode â€” pool `10.0.10.110â€“10.0.10.115` |
 | TLS | cert-manager + Let's Encrypt | Wildcard `*.kagiso.me` via DNS-01 Cloudflare |
 | Identity | Authentik | SSO for all cluster applications |
 | Security | CrowdSec | Community threat intelligence + Traefik bouncer |
@@ -131,9 +131,9 @@ git push branch → open PR → CI validates + cluster diff → merge → Flux r
 
 ## Getting Started
 
-The homelab has four independent components. Build them in this order — each layer depends on the one before it.
+The homelab has four independent components. Build them in this order â€” each layer depends on the one before it.
 
-### 1. TrueNAS — Storage foundation
+### 1. TrueNAS â€” Storage foundation
 
 TrueNAS provides NFS shares and the MinIO S3 endpoint that all other components depend on.
 
@@ -148,7 +148,7 @@ TrueNAS provides NFS shares and the MinIO S3 endpoint that all other components 
 
 ---
 
-### 2. varys — Control hub
+### 2. varys â€” Control hub
 
 `varys` is the single machine from which cluster management, secret handling, and automation runs. Set this up before touching k3s.
 
@@ -163,11 +163,11 @@ ansible-playbook -i ansible/inventory/homelab.yml \
 
 ---
 
-### 3. k3s Cluster — Kubernetes
+### 3. k3s Cluster â€” Kubernetes
 
 Install k3s across all three nodes with a single Ansible playbook, then bootstrap FluxCD to hand control to Git.
 
-> Full guides: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md) → [Guide 02](docs/guides/02-Kubernetes-Installation.md) → [Guide 04](docs/guides/04-Flux-GitOps.md)
+> Full guides: [Guide 01](docs/guides/01-Node-Preparation-Hardening.md) â†’ [Guide 02](docs/guides/02-Kubernetes-Installation.md) â†’ [Guide 04](docs/guides/04-Flux-GitOps.md)
 
 ```bash
 # From varys
@@ -182,7 +182,7 @@ ansible-playbook -i ansible/inventory/homelab.yml \
 ansible-playbook -i ansible/inventory/homelab.yml \
   ansible/playbooks/lifecycle/install-cluster.yml
 
-# 3. Bootstrap Flux — watches main branch directly
+# 3. Bootstrap Flux â€” watches main branch directly
 flux bootstrap github \
   --owner=Kagiso-me \
   --repository=homelab-infrastructure \
@@ -193,7 +193,7 @@ flux bootstrap github \
 
 ---
 
-### 4. Docker Media Server — Self-hosted streaming
+### 4. Docker Media Server â€” Self-hosted streaming
 
 The Docker host runs the full media acquisition and streaming stack on bare metal.
 
@@ -217,15 +217,15 @@ docker compose -f compose/proxy-stack.yml up -d
 Four independent backup layers ensure no single failure causes data loss.
 
 ```
-Layer 1 — Git          Kubernetes manifests + configs    Always current (every commit)
-Layer 2 — etcd         k3s snapshots → MinIO             Every 6 hours (7 retained)
-Layer 3 — Velero       PVC data via MinIO S3             Daily 03:00 → TrueNAS (7d)
-Layer 4 — Offsite      TrueNAS → Backblaze B2            Nightly cloud sync (30d)
+Layer 1 â€” Git          Kubernetes manifests + configs    Always current (every commit)
+Layer 2 â€” etcd         k3s snapshots â†’ MinIO             Every 6 hours (7 retained)
+Layer 3 â€” Velero       PVC data via MinIO S3             Daily 03:00 â†’ TrueNAS (7d)
+Layer 4 â€” Offsite      TrueNAS â†’ Backblaze B2            Nightly cloud sync (30d)
 ```
 
 Control-hub key material (age key, SSH keys, kubeconfig) is separately backed up encrypted to TrueNAS with GPG AES-256.
 
-> Full strategy: [Guide 10 — Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md)
+> Full strategy: [Guide 10 â€” Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md)
 
 ---
 
@@ -233,11 +233,11 @@ Control-hub key material (age key, SSH keys, kubeconfig) is separately backed up
 
 Custom applications, operational tooling, and platform initiatives built on top of this infrastructure.
 
-→ **[View project board](projects/README.md)**
+â†’ **[View project board](projects/README.md)**
 
 | Project | Type | Description |
 |---------|------|-------------|
-| [Beesly](projects/DEV-beesly/) | `DEV` | Personal AI assistant — voice, alerts, calendar, reminders |
+| [Beesly](projects/DEV-beesly/) | `DEV` | Personal AI assistant â€” voice, alerts, calendar, reminders |
 | [Pulse](projects/DEV-pulse/) | `DEV` | Self-hosted uptime & incident monitoring platform |
 | [kagiso.me](projects/OPS-kagiso-me.github.io/) | `OPS` | Personal website and portfolio |
 
@@ -245,27 +245,27 @@ Custom applications, operational tooling, and platform initiatives built on top 
 
 ## Deployment Guides
 
-A 13-guide series that walks through building and operating the full platform from bare metal. Guides follow the exact Flux deployment order — what gets deployed first is documented first.
+A 13-guide series that walks through building and operating the full platform from bare metal. Guides follow the exact Flux deployment order â€” what gets deployed first is documented first.
 
 ![Deployment guide journey](assets/guide-journey.svg)
 
 | Phase | Guide | Topic |
 |-------|-------|-------|
-| **Foundations** | [00 — Platform Philosophy](docs/guides/00-Platform-Philosophy.md) | Design principles and architectural decisions |
-| | [00.5 — Infrastructure Prerequisites](docs/guides/00.5-Infrastructure-Prerequisites.md) | TrueNAS datasets, NFS exports, MinIO, Cloudflare API token |
-| **Cluster Build** | [01 — Node Preparation & Hardening](docs/guides/01-Node-Preparation-Hardening.md) | OS prep, SSH hardening, firewall, nfs-common |
-| | [02 — Kubernetes Installation](docs/guides/02-Kubernetes-Installation.md) | k3s install via Ansible across 3 nodes |
-| **GitOps Bootstrap** | [03 — Secrets Management](docs/guides/03-Secrets-Management.md) | SOPS + age — encrypt secrets for Git |
-| | [04 — Flux GitOps Bootstrap](docs/guides/04-Flux-GitOps.md) | FluxCD v2, PR validation pipeline, self-hosted runner |
-| **Platform Services** | [05 — Networking: MetalLB & Traefik](docs/guides/05-Networking-MetalLB-Traefik.md) | Layer-2 load balancing and ingress routing |
-| | [06 — Security: cert-manager & TLS](docs/guides/06-Security-CertManager-TLS.md) | Automated wildcard certificates via Let's Encrypt |
-| | [07 — Namespaces & Cluster Identity](docs/guides/07-Namespaces-Cluster-Identity.md) | Namespace layout, node labels, scheduling rules |
-| | [08 — Storage Architecture](docs/guides/08-Storage-Architecture.md) | NFS provisioner, PVC lifecycle, TrueNAS datasets |
-| | [09 — Monitoring & Observability](docs/guides/09-Monitoring-Observability.md) | Prometheus + Grafana + Loki + external targets |
-| | [10 — Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md) | etcd snapshots + Velero + MinIO |
-| | [11 — Platform Upgrade Controller](docs/guides/11-Platform-Upgrade-Controller.md) | Automated k3s upgrades via system-upgrade-controller |
-| **Applications & Ops** | [12 — Applications via GitOps](docs/guides/12-Applications-GitOps.md) | Deploying apps with Flux HelmReleases |
-| | [13 — Platform Operations & Lifecycle](docs/guides/13-Platform-Operations-Lifecycle.md) | Node maintenance, incident response, disaster recovery |
+| **Foundations** | [00 â€” Platform Philosophy](docs/guides/00-Platform-Philosophy.md) | Design principles and architectural decisions |
+| | [00.5 â€” Infrastructure Prerequisites](docs/guides/00.5-Infrastructure-Prerequisites.md) | TrueNAS datasets, NFS exports, MinIO, Cloudflare API token |
+| **Cluster Build** | [01 â€” Node Preparation & Hardening](docs/guides/01-Node-Preparation-Hardening.md) | OS prep, SSH hardening, firewall, nfs-common |
+| | [02 â€” Kubernetes Installation](docs/guides/02-Kubernetes-Installation.md) | k3s install via Ansible across 3 nodes |
+| **GitOps Bootstrap** | [03 â€” Secrets Management](docs/guides/03-Secrets-Management.md) | SOPS + age â€” encrypt secrets for Git |
+| | [04 â€” Flux GitOps Bootstrap](docs/guides/04-Flux-GitOps.md) | FluxCD v2, PR validation pipeline, self-hosted runner |
+| **Platform Services** | [05 â€” Networking: MetalLB & Traefik](docs/guides/05-Networking-MetalLB-Traefik.md) | Layer-2 load balancing and ingress routing |
+| | [06 â€” Security: cert-manager & TLS](docs/guides/06-Security-CertManager-TLS.md) | Automated wildcard certificates via Let's Encrypt |
+| | [07 â€” Namespaces & Cluster Identity](docs/guides/07-Namespaces-Cluster-Identity.md) | Namespace layout, node labels, scheduling rules |
+| | [08 â€” Storage Architecture](docs/guides/08-Storage-Architecture.md) | NFS provisioner, PVC lifecycle, TrueNAS datasets |
+| | [09 â€” Monitoring & Observability](docs/guides/09-Monitoring-Observability.md) | Prometheus + Grafana + Loki + external targets |
+| | [10 â€” Backups & Disaster Recovery](docs/guides/10-Backups-Disaster-Recovery.md) | etcd snapshots + Velero + MinIO |
+| | [11 â€” Platform Upgrade Controller](docs/guides/11-Platform-Upgrade-Controller.md) | Automated k3s upgrades via system-upgrade-controller |
+| **Applications & Ops** | [12 â€” Applications via GitOps](docs/guides/12-Applications-GitOps.md) | Deploying apps with Flux HelmReleases |
+| | [13 â€” Platform Operations & Lifecycle](docs/guides/13-Platform-Operations-Lifecycle.md) | Node maintenance, incident response, disaster recovery |
 
 ---
 
@@ -273,40 +273,40 @@ A 13-guide series that walks through building and operating the full platform fr
 
 ```
 homelab-infrastructure/
-│
-├── clusters/
-│   └── prod/            # Flux entry points — watches main branch
-├── platform/            # Cluster-wide platform components (HelmReleases)
-│   ├── networking/      # MetalLB, Traefik
-│   ├── security/        # cert-manager, Authentik, CrowdSec, ClusterIssuers
-│   ├── observability/   # kube-prometheus-stack, Loki, Alertmanager, daily-digest
-│   ├── storage/         # NFS provisioner, StorageClasses
-│   ├── backup/          # Velero + MinIO credentials
-│   ├── databases/       # PostgreSQL + Redis (shared, control-plane pinned)
-│   ├── upgrade/         # system-upgrade-controller + Plans
-│   └── namespaces/      # Namespace declarations
-├── apps/                # Application workloads
-│   ├── base/            # Per-app manifests (HelmRelease, IngressRoute, Secret)
-│   └── prod/            # Production kustomization — lists active apps
-├── ansible/             # Ansible — node provisioning and maintenance
-│   ├── inventory/       # homelab.yml — all nodes
-│   ├── playbooks/
-│   │   ├── lifecycle/   # install-cluster.yml, install-platform.yml, purge-k3s.yml
-│   │   ├── security/    # ssh-hardening, firewall, fail2ban, time-sync
-│   │   └── maintenance/ # upgrade-nodes.yml, reboot-nodes.yml
-│   └── roles/k3s_install/
-│
-├── raspberry-pi/        # Raspberry Pi secondary-node docs and services
-├── docker/              # Docker media server (10.0.10.20)
-├── truenas/             # TrueNAS HP MicroServer Gen8 (10.0.10.80)
-│
-└── docs/                # Cross-cutting documentation
-    ├── guides/          # 13-guide deployment series (00–13)
-    ├── adr/             # Architecture Decision Records
-    ├── architecture/    # Platform overview diagrams
-    ├── compliance/      # Backup policy, DR plan, security policy
-    └── operations/
-        └── runbooks/    # Cluster rebuild, node replacement, alert responses
+â”‚
+â”œâ”€â”€ clusters/
+â”‚   â””â”€â”€ prod/            # Flux entry points â€” watches main branch
+â”œâ”€â”€ platform/            # Cluster-wide platform components (HelmReleases)
+â”‚   â”œâ”€â”€ networking/      # MetalLB, Traefik
+â”‚   â”œâ”€â”€ security/        # cert-manager, Authentik, CrowdSec, ClusterIssuers
+â”‚   â”œâ”€â”€ observability/   # kube-prometheus-stack, Loki, Alertmanager, daily-digest
+â”‚   â”œâ”€â”€ storage/         # NFS provisioner, StorageClasses
+â”‚   â”œâ”€â”€ backup/          # Velero + MinIO credentials
+â”‚   â”œâ”€â”€ databases/       # PostgreSQL + Redis (shared, control-plane pinned)
+â”‚   â”œâ”€â”€ upgrade/         # system-upgrade-controller + Plans
+â”‚   â””â”€â”€ namespaces/      # Namespace declarations
+â”œâ”€â”€ apps/                # Application workloads
+â”‚   â”œâ”€â”€ base/            # Per-app manifests (HelmRelease, IngressRoute, Secret)
+â”‚   â””â”€â”€ prod/            # Production kustomization â€” lists active apps
+â”œâ”€â”€ ansible/             # Ansible â€” node provisioning and maintenance
+â”‚   â”œâ”€â”€ inventory/       # homelab.yml â€” all nodes
+â”‚   â”œâ”€â”€ playbooks/
+â”‚   â”‚   â”œâ”€â”€ lifecycle/   # install-cluster.yml, install-platform.yml, purge-k3s.yml
+â”‚   â”‚   â”œâ”€â”€ security/    # ssh-hardening, firewall, fail2ban, time-sync
+â”‚   â”‚   â””â”€â”€ maintenance/ # upgrade-nodes.yml, reboot-nodes.yml
+â”‚   â””â”€â”€ roles/k3s_install/
+â”‚
+â”œâ”€â”€ raspberry-pi/        # Raspberry Pi secondary-node docs and services
+â”œâ”€â”€ docker/              # Docker media server (10.0.10.20)
+â”œâ”€â”€ truenas/             # TrueNAS HP MicroServer Gen8 (10.0.10.80)
+â”‚
+â””â”€â”€ docs/                # Cross-cutting documentation
+    â”œâ”€â”€ guides/          # 13-guide deployment series (00â€“13)
+    â”œâ”€â”€ adr/             # Architecture Decision Records
+    â”œâ”€â”€ architecture/    # Platform overview diagrams
+    â”œâ”€â”€ compliance/      # Backup policy, DR plan, security policy
+    â””â”€â”€ operations/
+        â””â”€â”€ runbooks/    # Cluster rebuild, node replacement, alert responses
 ```
 
 ---
@@ -339,7 +339,7 @@ All cluster-touching jobs run on a **self-hosted runner on `varys` (10.0.10.10)*
 
 | Document | Description |
 |----------|-------------|
-| [Cluster Rebuild](docs/operations/runbooks/cluster-rebuild.md) | Full recovery procedure — RTO 90–120 min |
+| [Cluster Rebuild](docs/operations/runbooks/cluster-rebuild.md) | Full recovery procedure â€” RTO 90â€“120 min |
 | [Node Replacement](docs/operations/runbooks/node-replacement.md) | Replace a failed cluster node |
 | [Backup Restoration](docs/operations/runbooks/backup-restoration.md) | Velero restore procedures |
 | [Certificate Failure](docs/operations/runbooks/certificate-failure.md) | TLS cert troubleshooting |

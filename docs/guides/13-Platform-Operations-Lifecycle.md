@@ -30,8 +30,9 @@
 8. [Adding or Replacing a Cluster Node](#adding-or-replacing-a-cluster-node)
 9. [Incident Response](#incident-response)
 10. [Disaster Recovery Flow](#disaster-recovery-flow)
-11. [Weekly Checklist](#weekly-checklist)
-12. [Exit Criteria](#exit-criteria)
+11. [Restore Drills and Game Days](#restore-drills-and-game-days)
+12. [Weekly Checklist](#weekly-checklist)
+13. [Exit Criteria](#exit-criteria)
 
 ---
 
@@ -98,6 +99,11 @@ Before merge, the repository should prove three things:
 - manifests are schema-valid
 - Flux entrypoints render correctly
 - deprecated APIs are not being introduced
+
+For the Docker side, PR validation now also checks:
+
+- `docker compose config` for every stack
+- shell syntax for the backup and restore scripts
 
 After merge, the health workflow should prove:
 
@@ -356,6 +362,29 @@ This is the production rebuild story:
 
 ---
 
+## Restore Drills and Game Days
+
+Disaster recovery is now part of routine operations.
+
+The baseline cadence is:
+
+| Cadence | Activity | Evidence |
+|---|---|---|
+| Monthly | Docker appdata drill restore to a scratch path | Archive tested, directories verified, findings logged |
+| Quarterly | Full cluster recovery rehearsal | Snapshot used, restore duration, issues found, follow-up actions |
+| After any major DR change | Targeted retest | Updated runbook and proof that the changed path still works |
+
+Use the dedicated runbook:
+
+- [Disaster Recovery Game Day](../operations/runbooks/disaster-recovery-gameday.md)
+
+The important discipline is simple:
+
+- do not wait for a real incident to discover a broken restore path
+- capture actual timings, not guessed timings
+- update the runbook immediately when the rehearsal reveals drift
+
+---
 ## Weekly Checklist
 
 ```text
@@ -380,6 +409,7 @@ Platform operations are in good shape when:
 - k3s upgrades use the single-plan rolling model
 - the docs clearly state that all three nodes are both server and worker nodes
 - incident response starts from observability and verification, not guesswork
+- restore drills are scheduled and evidenced, not left as an implied future task
 
 ---
 

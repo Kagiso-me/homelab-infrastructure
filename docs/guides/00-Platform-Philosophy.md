@@ -313,7 +313,7 @@ Procedures for specific failure scenarios, tested against real recovery paths.
 ```
 runbooks/cluster-rebuild.md         → full cluster rebuild procedure
 runbooks/node-replacement.md        → replace a failed cluster node
-runbooks/backup-restoration.md      → restore from etcd snapshot + Velero
+operations/runbooks/backup-restoration.md      → restore from etcd snapshot + Velero
 runbooks/certificate-failure.md     → recover from cert-manager failures
 runbooks/alerts/                    → per-alert response procedures
 ```
@@ -327,4 +327,3 @@ runbooks/alerts/                    → per-alert response procedures
 | ← Previous | *Start of series* |
 | Current | **00 — Platform Philosophy** |
 | → Next | [00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md) |
-

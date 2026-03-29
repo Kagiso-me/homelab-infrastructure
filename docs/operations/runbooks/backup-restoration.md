@@ -1,9 +1,9 @@
 
-# Runbook — Backup Restoration
+# Runbook - Backup Restoration
 
 **Scenario:** Recovering from data loss using etcd snapshots (cluster state) and Velero backups (persistent volumes).
 
-> This runbook must be tested against a non-production cluster before it can be considered valid. Run a restoration test quarterly.
+> This runbook must be tested against a non-production cluster before it can be considered valid. Run a restoration test quarterly and log the result in the disaster recovery game-day record.
 
 ---
 
@@ -13,7 +13,7 @@
 
 ### Prerequisites
 
-- k3s installed on control-plane node (tywin) or cluster rebuilt via Ansible
+- k3s installed on the HA server nodes or cluster rebuilt via Ansible
 - TrueNAS NFS share mounted at `/mnt/backups`
 - Snapshot file available at `/mnt/backups/etcd/`
 
@@ -37,7 +37,7 @@ k3s-snapshot-2026-03-14_020001.db   42M   <-- most recent
 k3s-snapshot-2026-03-13_020001.db   41M
 ```
 
-### Step 3 — Stop k3s on the control-plane
+### Step 3 — Stop k3s on the first server node
 
 ```bash
 sudo systemctl stop k3s
@@ -77,18 +77,19 @@ Wait for the API server to become ready:
 kubectl wait --for=condition=Ready node/tywin --timeout=120s
 ```
 
-### Step 6 — Reconnect worker nodes
+### Step 6 — Rejoin the remaining HA server nodes
 
-Worker nodes lose their connection to etcd during the reset. Restart k3s on each worker:
+The other server nodes lose their connection to the restored datastore during the reset. Restart `k3s` on each remaining server one at a time:
 
 ```bash
-ansible-playbook playbooks/maintenance/reboot-nodes.yml --limit jaime,tyrion
+ansible-playbook -i ansible/inventory/homelab.yml ansible/playbooks/maintenance/reboot-nodes.yml --limit tyrion
+ansible-playbook -i ansible/inventory/homelab.yml ansible/playbooks/maintenance/reboot-nodes.yml --limit jaime
 ```
 
-Or manually on each worker:
+Or manually on each remaining server:
 
 ```bash
-sudo systemctl restart k3s-agent
+sudo systemctl restart k3s
 ```
 
 ### Step 7 — Verify cluster state
@@ -123,8 +124,8 @@ Example output:
 
 ```
 NAME                          STATUS     CREATED                         EXPIRES   STORAGE LOCATION
-daily-cluster-backup-20260314   Completed  2026-03-14 03:00:00 +0000 UTC   6d        truenas-nfs
-daily-cluster-backup-20260313   Completed  2026-03-13 03:00:00 +0000 UTC   5d        truenas-nfs
+daily-cluster-backup-20260314   Completed  2026-03-14 03:00:00 +0000 UTC   6d        truenas-minio
+daily-cluster-backup-20260313   Completed  2026-03-13 03:00:00 +0000 UTC   5d        truenas-minio
 ```
 
 ### Step 2 — (Optional) Restore a specific namespace only
@@ -174,15 +175,16 @@ kubectl exec -n monitoring prometheus-0 -- ls /prometheus/
 
 Perform this quarterly on a spare machine or in an isolated environment.
 
-1. Spin up a fresh Ubuntu VM.
+1. Spin up a fresh Ubuntu VM or disposable host set.
 2. Run the full cluster rebuild procedure.
 3. Restore the most recent etcd snapshot.
-4. Bootstrap Flux (using the test repository).
+4. Bootstrap Flux.
 5. Restore the most recent Velero backup.
 6. Verify that Grafana loads with expected dashboards.
-7. Verify that at least one application (e.g., Sonarr) is running with its database intact.
+7. Verify that at least one critical application path is running with its data intact.
 8. Record the actual time taken.
 9. Update the RTO documentation if actual time exceeds the target.
+10. Log the outcome in [Disaster Recovery Game Day](./disaster-recovery-gameday.md).
 
 **Document the result in a test log** with: date, snapshot used, Velero backup used, steps where issues occurred, actual time taken.
 

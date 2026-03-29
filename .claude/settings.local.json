@@ -102,7 +102,9 @@
       "Bash(grep -rn 10.0.10.30 c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ --include=*.yaml --include=*.yml --include=*.md --include=*.json --exclude-dir=.git --exclude-dir=.claude)",
       "Bash(grep -rn \"k3s_controller\\\\|k3s_workers\\\\|rpi\\\\b\\\\|arm64\\\\|10\\\\.0\\\\.10\\\\.125\\\\|110-125\" c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/ c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ansible/ --include=*.md --include=*.yml --include=*.yaml)",
       "Bash(grep -rn bbranb c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/docs/guides/ --include=*.md)",
-      "Bash(grep -rn \"k3s_controller\\\\|k3s_workers\" c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ --include=*.md --include=*.yml --include=*.yaml)"
+      "Bash(grep -rn \"k3s_controller\\\\|k3s_workers\" c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/ --include=*.md --include=*.yml --include=*.yaml)",
+      "Bash(grep -r \"raspberry.pi\\\\|raspberry-pi\\\\|raspberrypi\\\\|rpi\\\\|RPi\\\\|bran\\\\b\" --include=*.md --include=*.yml --include=*.yaml --include=*.sh -l c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/)",
+      "Bash(grep -n \"raspberry.pi\\\\|raspberry-pi\\\\|rpi\\\\|RPi\\\\|bran\\\\b\" --include=*.md --include=*.yml --include=*.yaml --include=*.sh -r c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/)"
     ]
   }
 }

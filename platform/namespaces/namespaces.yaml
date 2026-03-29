@@ -5,6 +5,9 @@ metadata:
   name: monitoring
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
 ---
 apiVersion: v1
 kind: Namespace
@@ -12,6 +15,9 @@ metadata:
   name: storage
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 apiVersion: v1
 kind: Namespace
@@ -19,6 +25,9 @@ metadata:
   name: databases
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 apiVersion: v1
 kind: Namespace
@@ -26,6 +35,9 @@ metadata:
   name: velero
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
 ---
 apiVersion: v1
 kind: Namespace
@@ -33,6 +45,9 @@ metadata:
   name: auth
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 apiVersion: v1
 kind: Namespace
@@ -40,6 +55,9 @@ metadata:
   name: crowdsec
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
 ---
 apiVersion: v1
 kind: Namespace
@@ -47,3 +65,6 @@ metadata:
   name: apps
   labels:
     app.kubernetes.io/managed-by: flux
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

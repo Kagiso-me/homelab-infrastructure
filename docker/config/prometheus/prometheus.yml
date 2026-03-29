@@ -9,8 +9,8 @@
 # stack as needed, but primarily covers bare-metal and VM-level observability.
 #
 # Alertmanager is pre-configured with Slack routing:
-#   #homelab-alerts   — severity: warning
-#   #homelab-critical — severity: critical
+#   #homelab-alerts   â€” severity: warning
+#   #homelab-critical â€” severity: critical
 
 global:
   scrape_interval: 30s
@@ -19,11 +19,11 @@ global:
     cluster: homelab
     environment: production
 
-# Rule files — alert definitions are split by concern into separate files.
+# Rule files â€” alert definitions are split by concern into separate files.
 rule_files:
   - /etc/prometheus/alerts/*.yml
 
-# Alertmanager integration — the alertmanager container is on the same
+# Alertmanager integration â€” the alertmanager container is on the same
 # Docker Compose network and reachable by service name.
 alerting:
   alertmanagers:
@@ -36,7 +36,7 @@ alerting:
 scrape_configs:
 
   # ---------------------------------------------------------------------------
-  # 1. prometheus — self-scrape
+  # 1. prometheus â€” self-scrape
   #    Prometheus exposes its own metrics at /metrics on port 9090.
   #    Useful for tracking scrape durations, rule evaluation latency, TSDB
   #    cardinality, and WAL activity.
@@ -48,7 +48,7 @@ scrape_configs:
           instance: prometheus
 
   # ---------------------------------------------------------------------------
-  # 2. node-k8s-nodes — node-exporter on Kubernetes hosts (external scrape)
+  # 2. node-k8s-nodes â€” node-exporter on Kubernetes hosts (external scrape)
   #    The kube-prometheus-stack inside the cluster handles pod/deployment
   #    metrics via ServiceMonitors. This job scrapes the underlying Linux
   #    nodes directly at node-exporter's port so this Docker-hosted Prometheus
@@ -56,9 +56,9 @@ scrape_configs:
   #    machines.
   #
   #    Nodes:
-  #      tywin  (10.0.10.11) — k3s server
-  #      tyrion (10.0.10.12) — k3s server
-  #      jaime  (10.0.10.13) — k3s server
+  #      tywin  (10.0.10.11) â€” k3s server
+  #      tyrion (10.0.10.12) â€” k3s server
+  #      jaime  (10.0.10.13) â€” k3s server
   #
   #    Relabeling replaces the default "<ip>:<port>" instance label with a
   #    human-readable hostname so dashboards and alerts use node names.
@@ -85,12 +85,12 @@ scrape_configs:
         target_label: instance
 
   # ---------------------------------------------------------------------------
-  # 3. node-docker-host — node-exporter on the Docker host (10.0.10.20)
+  # 3. node-docker-host â€” node-exporter on the Docker host (10.0.10.20)
   #    This host runs Jellyfin, Sonarr, Radarr, Prowlarr, Nginx Proxy Manager,
   #    and other media-stack containers. It also writes textfile metrics (backup
   #    timestamps, NFS mount health) into the node-exporter textfile directory.
   #    The textfile collector is enabled on the exporter itself; no special
-  #    Prometheus config is required — the metrics appear automatically in the
+  #    Prometheus config is required â€” the metrics appear automatically in the
   #    /metrics endpoint.
   # ---------------------------------------------------------------------------
   - job_name: node-docker-host
@@ -100,7 +100,7 @@ scrape_configs:
           instance: docker-host
 
   # ---------------------------------------------------------------------------
-  # 4. node-truenas — node-exporter on TrueNAS HP MicroServer (10.0.10.80)
+  # 4. node-truenas â€” node-exporter on TrueNAS HP MicroServer (10.0.10.80)
   #    node-exporter is started with --collector.zfs and --collector.smartmon
   #    flags on this host to expose ZFS pool and vdev statistics alongside
   #    standard Linux metrics. The smartmon textfile collector reads
@@ -116,20 +116,20 @@ scrape_configs:
           instance: truenas
 
   # ---------------------------------------------------------------------------
-  # 5. node-rpi — node-exporter on Raspberry Pi control hub (10.0.10.10)
-  #    The RPi hosts cluster management tooling (kubectl, Flux CLI, scripts)
-  #    and writes textfile metrics for its own backup job (SSH keys, GPG
-  #    material, kubeconfig). SD card wear makes disk space more critical here
-  #    than on other hosts — see RpiSDCard* alerts in infrastructure.yml.
+  # 5. node-rpi â€” node-exporter on Raspberry Pi control hub (10.0.10.10)
+  #    varys hosts cluster management tooling (kubectl, Flux CLI, Ansible, runner)
+  #    and writes textfile metrics for its own backup job (SSH keys, age
+  #    material, kubeconfig). This host is the operational entry point to the
+  #    than on other hosts â€” see RpiSDCard* alerts in infrastructure.yml.
   # ---------------------------------------------------------------------------
-  - job_name: node-rpi
+  - job_name: node-varys
     static_configs:
       - targets: ['10.0.10.10:9100']
         labels:
-          instance: rpi-control
+          instance: varys
 
   # ---------------------------------------------------------------------------
-  # 6. cadvisor-docker — cAdvisor on Docker host (10.0.10.20:8080)
+  # 6. cadvisor-docker â€” cAdvisor on Docker host (10.0.10.20:8080)
   #    cAdvisor exposes per-container CPU, memory, network I/O, and filesystem
   #    metrics. Used for container-level resource tracking and the
   #    DockerContainerDown / DockerContainerRestarting alerts.
@@ -153,7 +153,7 @@ scrape_configs:
         action: drop
 
   # ---------------------------------------------------------------------------
-  # 8. smartctl-truenas — smartctl-exporter on TrueNAS (10.0.10.80:9633)
+  # 8. smartctl-truenas â€” smartctl-exporter on TrueNAS (10.0.10.80:9633)
   #    smartctl-exporter (by Prometheus Community) polls each physical disk via
   #    smartctl and exposes detailed SMART attributes as Prometheus metrics.
   #    This gives per-attribute values (reallocated sectors, pending sectors,
@@ -170,7 +170,7 @@ scrape_configs:
           instance: truenas
 
   # ---------------------------------------------------------------------------
-  # 9. loki — scrape Loki's own internal metrics
+  # 9. loki â€” scrape Loki's own internal metrics
   #    Loki is on the same Docker Compose network and reachable by service name.
   #    Useful for tracking ingest rate, chunk cache hit ratio, compactor lag,
   #    and query latency from the Loki side (complementing Grafana datasource
@@ -183,7 +183,7 @@ scrape_configs:
           instance: loki
 
   # ---------------------------------------------------------------------------
-  # 10. traefik-k8s — Traefik ingress controller metrics
+  # 10. traefik-k8s â€” Traefik ingress controller metrics
   #    Traefik runs inside the Kubernetes cluster and exposes a metrics endpoint
   #    on its dedicated metrics port. The kube-prometheus-stack can scrape this
   #    via a ServiceMonitor (preferred for in-cluster Prometheus). This job
@@ -192,7 +192,7 @@ scrape_configs:
   #
   #    NOTE: If kube-prometheus-stack already covers Traefik via a ServiceMonitor
   #    and you are federating metrics here, disable this job to avoid duplicate
-  #    series. Port 9100 is a placeholder — adjust to Traefik's actual metrics
+  #    series. Port 9100 is a placeholder â€” adjust to Traefik's actual metrics
   #    port (commonly 8082 or the value of --metrics.prometheus.entryPoint).
   # ---------------------------------------------------------------------------
   - job_name: traefik-k8s

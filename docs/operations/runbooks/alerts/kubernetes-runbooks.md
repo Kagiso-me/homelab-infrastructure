@@ -6,7 +6,7 @@
 | Covers | PodCrashLooping, PodCrashLoopingFrequent, PodNotReady, PodOOMKilled, DeploymentReplicasMismatch, PVCUsageHigh, PVCUsageCritical, PVCPending, CertificateExpiringSoon, CertificateExpiringCritical, CertificateNotReady, FluxReconciliationFailed, FluxReconciliationStalled, FluxSuspended, TraefikHighErrorRate, TraefikHighLatency |
 | Last Updated | 2026-03-15 |
 
-**Note:** All `kubectl` commands are run from the RPi control hub at `10.0.10.10`. SSH there first: `ssh kagiso@10.0.10.10`
+**Note:** All `kubectl` commands are run from the varys control hub at `10.0.10.10`. SSH there first: `ssh kagiso@10.0.10.10`
 
 ---
 
@@ -122,7 +122,7 @@ kubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuse
 
 ### What This Alert Means
 
-A pod is crashing very rapidly — this is beyond a transient startup failure and indicates a persistent issue that is actively consuming cluster resources and may be affecting other workloads through resource contention.
+A pod is crashing very rapidly â€” this is beyond a transient startup failure and indicates a persistent issue that is actively consuming cluster resources and may be affecting other workloads through resource contention.
 
 ### Diagnostic Steps
 
@@ -324,7 +324,7 @@ kubectl top pod <pod-name> -n <namespace> --containers
 
 ### What This Alert Means
 
-A Deployment (or StatefulSet) has fewer ready pods than the desired replica count. This means the application is degraded — some traffic may be unserved or the workload is running with reduced capacity.
+A Deployment (or StatefulSet) has fewer ready pods than the desired replica count. This means the application is degraded â€” some traffic may be unserved or the workload is running with reduced capacity.
 
 ### Diagnostic Steps
 
@@ -470,7 +470,7 @@ A PVC is nearly full. The application will very likely fail to write data immine
 
 Follow all steps in [PVCUsageHigh](#pvcusagehigh), then act immediately:
 
-1. Free space urgently — identify and delete the largest files:
+1. Free space urgently â€” identify and delete the largest files:
    ```bash
    kubectl exec -it <pod-name> -n <namespace> -- bash
    find / -type f -size +100M 2>/dev/null | sort -k5 -rn
@@ -525,7 +525,7 @@ A PVC has been created but cannot be bound to a PersistentVolume. The pod using 
    ssh kagiso@10.0.10.10
    kubectl get pvc -A | grep Pending
    kubectl describe pvc <pvc-name> -n <namespace>
-   # Look at Events section — usually explains why binding failed
+   # Look at Events section â€” usually explains why binding failed
    ```
 
 2. Check if the storage provisioner is running:
@@ -726,7 +726,7 @@ A cert-manager Certificate resource exists but is not in a Ready state. This mea
    kubectl describe certificate <cert-name> -n <namespace>
    ```
 
-2. Check the full chain: Certificate → CertificateRequest → Order → Challenge:
+2. Check the full chain: Certificate â†’ CertificateRequest â†’ Order â†’ Challenge:
    ```bash
    kubectl get certificaterequest,order,challenge -n <namespace>
    ```

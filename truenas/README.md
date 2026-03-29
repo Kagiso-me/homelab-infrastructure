@@ -1,4 +1,4 @@
-# TrueNAS — Storage Server
+# TrueNAS â€” Storage Server
 
 **Hostname:** `truenas`
 **IP:** `10.0.10.80`
@@ -11,19 +11,19 @@
 
 TrueNAS is the **persistent storage layer** for the entire homelab. It serves two functions:
 
-1. **Network storage** — NFS shares provide Kubernetes persistent volumes via the NFS subdir external provisioner
-2. **Backup target** — MinIO (S3-compatible) receives Velero backups from the k3s cluster; etcd snapshots are written directly to NFS
+1. **Network storage** â€” NFS shares provide Kubernetes persistent volumes via the NFS subdir external provisioner
+2. **Backup target** â€” MinIO (S3-compatible) receives Velero backups from the k3s cluster; etcd snapshots are written directly to NFS
 
 ```
 k3s cluster
-    │
-    ├──► NFS (10.0.10.80:/mnt/core/k8s-volumes)     ← Kubernetes PVCs
-    │
-    ├──► NFS (10.0.10.80:/mnt/archive/backups/k8s) ← etcd snapshots + host backups
-    │
-    └──► MinIO (10.0.10.80:9000, bucket: velero)     ← Velero backups
-                    │
-                    └──► Backblaze B2 (Cloud Sync, nightly)  ← offsite
+    â”‚
+    â”œâ”€â”€â–º NFS (10.0.10.80:/mnt/core/k8s-volumes)     â† Kubernetes PVCs
+    â”‚
+    â”œâ”€â”€â–º NFS (10.0.10.80:/mnt/archive/backups/k8s) â† etcd snapshots + host backups
+    â”‚
+    â””â”€â”€â–º MinIO (10.0.10.80:9000, bucket: velero)     â† Velero backups
+                    â”‚
+                    â””â”€â”€â–º Backblaze B2 (Cloud Sync, nightly)  â† offsite
 ```
 
 ---
@@ -36,9 +36,9 @@ k3s cluster
 | CPU | Intel E3-1260l v2 (4C/4T) |
 | RAM | 16GB ECC DDR3 |
 | Boot drive | 128GB SSD 2.5" (TrueNAS OS) |
-| Data drives | 2× 480GB SATA SSD in app ZFS pool |
-| Data drives | 2× 4TB SAS HDD in archive ZFS pool |
-| Data drives | 2× 8TB SAS HDD in media ZFS pool |
+| Data drives | 2Ã— 480GB SATA SSD in app ZFS pool |
+| Data drives | 2Ã— 4TB SAS HDD in archive ZFS pool |
+| Data drives | 2Ã— 8TB SAS HDD in media ZFS pool |
 | NIC | 1GbE onboard |
 | IP | 10.0.10.80 (static IP) |
 
@@ -49,7 +49,7 @@ k3s cluster
 | Pool | Layout | Datasets |
 |------|--------|---------|
 | `core` | SSD Mirror | `k8s-volumes` |
-| `archive` | HDD Mirror | `backups/k8s`, `backups/docker`, `backups/rpi` |
+| `archive` | HDD Mirror | `backups/k8s`, `backups/docker`, `backups/varys` |
 | `tera` | Single HDD | `media`, `downloads` |
 
 See [docs/dataset-layout.md](docs/dataset-layout.md) for the full ZFS dataset structure.
@@ -82,5 +82,5 @@ See [docs/dataset-layout.md](docs/dataset-layout.md) for the full ZFS dataset st
 
 The Kubernetes guides that reference TrueNAS:
 
-- [Guide 10 — Backups & Disaster Recovery](../docs/guides/10-Backups-Disaster-Recovery.md) — etcd snapshots, Velero + MinIO setup
-- [Guide 08 — Storage Architecture](../docs/guides/08-Storage-Architecture.md) — NFS provisioner, StorageClass, PVC lifecycle
+- [Guide 10 â€” Backups & Disaster Recovery](../docs/guides/10-Backups-Disaster-Recovery.md) â€” etcd snapshots, Velero + MinIO setup
+- [Guide 08 â€” Storage Architecture](../docs/guides/08-Storage-Architecture.md) â€” NFS provisioner, StorageClass, PVC lifecycle

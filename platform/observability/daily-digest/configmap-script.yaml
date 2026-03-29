@@ -16,7 +16,7 @@ data:
     PROM    = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
     WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
 
-    # ── Helper ────────────────────────────────────────────────────────────────────
+    # â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def prom_query(query):
         url  = f"{PROM}/api/v1/query"
         data = urllib.parse.urlencode({"query": query}).encode()
@@ -36,8 +36,8 @@ data:
     def fmt(v, decimals=1):
         return f"{v:.{decimals}f}"
 
-    # ── 1. Node health ─────────────────────────────────────────────────────────
-    node_up = prom_query('up{job=~"node-exporter|node-rpi|node-proxmox|node-docker-vm|node-truenas"}')
+    # â”€â”€ 1. Node health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    node_up = prom_query('up{job=~"node-exporter|node-varys|node-proxmox|node-docker-vm|node-truenas"}')
     node_lines = []
     all_up = True
     for r in sorted(node_up, key=lambda x: x["metric"].get("instance", "")):
@@ -50,7 +50,7 @@ data:
         node_lines.append(f"{icon} {inst}: **{state}**")
     node_status = "\n".join(node_lines) or "No data"
 
-    # ── 2. CPU usage ───────────────────────────────────────────────────────────
+    # â”€â”€ 2. CPU usage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     cpu_results = prom_query('100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)')
     cpu_lines = []
     for r in sorted(cpu_results, key=lambda x: x["metric"].get("instance", "")):
@@ -59,7 +59,7 @@ data:
         cpu_lines.append(f"{inst}: **{fmt(v)}%**")
     cpu_text = "\n".join(cpu_lines) or "No data"
 
-    # ── 3. Memory usage ────────────────────────────────────────────────────────
+    # â”€â”€ 3. Memory usage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     mem_results = prom_query('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100')
     mem_lines = []
     for r in sorted(mem_results, key=lambda x: x["metric"].get("instance", "")):
@@ -68,7 +68,7 @@ data:
         mem_lines.append(f"{inst}: **{fmt(v)}%**")
     mem_text = "\n".join(mem_lines) or "No data"
 
-    # ── 4. Root disk usage ─────────────────────────────────────────────────────
+    # â”€â”€ 4. Root disk usage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     disk_results = prom_query(
         '(1 - (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}'
         ' / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"})) * 100'
@@ -81,7 +81,7 @@ data:
         disk_lines.append(f"{warn}{inst}: **{fmt(v)}%**")
     disk_text = "\n".join(disk_lines) or "No data"
 
-    # ── 5. Pod summary ─────────────────────────────────────────────────────────
+    # â”€â”€ 5. Pod summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     pod_results = prom_query('count by (phase) (kube_pod_status_phase == 1)')
     pod_counts  = {r["metric"]["phase"]: int(float(r["value"][1])) for r in pod_results}
     running   = pod_counts.get("Running",   0)
@@ -90,7 +90,7 @@ data:
     succeeded = pod_counts.get("Succeeded", 0)
     pod_text  = f"Running: **{running}** | Pending: **{pending}** | Failed: **{failed}** | Succeeded: **{succeeded}**"
 
-    # ── 6. Backup status ───────────────────────────────────────────────────────
+    # â”€â”€ 6. Backup status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     backup_status = prom_query('backup_job_status')
     backup_ts     = prom_query('backup_last_success_timestamp')
     ts_by_job     = {r["metric"].get("job", ""): float(r["value"][1]) for r in backup_ts}
@@ -107,14 +107,14 @@ data:
             backup_lines.append(f"{icon} {job}")
     backup_text = "\n".join(backup_lines) or "No backup metrics found"
 
-    # ── 7. Embed colour ────────────────────────────────────────────────────────
+    # â”€â”€ 7. Embed colour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     colour = 3066993   # green
     if failed > 0 or not all_up:
         colour = 15158332  # red
     elif pending > 0:
         colour = 15844367  # yellow
 
-    # ── 8. Build and POST embed ────────────────────────────────────────────────
+    # â”€â”€ 8. Build and POST embed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ts      = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     payload = json.dumps({
         "embeds": [{

@@ -1,22 +1,22 @@
 ---
 # install-pihole.yml
 #
-# Installs Pi-hole v6 on the Raspberry Pi control hub (10.0.10.10).
+# Installs Pi-hole v6 on varys, the Intel NUC control hub (10.0.10.10).
 # Pi-hole serves as the network-wide DNS resolver and ad blocker.
 #
 # Pi-hole v6 changes (vs v5):
-#   - Web UI served by FTL built-in web server — lighttpd no longer used.
+#   - Web UI served by FTL built-in web server â€” lighttpd no longer used.
 #   - Password set via 'pihole setpassword' after install (not setupVars.conf).
 #   - setupVars.conf still used for network/DNS config during unattended install.
 #   - dnsmasq.d wildcard config still works (FTL reads /etc/dnsmasq.d/*.conf).
 #
 # Responsibilities after install:
 #   - Network-wide ad blocking (all devices via DHCP DNS assignment)
-#   - Split DNS: *.kagiso.me → 10.0.10.110 (Traefik) for internal resolution
+#   - Split DNS: *.kagiso.me â†’ 10.0.10.110 (Traefik) for internal resolution
 #   - Upstream DNS: Cloudflare (1.1.1.1 / 1.0.0.1) with DNSSEC
 #
 # After running this playbook:
-#   1. Point your USG DHCP DNS to 10.0.10.10 (RPi) in UniFi Controller
+#   1. Point your USG DHCP DNS to 10.0.10.10 (varys) in UniFi Controller
 #   2. Verify Pi-hole admin at http://10.0.10.10/admin
 #   3. Verify *.kagiso.me resolves to 10.0.10.110 from any LAN device
 #
@@ -128,14 +128,14 @@
       no_log: true
 
   # ============================================================================
-  # SPLIT DNS — wildcard *.kagiso.me → Traefik
+  # SPLIT DNS â€” wildcard *.kagiso.me â†’ Traefik
   # ============================================================================
 
     - name: "dns | Write wildcard dnsmasq config for {{ kagiso_domain }}"
       copy:
         dest: /etc/dnsmasq.d/02-kagiso-local.conf
         content: |
-          # Wildcard DNS — all *.kagiso.me queries resolve to Traefik on LAN.
+          # Wildcard DNS â€” all *.kagiso.me queries resolve to Traefik on LAN.
           # This enables valid TLS certs (DNS-01 wildcard) to work locally
           # without making services publicly reachable.
           # Services are only publicly accessible if explicitly configured
@@ -143,7 +143,7 @@
           address=/.{{ kagiso_domain }}/{{ traefik_ip }}
         mode: '0644'
 
-    # Pi-hole v6 does not read /etc/dnsmasq.d/ by default — misc.etc_dnsmasq_d
+    # Pi-hole v6 does not read /etc/dnsmasq.d/ by default â€” misc.etc_dnsmasq_d
     # must be explicitly enabled so FTL picks up the wildcard config above.
     - name: "dns | Enable dnsmasq.d include in Pi-hole v6"
       command: pihole-FTL --config misc.etc_dnsmasq_d true
@@ -204,8 +204,8 @@
           Admin UI:    http://{{ ansible_host }}/admin
           DNS server:  {{ ansible_host }} ({{ pihole_ipv4_address | split('/') | first }})
 
-          Wildcard DNS: *.{{ kagiso_domain }} → {{ traefik_ip }} ✓
-          Upstream DNS: {{ pihole_upstream_dns_1 }} / {{ pihole_upstream_dns_2 }} ✓
+          Wildcard DNS: *.{{ kagiso_domain }} â†’ {{ traefik_ip }} âœ“
+          Upstream DNS: {{ pihole_upstream_dns_1 }} / {{ pihole_upstream_dns_2 }} âœ“
 
           Next step: In UniFi Controller, set DHCP DNS server to {{ pihole_ipv4_address | split('/') | first }}
-          Network → [your network] → DHCP → DNS Server 1: {{ pihole_ipv4_address | split('/') | first }}
+          Network â†’ [your network] â†’ DHCP â†’ DNS Server 1: {{ pihole_ipv4_address | split('/') | first }}

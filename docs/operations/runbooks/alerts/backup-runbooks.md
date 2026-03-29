@@ -241,18 +241,18 @@ sudo k3s etcd-snapshot ls
 | Field | Value |
 |-------|-------|
 | Severity | Critical |
-| Threshold | `docker_backup_last_success_timestamp == 0` or metric absent |
+| Threshold | `absent(backup_last_success_timestamp{job="docker-appdata"})` for 15 minutes |
 | First Response | 15 minutes |
 
 ### What This Alert Means
 
-The Docker media server backup script on `10.0.10.32` has never reported a successful backup or the textfile metric is missing entirely from node_exporter's textfile collector.
+The Docker media server backup script on `10.0.10.20` has never reported a successful backup or the textfile metric is missing entirely from node_exporter's textfile collector.
 
 ### Diagnostic Steps
 
 1. SSH to the Docker host via the RPi control hub:
    ```bash
-   ssh kagiso@10.0.10.32
+   ssh kagiso@10.0.10.20
    ```
 
 2. Check the textfile metric:
@@ -262,37 +262,35 @@ The Docker media server backup script on `10.0.10.32` has never reported a succe
 
 3. Verify the backup script is installed:
    ```bash
-   ls -la /usr/local/bin/docker-backup.sh
+   ls -la /srv/docker/scripts/backup_docker.sh
    ```
 
-4. Check the schedule (cron or systemd):
+4. Check the cron schedule:
    ```bash
-   crontab -l | grep -i backup
-   systemctl status docker-backup.timer 2>/dev/null
+   sudo crontab -l | grep -i backup
    ```
 
 5. Check recent logs:
    ```bash
-   journalctl -u docker-backup.service --since "24 hours ago" --no-pager 2>/dev/null || \
-   grep -i "docker-backup" /var/log/syslog | tail -30
+   tail -50 /var/log/docker-backup.log
    ```
 
 6. Verify backup destination is reachable (backups likely go to TrueNAS via NFS):
    ```bash
    df -h /mnt/archive
-   ls -lah /mnt/archive/docker/ 2>/dev/null
+   ls -lah /mnt/archive/backups/docker/ 2>/dev/null
    ```
 
 7. Run backup manually:
    ```bash
-   sudo /usr/local/bin/docker-backup.sh 2>&1
+   sudo /srv/docker/scripts/backup_docker.sh 2>&1
    ```
 
 ### Decision Table
 
 | Condition | Action |
 |-----------|--------|
-| Metric file absent | Script never ran; check cron/timer |
+| Metric file absent | Script never ran; check cron and the textfile collector path |
 | NFS mount /mnt/archive missing | See [DockerNFSMountMissing](infrastructure-runbooks.md#dockernfsmountmissing) |
 | Script runs, backup destination full | See [TrueNASDiskFull](infrastructure-runbooks.md#truenasdiskfull) |
 | Script errors on Docker commands | Verify Docker daemon is running: `systemctl status docker` |
@@ -300,9 +298,9 @@ The Docker media server backup script on `10.0.10.32` has never reported a succe
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.32
+ssh kagiso@10.0.10.20
 cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
-ls -lah /mnt/archive/docker/ | tail -5
+ls -lah /mnt/archive/backups/docker/ | tail -5
 ```
 
 ---
@@ -312,7 +310,7 @@ ls -lah /mnt/archive/docker/ | tail -5
 | Field | Value |
 |-------|-------|
 | Severity | Warning |
-| Threshold | `time() - docker_backup_last_success_timestamp > 86400` (>24 hours) |
+| Threshold | `time() - backup_last_success_timestamp{job="docker-appdata"} > 86400` (>24 hours) |
 | First Response | 1 hour |
 
 ### What This Alert Means
@@ -323,7 +321,7 @@ The Docker host backup has not completed successfully in over 24 hours. The back
 
 1. SSH to Docker host and check timestamp:
    ```bash
-   ssh kagiso@10.0.10.32
+   ssh kagiso@10.0.10.20
    cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
    date +%s  # compare to timestamp in file
    ```
@@ -333,14 +331,14 @@ The Docker host backup has not completed successfully in over 24 hours. The back
    df -h /mnt/archive
    ```
 
-3. Check Docker daemon health (backup scripts often stop containers temporarily):
+3. Check Docker daemon health:
    ```bash
    docker ps -a --format "table {{.Names}}\t{{.Status}}"
    ```
 
 4. Review backup logs:
    ```bash
-   journalctl -u docker-backup.service --since "25 hours ago" --no-pager 2>/dev/null
+   tail -100 /var/log/docker-backup.log
    ```
 
 5. Check if any containers are stuck in a state that blocks backup:
@@ -350,7 +348,7 @@ The Docker host backup has not completed successfully in over 24 hours. The back
 
 6. Run backup manually:
    ```bash
-   sudo /usr/local/bin/docker-backup.sh 2>&1 | tee /tmp/backup-test.log
+   sudo /srv/docker/scripts/backup_docker.sh 2>&1 | tee /tmp/backup-test.log
    echo "Exit: $?"
    ```
 
@@ -361,12 +359,12 @@ The Docker host backup has not completed successfully in over 24 hours. The back
 | NFS mount dropped | Remount: `sudo mount -a`; check [TrueNASDown](infrastructure-runbooks.md#truenasdown) |
 | Docker container in bad state | `docker stop <container>; docker start <container>` |
 | Backup script OOM killed | Increase swap or back up fewer containers at once |
-| Disk full on /mnt/archive | Prune old backups: `find /mnt/archive/docker -mtime +30 -delete` |
+| Disk full on /mnt/archive | Inspect retention and free space before deleting anything manually |
 
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.32
+ssh kagiso@10.0.10.20
 cat /var/lib/node_exporter/textfile_collector/docker_backup.prom
 # Timestamp should be recent
 ```
@@ -389,13 +387,13 @@ The Docker backup completed but the archive is significantly smaller than expect
 
 1. Check recent backup sizes:
    ```bash
-   ssh kagiso@10.0.10.32
-   ls -lah /mnt/archive/docker/ | tail -10
+   ssh kagiso@10.0.10.20
+   ls -lah /mnt/archive/backups/docker/ | tail -10
    ```
 
 2. Check what the backup script actually archives:
    ```bash
-   cat /usr/local/bin/docker-backup.sh | grep -E "tar|rsync|docker"
+   cat /srv/docker/scripts/backup_docker.sh | grep -E "tar|exclude|BACKUP_SOURCE|BACKUP_DEST"
    ```
 
 3. Verify key Docker volumes are non-empty:
@@ -406,7 +404,7 @@ The Docker backup completed but the archive is significantly smaller than expect
 
 4. Test-extract the latest backup to check contents:
    ```bash
-   LATEST=$(ls -t /mnt/archive/docker/*.tar.gz 2>/dev/null | head -1)
+   LATEST=$(ls -t /mnt/archive/backups/docker/*.tar.gz 2>/dev/null | head -1)
    tar -tzf "$LATEST" | head -30
    ```
 
@@ -427,8 +425,8 @@ The Docker backup completed but the archive is significantly smaller than expect
 ### Verify Recovery
 
 ```bash
-ssh kagiso@10.0.10.32
-LATEST=$(ls -t /mnt/archive/docker/*.tar.gz | head -1)
+ssh kagiso@10.0.10.20
+LATEST=$(ls -t /mnt/archive/backups/docker/*.tar.gz | head -1)
 tar -tzf "$LATEST" | wc -l
 # Verify file count is reasonable compared to previous backups
 ```
@@ -511,7 +509,7 @@ ls -lah /mnt/archive/rpi/ | tail -5
 
 ### What This Alert Means
 
-The RPi backup has not succeeded in over 48 hours. The RPi (10.0.10.10) hosts SOPS age keys and cluster access credentials — a loss without a recent backup is a serious recovery impediment.
+The RPi backup has not succeeded in over 48 hours. The RPi (10.0.10.10) hosts SOPS age keys and cluster access credentials â€” a loss without a recent backup is a serious recovery impediment.
 
 ### Diagnostic Steps
 

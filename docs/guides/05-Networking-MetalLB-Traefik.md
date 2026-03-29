@@ -122,9 +122,13 @@ Traffic routed to that node → kube-proxy → Traefik pod
 Traefik is the single entry point for all HTTP/S traffic. It:
 
 - Listens on port 80 and 443 at `10.0.10.110`
-- Redirects all HTTP → HTTPS automatically
+- Redirects all HTTP to HTTPS automatically
 - Routes requests to the correct backend Service based on the `Host` header
 - Serves TLS certificates stored as Kubernetes Secrets by cert-manager (see [Guide 06](./06-Security-CertManager-TLS.md))
+
+For resilience, Traefik now runs as a **two-replica deployment** with a
+**PodDisruptionBudget of `minAvailable: 1`**. A single node reboot or drain
+should not take ingress down as long as the cluster still has one healthy Traefik pod available.
 
 ---
 
@@ -563,12 +567,19 @@ kubectl get pods -n metallb-system
 # MetalLB — IP pool configured
 kubectl get ipaddresspool -n metallb-system
 # Expected: homelab-pool with 10.0.10.110-10.0.10.115
-
-# Traefik — running and assigned LoadBalancer IP
+# Traefik - running and assigned LoadBalancer IP
 kubectl get svc traefik -n ingress
 # Expected: traefik TYPE=LoadBalancer EXTERNAL-IP=10.0.10.110
 
-# End-to-end — Traefik is responding (expect 404, not connection refused)
+# Traefik - deployment highly available
+kubectl get deploy traefik -n ingress
+# Expected: READY 2/2
+
+# Traefik - safe disruption budget
+kubectl get pdb -n ingress
+# Expected: traefik minAvailable=1
+
+# End-to-end - Traefik is responding (expect 404, not connection refused)
 curl -k https://10.0.10.110
 # Expected: 404 page not found
 ```
@@ -589,7 +600,9 @@ The networking platform is complete when all of the following are true:
 - `flux get kustomization platform-networking` — `READY=True`
 - `flux get helmrelease -A` — metallb and traefik both `READY=True`
 - `kubectl get pods -n metallb-system` — metallb-controller and metallb-speaker Running on all nodes
-- `kubectl get pods -n ingress` — Traefik pod Running
+- `kubectl get pods -n ingress` — two Traefik pods Running
+- `kubectl get deploy traefik -n ingress` — `READY 2/2`
+- `kubectl get pdb -n ingress` — Traefik PDB present with `minAvailable=1`
 - Traefik service shows `EXTERNAL-IP: 10.0.10.110`
 - `curl https://10.0.10.110` returns `404 page not found`
 - DNS wildcard `*.kagiso.me` resolves to `10.0.10.110` from a client machine

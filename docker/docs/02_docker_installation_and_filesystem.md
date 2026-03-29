@@ -1,11 +1,11 @@
-# 02 — Docker Installation & Filesystem Setup
+# 02 â€” Docker Installation & Filesystem Setup
 ## Container Runtime, Daemon Configuration, Directory Layout, and NFS Mounts
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐☆☆☆☆☆☆ (4/10)
+**Difficulty:** â­â­â­â­â˜†â˜†â˜†â˜†â˜†â˜† (4/10)
 **Guide:** 02 of 06
 
-> A clean filesystem structure is not an aesthetic preference — it is an operational requirement.
+> A clean filesystem structure is not an aesthetic preference â€” it is an operational requirement.
 >
 > Many broken media stacks trace their failures to poor directory planning: symlinks pointing to wrong paths, ARR apps unable to perform atomic moves, containers unable to write to their own config directories. This guide establishes a filesystem layout that eliminates those failure modes before any application is deployed.
 
@@ -15,7 +15,7 @@
 
 At this point the host is:
 
-- running Ubuntu Server at `10.0.10.32`
+- running Ubuntu Server at `10.0.10.20`
 - hardened with SSH keys, UFW, and Fail2Ban
 - receiving automatic security patches
 
@@ -35,7 +35,7 @@ By the end of this guide the host will have:
 
 ```mermaid
 graph TD
-    subgraph DockerHost ["Docker Host — 10.0.10.32"]
+    subgraph DockerHost ["Docker Host â€” 10.0.10.20"]
         Stacks["/srv/docker/compose/\nCompose files"]
         AppData["/srv/docker/appdata/\nContainer config + DBs"]
         Incomplete["/srv/downloads/incomplete/\nIn-progress downloads\n(local NVMe)"]
@@ -59,11 +59,11 @@ graph TD
 
 ---
 
-# 1 — Why Docker
+# 1 â€” Why Docker
 
 Docker allows applications to run in **isolated containers**: self-contained units with their own filesystem, process space, and network interface.
 
-Instead of installing Sonarr, Radarr, and Plex directly onto the host — creating a tangle of conflicting dependencies — each service runs in its own container, managed independently.
+Instead of installing Sonarr, Radarr, and Plex directly onto the host â€” creating a tangle of conflicting dependencies â€” each service runs in its own container, managed independently.
 
 | Without Docker | With Docker |
 |----------------|-------------|
@@ -77,7 +77,7 @@ If a container fails, it is recreated. If a container image has a bug, it is rol
 
 ---
 
-# 2 — Install Docker (Official Method)
+# 2 â€” Install Docker (Official Method)
 
 Ubuntu's default repositories contain outdated Docker packages. The official installation script installs the current release directly from Docker's repository.
 
@@ -105,7 +105,7 @@ Docker Compose version v2.x.x
 
 ---
 
-# 3 — Enable Docker at Boot
+# 3 â€” Enable Docker at Boot
 
 Docker must start automatically when the host boots. Without this, every reboot requires manual intervention.
 
@@ -124,7 +124,7 @@ Expected: `Active: active (running)`
 
 ---
 
-# 4 — Allow Docker Without Root
+# 4 â€” Allow Docker Without Root
 
 Add the `kagiso` user to the `docker` group. This allows running Docker commands without `sudo`.
 
@@ -137,7 +137,7 @@ sudo usermod -aG docker kagiso
 ```bash
 # Log out completely, then log back in via SSH
 exit
-ssh kagiso@10.0.10.32
+ssh kagiso@10.0.10.20
 ```
 
 After logging back in, verify the group membership and Docker access:
@@ -151,7 +151,7 @@ The `hello-world` container must run successfully without `sudo`.
 
 ---
 
-# 5 — Configure the Docker Daemon
+# 5 â€” Configure the Docker Daemon
 
 The Docker daemon configuration controls logging behaviour, storage drivers, and other system-level settings. Default Docker settings allow container logs to grow without bound, which can fill the root filesystem over time.
 
@@ -200,7 +200,7 @@ Expected output includes `json-file`.
 
 ---
 
-# 6 — Filesystem Layout
+# 6 â€” Filesystem Layout
 
 The directory structure is the backbone of the platform. Predictable paths prevent accidents, simplify backups, and make every compose file self-documenting.
 
@@ -227,7 +227,7 @@ sudo chown -R kagiso:kagiso /srv/downloads
 
 | Directory | Purpose |
 |-----------|---------|
-| `/srv/docker/compose/` | Docker Compose files — one subdirectory per stack |
+| `/srv/docker/compose/` | Docker Compose files â€” one subdirectory per stack |
 | `/srv/docker/appdata/` | Container configuration, databases, and application state |
 | `/srv/scripts/` | Automation and maintenance scripts |
 | `/srv/downloads/incomplete/` | In-progress SABnzbd downloads on local NVMe |
@@ -257,11 +257,11 @@ Expected output:
 
 > The `.env.example` template is the source of truth for all configurable values. Guide 04
 > will instruct you to copy it to `.env` and fill in secrets before deploying any stack.
-> Never commit `.env` — it is gitignored by design.
+> Never commit `.env` â€” it is gitignored by design.
 
 ---
 
-# 7 — Application Data Directories (appdata)
+# 7 â€” Application Data Directories (appdata)
 
 Every container stores its persistent configuration and databases in `/srv/docker/appdata`. Each service gets its own subdirectory.
 
@@ -306,18 +306,18 @@ A complete platform restore requires only:
 
 ---
 
-# 8 — NFS Mounts: TrueNAS Storage
+# 8 â€” NFS Mounts: TrueNAS Storage
 
 The media library and completed downloads live on **TrueNAS**, not on the Docker host. This decoupling means the host can be wiped and rebuilt without affecting any media.
 
 ```mermaid
 graph LR
-    subgraph TrueNAS ["TrueNAS — NFS Server"]
+    subgraph TrueNAS ["TrueNAS â€” NFS Server"]
         T1["tera/media\nexports /mnt/tera/media"]
         T2["tera/downloads\nexports /mnt/tera/downloads"]
     end
 
-    subgraph DockerHost ["Docker Host — 10.0.10.32"]
+    subgraph DockerHost ["Docker Host â€” 10.0.10.20"]
         M1["/mnt/media"]
         M2["/mnt/downloads"]
         Plex["Plex container"]
@@ -409,13 +409,13 @@ If TrueNAS NFS export permissions require it, ensure the `kagiso` UID matches th
 
 ---
 
-# 9 — Download Pipeline Layout
+# 9 â€” Download Pipeline Layout
 
 SABnzbd downloads to local NVMe for speed. Once complete, Sonarr and Radarr import to TrueNAS via the NFS mount.
 
 ```mermaid
 graph TD
-    SAB["SABnzbd\ndownloading"] -->|writes to| Inc["/srv/downloads/incomplete/\nLocal NVMe — fast writes"]
+    SAB["SABnzbd\ndownloading"] -->|writes to| Inc["/srv/downloads/incomplete/\nLocal NVMe â€” fast writes"]
     Inc -->|completed + unpacked| Comp["/mnt/downloads/complete/\nTrueNAS NFS"]
     Comp -->|hardlink import| Sonarr["Sonarr\nimports TV"]
     Comp -->|hardlink import| Radarr["Radarr\nimports Movies"]
@@ -441,7 +441,7 @@ This two-stage design provides:
 
 ---
 
-# 10 — Docker Network
+# 10 â€” Docker Network
 
 All service stacks share a single custom Docker bridge network. This allows containers in different compose stacks to resolve each other by name.
 
@@ -461,7 +461,7 @@ This network will be referenced as `external: true` in every compose stack. Cont
 
 ---
 
-# 11 — Verification Checklist
+# 11 â€” Verification Checklist
 
 Run the following to confirm the environment is correctly configured:
 
@@ -514,6 +514,6 @@ This guide is complete when all of the following are confirmed:
 
 | | Guide |
 |---|---|
-| ← Previous | [01 — Host Installation & Hardening](./01_host_installation_and_hardening.md) |
-| Current | **02 — Docker Installation & Filesystem Setup** |
-| → Next | [03 — Media Stack & Reverse Proxy](./03_media_stack_and_reverse_proxy.md) |
+| â† Previous | [01 â€” Host Installation & Hardening](./01_host_installation_and_hardening.md) |
+| Current | **02 â€” Docker Installation & Filesystem Setup** |
+| â†’ Next | [03 â€” Media Stack & Reverse Proxy](./03_media_stack_and_reverse_proxy.md) |

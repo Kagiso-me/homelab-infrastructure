@@ -15,9 +15,9 @@
 #   backup_failures_total{job="..."}          Cumulative count of failed backup runs
 #
 # Expected job labels:
-#   job="etcd"           — daily etcd snapshots (cron on tywin, 10.0.10.11)
-#   job="docker-appdata" — daily Docker media stack volumes (10.0.10.20)
-#   job="rpi-keys"       — RPi key material backup (10.0.10.10, 48h cadence)
+#   job="etcd"           â€” daily etcd snapshots (cron on tywin, 10.0.10.11)
+#   job="docker-appdata" â€” daily Docker media stack volumes (10.0.10.20)
+#   job="rpi-keys"       â€” RPi key material backup (10.0.10.10, 48h cadence)
 #
 # Adding a new backup target only requires the script to write the five
 # metrics above with the correct job= label. No new alert rules are needed.
@@ -60,7 +60,7 @@ groups:
           runbook: "https://wiki.homelab/runbooks/backup-job-failed"
 
       - alert: DailyBackupStale
-        # 90000s = 25h — 1 hour of slack on top of the expected 24h cadence.
+        # 90000s = 25h â€” 1 hour of slack on top of the expected 24h cadence.
         # RPi is excluded here and covered by the looser RpiBackupStale rule.
         expr: >
           time() - backup_last_success_timestamp{job!="rpi-keys"} > 90000
@@ -77,25 +77,8 @@ groups:
             archive from today.
           runbook: "https://wiki.homelab/runbooks/backup-stale"
 
-      - alert: RpiBackupStale
-        # 172800s = 48h — RPi key material changes infrequently.
-        # Severity warning (not critical) — the RPi is not a data-producing host.
-        expr: >
-          time() - backup_last_success_timestamp{job="rpi-keys"} > 172800
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "RPi key material backup is {{ $value | humanizeDuration }} old"
-          description: >
-            The rpi-keys backup has not completed successfully in over 48 hours.
-            The RPi (10.0.10.10) stores SSH keys, GPG keys, kubeconfig, and
-            cluster management scripts. An out-of-date backup means recent key
-            rotations would be lost if the SD card fails.
-          runbook: "https://wiki.homelab/runbooks/backup-stale"
-
       - alert: EtcdBackupMetricsMissing
-        # Fires when the metric disappears entirely — more severe than a stale
+        # Fires when the metric disappears entirely â€” more severe than a stale
         # timestamp because we cannot measure the gap at all.
         expr: absent(backup_last_success_timestamp{job="etcd"})
         for: 15m
@@ -125,22 +108,22 @@ groups:
             are not being backed up.
           runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"
 
-      - alert: RpiBackupMetricsMissing
-        expr: absent(backup_last_success_timestamp{job="rpi-keys"})
+      - alert: VarysBackupMetricsMissing
+        expr: absent(backup_last_success_timestamp{job="varys-keys"})
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: "RPi key backup metrics missing from Prometheus"
+          summary: "varys key backup metrics missing from Prometheus"
           description: >
-            No backup_last_success_timestamp{job="rpi-keys"} series present.
-            The RPi backup script on 10.0.10.10 may have never run successfully
-            or its textfile metric was removed. SSH keys and kubeconfig are not
+            No backup_last_success_timestamp{job="varys-keys"} series present.
+            The varys backup script on 10.0.10.10 may have never run successfully
+            or its textfile metric was removed. SSH keys, age keys, and kubeconfig are not
             being backed up.
           runbook: "https://wiki.homelab/runbooks/backup-metrics-missing"
 
       - alert: BackupSizeSuspicious
-        # Per-job minimum thresholds. No threshold for rpi-keys as its size
+        # Per-job minimum thresholds. No threshold for varys-keys as its size
         # varies too much depending on key rotation cadence.
         expr: |
           (backup_size_bytes{job="etcd"} < 1000000)
@@ -160,7 +143,7 @@ groups:
           runbook: "https://wiki.homelab/runbooks/backup-suspicious-size"
 
   # ---------------------------------------------------------------------------
-  # Velero — Kubernetes PVC backups
+  # Velero â€” Kubernetes PVC backups
   #
   # Velero exposes its own Prometheus metrics natively; no textfile needed.
   # Threshold: 25h (90000s) for daily scheduled backups.

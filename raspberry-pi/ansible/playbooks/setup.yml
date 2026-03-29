@@ -1,12 +1,12 @@
 ---
 # raspberry-pi/ansible/playbooks/setup.yml
-# Full bootstrap playbook for the Raspberry Pi control hub.
+# Bootstrap playbook for bran, the Raspberry Pi appliance node.
 # Run once after fresh OS install, or to enforce idempotent state.
 #
 # Usage:
 #   ansible-playbook -i inventory/hosts.yml playbooks/setup.yml
 
-- name: Bootstrap Raspberry Pi control hub
+- name: Bootstrap bran appliance node
   hosts: rpi
   become: true
 
@@ -20,7 +20,7 @@
     velero_version: "1.13.2"
 
   tasks:
-    # ── System baseline ──────────────────────────────────────────────────
+    # â”€â”€ System baseline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Update apt cache and upgrade packages
       apt:
         update_cache: true
@@ -42,7 +42,7 @@
           - ansible
         state: present
 
-    # ── SSH hardening ────────────────────────────────────────────────────
+    # â”€â”€ SSH hardening â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Disable password authentication
       lineinfile:
         path: /etc/ssh/sshd_config
@@ -57,14 +57,14 @@
         line: "PermitRootLogin no"
       notify: Restart sshd
 
-    # ── kubectl ──────────────────────────────────────────────────────────
+    # â”€â”€ kubectl â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download kubectl
       get_url:
         url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/arm64/kubectl"
         dest: /usr/local/bin/kubectl
         mode: "0755"
 
-    # ── Helm ─────────────────────────────────────────────────────────────
+    # â”€â”€ Helm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download and install Helm
       shell: |
         curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
@@ -72,7 +72,7 @@
       args:
         creates: /usr/local/bin/helm
 
-    # ── Flux CLI ─────────────────────────────────────────────────────────
+    # â”€â”€ Flux CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download Flux CLI
       get_url:
         url: "https://github.com/fluxcd/flux2/releases/download/v{{ flux_version }}/flux_{{ flux_version }}_linux_arm64.tar.gz"
@@ -90,7 +90,7 @@
         path: /usr/local/bin/flux
         mode: "0755"
 
-    # ── k9s ──────────────────────────────────────────────────────────────
+    # â”€â”€ k9s â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download k9s
       get_url:
         url: "https://github.com/derailed/k9s/releases/download/v{{ k9s_version }}/k9s_Linux_arm64.tar.gz"
@@ -108,20 +108,20 @@
         path: /usr/local/bin/k9s
         mode: "0755"
 
-    # ── age ──────────────────────────────────────────────────────────────
+    # â”€â”€ age â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Install age
       apt:
         name: age
         state: present
 
-    # ── SOPS ─────────────────────────────────────────────────────────────
+    # â”€â”€ SOPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download SOPS
       get_url:
         url: "https://github.com/getsops/sops/releases/download/v{{ sops_version }}/sops-v{{ sops_version }}.linux.arm64"
         dest: /usr/local/bin/sops
         mode: "0755"
 
-    # ── Velero CLI ───────────────────────────────────────────────────────
+    # â”€â”€ Velero CLI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Download Velero CLI
       get_url:
         url: "https://github.com/vmware-tanzu/velero/releases/download/v{{ velero_version }}/velero-v{{ velero_version }}-linux-arm64.tar.gz"
@@ -140,7 +140,7 @@
         mode: "0755"
         remote_src: true
 
-    # ── kubeconfig directory ─────────────────────────────────────────────
+    # â”€â”€ kubeconfig directory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Ensure .kube directory exists for pi user
       file:
         path: /home/pi/.kube
@@ -149,7 +149,7 @@
         group: pi
         mode: "0700"
 
-    # ── Shell conveniences ───────────────────────────────────────────────
+    # â”€â”€ Shell conveniences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     - name: Add kubectl aliases to .bashrc
       blockinfile:
         path: /home/pi/.bashrc

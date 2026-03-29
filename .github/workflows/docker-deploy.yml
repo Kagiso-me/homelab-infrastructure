@@ -16,6 +16,13 @@
 name: docker-deploy
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/compose/**'
+      - 'docker/config/**'
+      - 'docker/scripts/**'
+      - 'ansible/playbooks/docker/**'
   push:
     branches: [main]
     paths:
@@ -29,9 +36,33 @@ on:
         default: 'all'
 
 jobs:
+  validate:
+    name: validate-docker-config
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare CI env file
+        run: cp docker/compose/.env.example docker/compose/.env
+
+      - name: Validate compose files
+        run: |
+          docker compose --env-file docker/compose/.env -f docker/compose/media-stack.yml config -q
+          docker compose --env-file docker/compose/.env -f docker/compose/proxy-stack.yml config -q
+          docker compose --env-file docker/compose/.env -f docker/compose/monitoring-stack.yml config -q
+
+      - name: Validate backup and restore scripts
+        run: |
+          bash -n docker/scripts/backup_docker.sh
+          bash -n docker/scripts/restore_docker.sh
+
   deploy:
     name: deploy-docker-host
     runs-on: [self-hosted, linux, homelab]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout

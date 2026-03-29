@@ -1,9 +1,9 @@
-﻿
+
 # 06 — Application Configuration
 ## Tuning Every Service in the Media Stack for Optimal Performance
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐☆☆☆☆☆ (5/10)
+**Difficulty:** ?????????? (5/10)
 **Guide:** 06 of 06
 
 > Deploying containers is straightforward. Getting them to work *together*, efficiently,
@@ -20,22 +20,22 @@
 # Configuration Order & Dependency Map
 
 ```
-Prowlarr ─────────────────────────────────────────────────────────────────► (indexers)
-    │                                                                              │
-    ├── syncs to ──► Sonarr ──► SABnzbd ──► /mnt/downloads ──► /mnt/media/tv     │
-    ├── syncs to ──► Radarr ──► SABnzbd ──► /mnt/downloads ──► /mnt/media/movies │
-    └── syncs to ──► Lidarr ──► SABnzbd ──► /mnt/downloads ──► /mnt/media/music  │
-                                                                                   │
-Bazarr ──────────────────────────────────────────────────────────────────────────┘
+Prowlarr -----------------------------------------------------------------? (indexers)
+    ¦                                                                              ¦
+    +-- syncs to --? Sonarr --? SABnzbd --? /mnt/downloads --? /mnt/media/tv     ¦
+    +-- syncs to --? Radarr --? SABnzbd --? /mnt/downloads --? /mnt/media/movies ¦
+    +-- syncs to --? Lidarr --? SABnzbd --? /mnt/downloads --? /mnt/media/music  ¦
+                                                                                   ¦
+Bazarr --------------------------------------------------------------------------+
   (reads Sonarr + Radarr libraries, downloads subtitles to /mnt/media)
 
-Overseerr ──► Sonarr / Radarr (routes user requests)
-           └► Plex (authenticates users, syncs libraries)
+Overseerr --? Sonarr / Radarr (routes user requests)
+           +? Plex (authenticates users, syncs libraries)
 
-Plex ────────────────────────────────────────────────────────────────────────────────
+Plex --------------------------------------------------------------------------------
   (reads /mnt/media, streams to all clients)
 
-Navidrome ───────────────────────────────────────────────────────────────────────────
+Navidrome ---------------------------------------------------------------------------
   (reads /mnt/media/music, streams via Subsonic API)
 ```
 
@@ -59,7 +59,7 @@ Configure in this order:
 indexer credentials and syncs them automatically to Sonarr, Radarr, and Lidarr. None of the
 *Arr applications should have indexers configured directly — Prowlarr is the single source of truth.
 
-**Access:** `http://10.0.10.32:9696` or `https://prowlarr.kagiso.me`
+**Access:** `http://10.0.10.20:9696` or `https://prowlarr.kagiso.me`
 
 ---
 
@@ -68,7 +68,7 @@ indexer credentials and syncs them automatically to Sonarr, Radarr, and Lidarr. 
 On first visit Prowlarr presents an authentication setup screen. Configure this before doing
 anything else — the NPM proxy makes Prowlarr reachable over HTTPS from the LAN.
 
-1. Navigate to **Settings → General → Authentication**
+1. Navigate to **Settings ? General ? Authentication**
 2. Set **Authentication Method**: Forms (Login Page)
 3. Set a **Username** and **Password**
 4. Save and re-login
@@ -77,7 +77,7 @@ anything else — the NPM proxy makes Prowlarr reachable over HTTPS from the LAN
 
 ## 1.2 — Add Usenet Indexers
 
-Navigate to **Indexers → Add Indexer**.
+Navigate to **Indexers ? Add Indexer**.
 
 - Search for your Usenet indexer by name
 - Fill in credentials: username, password, API key (provider-dependent)
@@ -92,19 +92,19 @@ Navigate to **Indexers → Add Indexer**.
 
 ---
 
-## 1.3 — Connect Applications (Settings → Apps)
+## 1.3 — Connect Applications (Settings ? Apps)
 
 Prowlarr pushes its full indexer list to each connected *Arr application via the API.
 This must be configured once — after that, adding a new indexer in Prowlarr propagates
 to all apps automatically.
 
-Navigate to **Settings → Apps → Add Application**.
+Navigate to **Settings ? Apps ? Add Application**.
 
 | Application | Internal URL | Port | API Key Source |
 |---|---|---|---|
-| Sonarr | `http://sonarr:8989` | 8989 | Sonarr → Settings → General → API Key |
-| Radarr | `http://radarr:7878` | 7878 | Radarr → Settings → General → API Key |
-| Lidarr | `http://lidarr:8686` | 8686 | Lidarr → Settings → General → API Key |
+| Sonarr | `http://sonarr:8989` | 8989 | Sonarr ? Settings ? General ? API Key |
+| Radarr | `http://radarr:7878` | 7878 | Radarr ? Settings ? General ? API Key |
+| Lidarr | `http://lidarr:8686` | 8686 | Lidarr ? Settings ? General ? API Key |
 
 For each application:
 
@@ -114,7 +114,7 @@ For each application:
 
 > **Why container names?** All services share the `media-net` Docker bridge network.
 > Docker's internal DNS resolves `sonarr` to the Sonarr container's IP automatically.
-> Never use `10.0.10.32` for inter-container communication — it routes out to the host
+> Never use `10.0.10.20` for inter-container communication — it routes out to the host
 > and back in, which breaks if the host IP changes.
 
 ---
@@ -125,7 +125,7 @@ After saving each application connection, Prowlarr triggers an immediate sync.
 
 Verify in each *Arr application:
 
-- **Sonarr:** Settings → Indexers — should list all Prowlarr-synced indexers with a Prowlarr icon
+- **Sonarr:** Settings ? Indexers — should list all Prowlarr-synced indexers with a Prowlarr icon
 - **Radarr:** same
 - **Lidarr:** same
 
@@ -138,10 +138,10 @@ Prowlarr container can reach the target container by name.
 
 | Setting | Location | Recommended Value |
 |---|---|---|
-| RSS Sync Interval | Settings → Indexers | 30 minutes |
-| Maximum History | Settings → General | 1000 (default) |
-| UI Theme | Settings → UI | Dark |
-| Log Level | Settings → General | Info (not Debug in production) |
+| RSS Sync Interval | Settings ? Indexers | 30 minutes |
+| Maximum History | Settings ? General | 1000 (default) |
+| UI Theme | Settings ? UI | Dark |
+| Log Level | Settings ? General | Info (not Debug in production) |
 
 ---
 
@@ -151,7 +151,7 @@ Prowlarr container can reach the target container by name.
 Radarr, and Lidarr via the API. Organises completed downloads into per-category folders
 that the *Arr applications then import.
 
-**Access:** `http://10.0.10.32:8085` or `https://sabnzbd.kagiso.me`
+**Access:** `http://10.0.10.20:8085` or `https://sabnzbd.kagiso.me`
 
 > **Note on port:** The SABnzbd container maps internal port `8080` to host port `8085`
 > to avoid conflict with other services. When configuring the *Arr download clients, use
@@ -180,7 +180,7 @@ Click **Test Server** — confirm green before proceeding.
 
 ## 2.2 — General Settings
 
-Navigate to **Settings → General**:
+Navigate to **Settings ? General**:
 
 | Setting | Value | Reason |
 |---|---|---|
@@ -198,7 +198,7 @@ The *Arr applications send jobs to SABnzbd with a specific category tag. SABnzbd
 each download to the matching subfolder. The *Arrs then monitor those subfolders for
 completed downloads to import.
 
-Navigate to **Settings → Categories**:
+Navigate to **Settings ? Categories**:
 
 | Category Name | Folder | Priority |
 |---|---|---|
@@ -219,7 +219,7 @@ Navigate to **Settings → Categories**:
 
 ## 2.4 — Performance & Speed Settings
 
-Navigate to **Settings → Switches**:
+Navigate to **Settings ? Switches**:
 
 | Setting | Recommended Value |
 |---|---|
@@ -232,7 +232,7 @@ Navigate to **Settings → Switches**:
 
 ## 2.5 — Retrieve the API Key
 
-**Settings → General → API Key** — copy this value.
+**Settings ? General ? API Key** — copy this value.
 You will need it when configuring Sonarr, Radarr, and Lidarr download clients.
 
 ---
@@ -242,20 +242,20 @@ You will need it when configuring Sonarr, Radarr, and Lidarr download clients.
 **Role:** Monitors configured TV series, searches for new episodes via Prowlarr, sends NZB
 jobs to SABnzbd, then renames and hard-links completed downloads into `/mnt/media/tv`.
 
-**Access:** `http://10.0.10.32:8989` or `https://sonarr.kagiso.me`
+**Access:** `http://10.0.10.20:8989` or `https://sonarr.kagiso.me`
 
 ---
 
 ## 3.1 — Add SABnzbd as Download Client
 
-Navigate to **Settings → Download Clients → Add → SABnzbd**:
+Navigate to **Settings ? Download Clients ? Add ? SABnzbd**:
 
 | Field | Value |
 |---|---|
 | Name | SABnzbd |
 | Host | `sabnzbd` |
 | Port | `8080` |
-| API Key | *(from SABnzbd → Settings → General)* |
+| API Key | *(from SABnzbd ? Settings ? General)* |
 | Category | `tv` |
 | Use SSL | Disabled (internal network — no TLS needed) |
 
@@ -265,11 +265,11 @@ Click **Test** — confirm green. Save.
 
 ## 3.2 — Media Management
 
-Navigate to **Settings → Media Management**:
+Navigate to **Settings ? Media Management**:
 
 **Root Folders:**
 
-- Click **Add Root Folder** → `/media/tv`
+- Click **Add Root Folder** ? `/media/tv`
 
 **Renaming — enable these settings:**
 
@@ -301,7 +301,7 @@ Navigate to **Settings → Media Management**:
 
 ## 3.3 — Quality Profiles
 
-Navigate to **Settings → Quality Profiles → Add Profile**:
+Navigate to **Settings ? Quality Profiles ? Add Profile**:
 
 **Profile: HD Only**
 
@@ -326,7 +326,7 @@ Set this profile as the **default** for new series.
 
 ## 3.4 — RSS & Indexer Settings
 
-Navigate to **Settings → Indexers**:
+Navigate to **Settings ? Indexers**:
 
 - After Prowlarr sync, all indexers appear here automatically — no manual entry needed
 - **RSS Sync Interval:** 30 minutes (matches Prowlarr)
@@ -336,7 +336,7 @@ Navigate to **Settings → Indexers**:
 
 ## 3.5 — Notifications (Optional but Recommended)
 
-Navigate to **Settings → Connect → Add Connection**:
+Navigate to **Settings ? Connect ? Add Connection**:
 
 - **Slack** or **Discord webhook:** sends notifications when an episode is grabbed,
   downloaded, imported, or fails
@@ -349,13 +349,13 @@ Navigate to **Settings → Connect → Add Connection**:
 **Role:** Same lifecycle management as Sonarr, scoped to movies. Monitors your movie
 watchlist and library, searches for wanted titles, sends to SABnzbd, imports to `/mnt/media/movies`.
 
-**Access:** `http://10.0.10.32:7878` or `https://radarr.kagiso.me`
+**Access:** `http://10.0.10.20:7878` or `https://radarr.kagiso.me`
 
 ---
 
 ## 4.1 — Add SABnzbd as Download Client
 
-Navigate to **Settings → Download Clients → Add → SABnzbd**:
+Navigate to **Settings ? Download Clients ? Add ? SABnzbd**:
 
 | Field | Value |
 |---|---|
@@ -371,7 +371,7 @@ Test and save.
 
 ## 4.2 — Media Management
 
-Navigate to **Settings → Media Management**:
+Navigate to **Settings ? Media Management**:
 
 **Root Folders:** `/media/movies`
 
@@ -398,7 +398,7 @@ Navigate to **Settings → Media Management**:
 
 **Custom Formats (optional):**
 
-Navigate to **Settings → Custom Formats → Add**:
+Navigate to **Settings ? Custom Formats ? Add**:
 
 - `x265` preferred — x265-encoded releases are significantly smaller than x264 at
   equivalent quality. Useful if storage capacity is a constraint.
@@ -408,7 +408,7 @@ Navigate to **Settings → Custom Formats → Add**:
 
 ## 4.4 — Import Lists (Optional)
 
-Navigate to **Settings → Import Lists → Add**:
+Navigate to **Settings ? Import Lists ? Add**:
 
 - **Trakt.tv lists** — automatically add movies from your Trakt watchlist, trending
   lists, or custom collections as wanted titles in Radarr
@@ -422,13 +422,13 @@ Navigate to **Settings → Import Lists → Add**:
 **Role:** Artist and album lifecycle management. Monitors configured artists, searches for
 new releases via Prowlarr, downloads via SABnzbd, and imports to `/mnt/media/music`.
 
-**Access:** `http://10.0.10.32:8686` or `https://lidarr.kagiso.me`
+**Access:** `http://10.0.10.20:8686` or `https://lidarr.kagiso.me`
 
 ---
 
 ## 5.1 — Add SABnzbd as Download Client
 
-Navigate to **Settings → Download Clients → Add → SABnzbd**:
+Navigate to **Settings ? Download Clients ? Add ? SABnzbd**:
 
 | Field | Value |
 |---|---|
@@ -444,7 +444,7 @@ Test and save.
 
 ## 5.2 — Media Management
 
-Navigate to **Settings → Media Management**:
+Navigate to **Settings ? Media Management**:
 
 **Root Folders:** `/media/music`
 
@@ -464,7 +464,7 @@ Navigate to **Settings → Media Management**:
 
 ## 5.3 — Quality Profiles
 
-Navigate to **Settings → Quality Profiles → Add Profile**:
+Navigate to **Settings ? Quality Profiles ? Add Profile**:
 
 **Profile: Lossless Preferred**
 
@@ -483,7 +483,7 @@ If storage is constrained, use **MP3-320 as maximum** — a single FLAC album ca
 
 ## 5.4 — Metadata & Tags
 
-Navigate to **Settings → Metadata**:
+Navigate to **Settings ? Metadata**:
 
 - **Write metadata tags to audio files:** Enabled
 - Embeds artist, album, track number, year, and artwork directly in the audio file.
@@ -496,7 +496,7 @@ Navigate to **Settings → Metadata**:
 After a Lidarr import, Navidrome needs to rescan its library to pick up new music.
 Lidarr can trigger this automatically.
 
-Navigate to **Settings → Connect → Add Connection → Custom Script** (or Webhook):
+Navigate to **Settings ? Connect ? Add Connection ? Custom Script** (or Webhook):
 
 - **On Import:** trigger a Navidrome library scan
 - Navidrome exposes a scan endpoint at `http://navidrome:4533/rest/startScan`
@@ -513,20 +513,20 @@ so new music appears within the hour even without an explicit trigger.
 for matching subtitles, and saves them alongside the media files. Subtitles appear in Plex
 automatically once downloaded.
 
-**Access:** `http://10.0.10.32:6767` or `https://bazarr.kagiso.me`
+**Access:** `http://10.0.10.20:6767` or `https://bazarr.kagiso.me`
 
 ---
 
 ## 6.1 — Connect to Sonarr
 
-Navigate to **Settings → Sonarr**:
+Navigate to **Settings ? Sonarr**:
 
 | Field | Value |
 |---|---|
 | Enabled | Yes |
 | Host | `sonarr` |
 | Port | `8989` |
-| API Key | *(Sonarr → Settings → General → API Key)* |
+| API Key | *(Sonarr ? Settings ? General ? API Key)* |
 | Base URL | *(leave empty)* |
 | SSL | Disabled |
 
@@ -536,14 +536,14 @@ Click **Test** — confirm green. Save.
 
 ## 6.2 — Connect to Radarr
 
-Navigate to **Settings → Radarr**:
+Navigate to **Settings ? Radarr**:
 
 | Field | Value |
 |---|---|
 | Enabled | Yes |
 | Host | `radarr` |
 | Port | `7878` |
-| API Key | *(Radarr → Settings → General → API Key)* |
+| API Key | *(Radarr ? Settings ? General ? API Key)* |
 | Base URL | *(leave empty)* |
 | SSL | Disabled |
 
@@ -553,7 +553,7 @@ Test and save.
 
 ## 6.3 — Configure Subtitle Providers
 
-Navigate to **Settings → Providers → Add Provider**:
+Navigate to **Settings ? Providers ? Add Provider**:
 
 **OpenSubtitles.com** (primary — largest database):
 
@@ -581,7 +581,7 @@ Navigate to **Settings → Providers → Add Provider**:
 
 ## 6.4 — Language Settings
 
-Navigate to **Settings → Languages**:
+Navigate to **Settings ? Languages**:
 
 **Create a Language Profile:**
 
@@ -589,7 +589,7 @@ Navigate to **Settings → Languages**:
 - **Languages:** English (required)
 - **Cutoff:** English — Bazarr will not download a lower-priority language if English is available
 
-Navigate to **Settings → Languages → Default Settings**:
+Navigate to **Settings ? Languages ? Default Settings**:
 
 - **Series default profile:** English
 - **Movies default profile:** English
@@ -598,7 +598,7 @@ Navigate to **Settings → Languages → Default Settings**:
 
 ## 6.5 — Score Thresholds
 
-Navigate to **Settings → Subtitles**:
+Navigate to **Settings ? Subtitles**:
 
 Subtitle providers assign a match score (0–100%) based on how closely the subtitle matches
 the specific video file (resolution, release group, encoding). A low-score subtitle is usually
@@ -614,7 +614,7 @@ out of sync or for a different cut.
 
 ## 6.6 — Post-Processing
 
-Navigate to **Settings → Subtitles → Post-processing**:
+Navigate to **Settings ? Subtitles ? Post-processing**:
 
 | Setting | Value |
 |---|---|
@@ -629,7 +629,7 @@ Navigate to **Settings → Subtitles → Post-processing**:
 browse and submit requests; Overseerr routes them to Radarr (movies) or Sonarr (TV). Removes
 the need to give family and friends direct access to the *Arr interfaces.
 
-**Access:** `http://10.0.10.32:5055` or `https://requests.kagiso.me`
+**Access:** `http://10.0.10.20:5055` or `https://requests.kagiso.me`
 
 ---
 
@@ -663,7 +663,7 @@ Option B — Browser method:
 
 1. Sign in at [plex.tv](https://app.plex.tv)
 2. Open any library item
-3. Click the `...` menu → **Get Info** → **View XML**
+3. Click the `...` menu ? **Get Info** ? **View XML**
 4. Copy the `X-Plex-Token` value from the URL in your browser
 
 **Step 3 — Sync Libraries:**
@@ -674,14 +674,14 @@ in your library.
 
 **Step 4 — Invite Users:**
 
-Navigate to **Settings → Users → Import Plex Users** — imports all users with access to
+Navigate to **Settings ? Users ? Import Plex Users** — imports all users with access to
 your Plex server so they can log in to Overseerr with their Plex credentials.
 
 ---
 
 ## 7.2 — Configure Sonarr
 
-Navigate to **Settings → Services → Sonarr → Add Server**:
+Navigate to **Settings ? Services ? Sonarr ? Add Server**:
 
 | Field | Value |
 |---|---|
@@ -689,7 +689,7 @@ Navigate to **Settings → Services → Sonarr → Add Server**:
 | Server Name | Production Sonarr |
 | Host | `sonarr` |
 | Port | `8989` |
-| API Key | *(Sonarr → Settings → General)* |
+| API Key | *(Sonarr ? Settings ? General)* |
 | SSL | Disabled |
 | Quality Profile | HD Only *(or whichever profile you created in Sonarr)* |
 | Root Folder | `/media/tv` |
@@ -702,7 +702,7 @@ Test and save.
 
 ## 7.3 — Configure Radarr
 
-Navigate to **Settings → Services → Radarr → Add Server**:
+Navigate to **Settings ? Services ? Radarr ? Add Server**:
 
 | Field | Value |
 |---|---|
@@ -710,7 +710,7 @@ Navigate to **Settings → Services → Radarr → Add Server**:
 | Server Name | Production Radarr |
 | Host | `radarr` |
 | Port | `7878` |
-| API Key | *(Radarr → Settings → General)* |
+| API Key | *(Radarr ? Settings ? General)* |
 | SSL | Disabled |
 | Quality Profile | HD Only |
 | Root Folder | `/media/movies` |
@@ -721,7 +721,7 @@ Test and save.
 
 ## 7.4 — General Settings
 
-Navigate to **Settings → General**:
+Navigate to **Settings ? General**:
 
 | Setting | Value |
 |---|---|
@@ -734,7 +734,7 @@ Navigate to **Settings → General**:
 
 ## 7.5 — User Permissions
 
-Navigate to **Settings → Users**:
+Navigate to **Settings ? Users**:
 
 Set default permissions for imported Plex users:
 
@@ -751,7 +751,7 @@ For trusted users (family), enable **Auto-approve** individually.
 
 ## 7.6 — Notifications
 
-Navigate to **Settings → Notifications → Slack** (or Discord):
+Navigate to **Settings ? Notifications ? Slack** (or Discord):
 
 Configure a webhook to receive notifications when:
 
@@ -769,7 +769,7 @@ This closes the feedback loop for users who submit a request and want to know wh
 iOS, Android, Chromecast, Roku, Apple TV. Transcodes on-the-fly when the client cannot
 direct-play the source format.
 
-**Access:** `http://10.0.10.32:32400/web` or `https://plex.kagiso.me`
+**Access:** `http://10.0.10.20:32400/web` or `https://plex.kagiso.me`
 
 ---
 
@@ -786,7 +786,7 @@ On first visit, Plex launches a setup wizard to claim the server to your Plex ac
 
 ## 8.2 — Library Setup
 
-Navigate to **Settings → Libraries → Add Library**:
+Navigate to **Settings ? Libraries ? Add Library**:
 
 | Library Name | Path | Type |
 |---|---|---|
@@ -815,7 +815,7 @@ this from the CPU to the NUC's integrated GPU, allowing multiple simultaneous st
 
 **Requirements:** Plex Pass subscription (required for hardware transcoding)
 
-Navigate to **Settings → Transcoder**:
+Navigate to **Settings ? Transcoder**:
 
 | Setting | Value |
 |---|---|
@@ -829,7 +829,7 @@ Navigate to **Settings → Transcoder**:
 
 1. Start playback of a video on a client that requires transcoding (e.g., a phone on a
    slow connection)
-2. Navigate to **Settings → Troubleshooting → Dashboard** (or the Plex web dashboard)
+2. Navigate to **Settings ? Troubleshooting ? Dashboard** (or the Plex web dashboard)
 3. The active stream should show `(hw)` next to the video codec — e.g., `H.264 (hw)`
 
 If `(hw)` does not appear, confirm the `/dev/dri` device is mounted in the container:
@@ -852,12 +852,12 @@ docker compose -f /srv/docker/stacks/media-stack.yml up -d --force-recreate plex
 
 ## 8.4 — Network Settings
 
-Navigate to **Settings → Remote Access**:
+Navigate to **Settings ? Remote Access**:
 
 - **Enable Remote Access:** Disabled — this homelab uses Tailscale for remote access,
   not Plex Relay servers. Disabling prevents bandwidth routing through Plex's infrastructure.
 
-Navigate to **Settings → Network**:
+Navigate to **Settings ? Network**:
 
 | Setting | Value |
 |---|---|
@@ -872,7 +872,7 @@ limits for clients on the local network. This allows full-quality direct play.
 
 ## 8.5 — Library Scan Schedule
 
-Navigate to **Settings → Troubleshooting → Scheduled Tasks**:
+Navigate to **Settings ? Troubleshooting ? Scheduled Tasks**:
 
 Plex scans libraries on a schedule to detect new content imported by Sonarr and Radarr.
 
@@ -885,15 +885,15 @@ Plex scans libraries on a schedule to detect new content imported by Sonarr and 
 
 > Sonarr and Radarr send a scan trigger to Plex via the **Connect** webhook immediately
 > after importing a file — the 6-hour schedule is a safety net, not the primary mechanism.
-> Configure the webhook in Sonarr and Radarr under **Settings → Connect → Plex Media Server**.
+> Configure the webhook in Sonarr and Radarr under **Settings ? Connect ? Plex Media Server**.
 
 ---
 
-## 8.6 — Plex Notifications (Settings → Connect in Sonarr/Radarr)
+## 8.6 — Plex Notifications (Settings ? Connect in Sonarr/Radarr)
 
 To trigger immediate Plex library scans after imports:
 
-**In Sonarr:** Settings → Connect → Add → Plex Media Server
+**In Sonarr:** Settings ? Connect ? Add ? Plex Media Server
 
 | Field | Value |
 |---|---|
@@ -914,13 +914,13 @@ music library to any Subsonic-compatible mobile app, the Navidrome web UI, or th
 players. Complements Plex for music — Navidrome has richer music-specific features including
 scrobbling, playlists, and Subsonic API support.
 
-**Access:** `http://10.0.10.32:4533` or `https://music.kagiso.me`
+**Access:** `http://10.0.10.20:4533` or `https://music.kagiso.me`
 
 ---
 
 ## 9.1 — First-Time Setup
 
-Navigate to `http://10.0.10.32:4533`. On first visit, Navidrome presents an admin account
+Navigate to `http://10.0.10.20:4533`. On first visit, Navidrome presents an admin account
 creation form. This is the only account that can manage the server — create it carefully.
 
 | Field | Value |
@@ -940,7 +940,7 @@ metadata will be sparse — this is why Lidarr's tag writing (section 5.4) matte
 
 ## 9.2 — Library Settings
 
-Navigate to **Settings → Personal** (per-user) or configure via environment variables
+Navigate to **Settings ? Personal** (per-user) or configure via environment variables
 in the compose file (server-wide defaults):
 
 | Environment Variable | Value | Purpose |
@@ -959,7 +959,7 @@ These are set in the compose file — they do not require UI configuration.
 Navidrome supports scrobbling plays to Last.fm for listening history and music discovery.
 Configuration is per-user.
 
-Navigate to **Settings → Personal → Last.fm**:
+Navigate to **Settings ? Personal ? Last.fm**:
 
 1. Click **Link Last.fm account**
 2. Authenticate with your Last.fm credentials
@@ -1043,21 +1043,21 @@ error means the container is not on `media-net` — inspect with `docker inspect
 ```bash
 # Prowlarr should list its connected applications
 curl -s -H "X-Api-Key: <prowlarr_api_key>" \
-  http://10.0.10.32:9696/api/v1/applications | python3 -m json.tool | grep -E "name|syncLevel"
+  http://10.0.10.20:9696/api/v1/applications | python3 -m json.tool | grep -E "name|syncLevel"
 ```
 
 Expected output — three entries (Sonarr, Radarr, Lidarr) each with `"syncLevel": "fullSync"`.
 
 ## SABnzbd End-to-End Test
 
-1. Navigate to `http://10.0.10.32:8085`
-2. **Queue → Manual NZB** — upload a small test NZB file (any free Usenet test NZB)
+1. Navigate to `http://10.0.10.20:8085`
+2. **Queue ? Manual NZB** — upload a small test NZB file (any free Usenet test NZB)
 3. Confirm SABnzbd connects to the provider, downloads, and reports complete
 4. Check `/mnt/downloads/` for the completed file
 
 ## Bazarr Provider Status
 
-Navigate to `http://10.0.10.32:6767` → **Settings → Providers**:
+Navigate to `http://10.0.10.20:6767` ? **Settings ? Providers**:
 
 Each enabled provider should show a green status indicator. A red indicator means
 authentication failed or the provider is rate-limiting — check credentials.
@@ -1071,7 +1071,7 @@ authentication failed or the provider is rate-limiting — check credentials.
 
 ## Navidrome Library Scan Status
 
-Navigate to `http://10.0.10.32:4533`:
+Navigate to `http://10.0.10.20:4533`:
 
 - The music library should display your artists and albums from `/mnt/media/music`
 - If the library is empty, check that `/mnt/media/music` contains music files and
@@ -1083,11 +1083,11 @@ Navigate to `http://10.0.10.32:4533`:
 
 | Symptom | Likely Cause | Resolution |
 |---|---|---|
-| Prowlarr indexers not appearing in Sonarr | API key wrong or Prowlarr cannot reach Sonarr | Re-test the application connection in Prowlarr → Settings → Apps |
-| SABnzbd download stuck at 0 B/s | Usenet provider SSL connection refused | Verify port (563), SSL enabled, and credentials in SABnzbd Settings → Servers |
+| Prowlarr indexers not appearing in Sonarr | API key wrong or Prowlarr cannot reach Sonarr | Re-test the application connection in Prowlarr ? Settings ? Apps |
+| SABnzbd download stuck at 0 B/s | Usenet provider SSL connection refused | Verify port (563), SSL enabled, and credentials in SABnzbd Settings ? Servers |
 | Sonarr "No files found" after SABnzbd completes | Category mismatch | Confirm Sonarr download client category is `tv` and SABnzbd `tv` category folder is `/downloads/tv` |
-| Radarr imports to wrong folder | Root folder misconfigured | Settings → Media Management → Root Folders — verify `/media/movies` exists |
-| Bazarr downloads subtitles with wrong encoding | Post-processing not enabled | Settings → Subtitles → enable "Encode to UTF-8 after download" |
+| Radarr imports to wrong folder | Root folder misconfigured | Settings ? Media Management ? Root Folders — verify `/media/movies` exists |
+| Bazarr downloads subtitles with wrong encoding | Post-processing not enabled | Settings ? Subtitles ? enable "Encode to UTF-8 after download" |
 | Overseerr "Cannot connect to Plex" | Plex token expired or incorrect | Re-extract the token from Preferences.xml; regenerate in plex.tv if necessary |
 | Plex transcoding shows `(cpu)` instead of `(hw)` | `/dev/dri` not mounted or permissions issue | Confirm `/dev/dri` in container; add user to `render` group and recreate container |
 | Navidrome library empty after scan | Volume mount wrong or music path incorrect | `docker exec navidrome ls /music` — should list your music folders |
@@ -1101,24 +1101,24 @@ Navigate to `http://10.0.10.32:4533`:
 This guide is complete when every item below is confirmed:
 
 ```
-✓ Prowlarr has at least one indexer configured, tested (green), and synced to all three *Arrs
-✓ SABnzbd connected to Usenet provider — test download completes successfully
-✓ SABnzbd categories configured: tv, movies, music, bazarr
-✓ Sonarr connected to SABnzbd (category: tv) and Prowlarr indexers visible
-✓ Radarr connected to SABnzbd (category: movies) and Prowlarr indexers visible
-✓ Lidarr connected to SABnzbd (category: music) and Prowlarr indexers visible
-✓ Bazarr connected to Sonarr and Radarr — both show green status
-✓ Bazarr has at least one subtitle provider configured with green status
-✓ Overseerr signed in with Plex, Sonarr and Radarr connected, libraries synced
-✓ Plex libraries created for Movies, TV Shows, Music — initial scan complete
-✓ Plex hardware transcoding confirmed active via dashboard (hw) indicator
-✓ Navidrome library populated — artists and albums visible in UI
-✓ All containers healthy: docker ps shows (healthy) for every service
+? Prowlarr has at least one indexer configured, tested (green), and synced to all three *Arrs
+? SABnzbd connected to Usenet provider — test download completes successfully
+? SABnzbd categories configured: tv, movies, music, bazarr
+? Sonarr connected to SABnzbd (category: tv) and Prowlarr indexers visible
+? Radarr connected to SABnzbd (category: movies) and Prowlarr indexers visible
+? Lidarr connected to SABnzbd (category: music) and Prowlarr indexers visible
+? Bazarr connected to Sonarr and Radarr — both show green status
+? Bazarr has at least one subtitle provider configured with green status
+? Overseerr signed in with Plex, Sonarr and Radarr connected, libraries synced
+? Plex libraries created for Movies, TV Shows, Music — initial scan complete
+? Plex hardware transcoding confirmed active via dashboard (hw) indicator
+? Navidrome library populated — artists and albums visible in UI
+? All containers healthy: docker ps shows (healthy) for every service
 ```
 
 Once all items are confirmed, the media automation pipeline is fully operational. New content
-requested through Overseerr flows to Sonarr or Radarr → Prowlarr → SABnzbd → import → Plex
-library → Bazarr subtitles — without any manual intervention.
+requested through Overseerr flows to Sonarr or Radarr ? Prowlarr ? SABnzbd ? import ? Plex
+library ? Bazarr subtitles — without any manual intervention.
 
 ---
 
@@ -1126,6 +1126,6 @@ library → Bazarr subtitles — without any manual intervention.
 
 | | Guide |
 |---|---|
-| ← Previous | [05 — Monitoring & Logging](./04_monitoring_and_logging.md) |
+| ? Previous | [05 — Monitoring & Logging](./04_monitoring_and_logging.md) |
 | Current | **06 — Application Configuration** |
-| → Next | *End of series* |
+| ? Next | *End of series* |

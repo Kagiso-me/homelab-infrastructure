@@ -1,5 +1,5 @@
 # 07 - Namespaces & Cluster Identity
-## Platform Layout, Scheduling Intent, and Future Guardrails
+## Platform Layout, Scheduling Intent, and Namespace Guardrails
 
 **Author:** Kagiso Tjeane
 **Difficulty:** ******---- (6/10)
@@ -30,7 +30,7 @@
 4. [Cluster Identity: The Real Topology](#cluster-identity-the-real-topology)
 5. [Scheduling Philosophy](#scheduling-philosophy)
 6. [Placement Patterns Used in This Platform](#placement-patterns-used-in-this-platform)
-7. [Security Boundaries to Add Next](#security-boundaries-to-add-next)
+7. [Namespace Security Guardrails](#namespace-security-guardrails)
 8. [Verification](#verification)
 9. [Exit Criteria](#exit-criteria)
 
@@ -275,35 +275,53 @@ Controllers such as Flux or the upgrade controller may use `nodeAffinity` for pr
 
 ---
 
-## Security Boundaries to Add Next
+## Namespace Security Guardrails
 
-Namespaces improve organization immediately, but by themselves they are **not** a full security boundary.
+Namespaces improve organization immediately, but production-style operation needs two more layers:
 
-Two additions should come next as the platform matures:
+- **Pod Security Admission labels** to control what classes of pods may run in a namespace
+- **NetworkPolicies** to define which namespaces may reach which workloads
 
-### 1. Pod Security labels
+This repo now applies both as a baseline guardrail.
 
-These namespace labels tell Kubernetes which classes of pods are acceptable:
+### Pod Security profile by namespace
 
-```yaml
-pod-security.kubernetes.io/enforce: baseline
-pod-security.kubernetes.io/audit: baseline
-pod-security.kubernetes.io/warn: baseline
-```
+The platform does not use one blanket profile everywhere. Some namespaces legitimately need privileged access.
 
-For a safe rollout, start with `warn` and `audit` first so you can see what would break before you enforce it.
+| Namespace group | Profile | Why |
+|---|---|---|
+| `apps`, `auth`, `databases`, `storage`, `ingress`, `cert-manager` | `enforce=baseline`, `audit=restricted`, `warn=restricted` | User-facing workloads and shared services should avoid privileged pod patterns |
+| `monitoring`, `velero`, `crowdsec`, `metallb-system`, `system-upgrade` | `enforce=privileged`, `audit=baseline`, `warn=baseline` | These components need host access, privileged agents, or node-level integration |
 
-### 2. NetworkPolicies
+That split is deliberate:
 
-Without NetworkPolicies, a compromised pod can usually talk to almost anything else in the cluster.
+- app and data namespaces get a tighter default posture
+- infrastructure namespaces that need host-level access are explicitly documented as exceptions
+- `audit` and `warn` remain stricter where possible so drift still shows up in logs and events
 
-The production-friendly rollout path is:
+### NetworkPolicy baseline
 
-1. Add default-deny ingress policies for app namespaces.
-2. Add explicit allow rules for DNS, ingress-to-app traffic, monitoring scrapes, and app-to-database traffic.
-3. Only then move on to stricter egress controls if needed.
+The cluster now applies a namespace-level ingress baseline through `platform/namespaces/network-policies.yaml`.
 
-This is the cleanest way to turn namespaces from an organizational boundary into a real traffic boundary.
+The model is intentionally simple:
+
+- every protected namespace gets a **default-deny ingress** policy
+- every protected namespace also allows **same-namespace traffic**
+- `ingress` may reach `apps` and `auth`
+- `apps` and `auth` may reach `databases`
+- `monitoring` may scrape the namespaces that expose metrics
+
+This gives the platform a practical first security boundary without making the policy graph too fragile to operate.
+
+### What is still intentionally open
+
+This is a baseline, not the final security end-state.
+
+- egress is still broadly open
+- system namespaces such as `flux-system` are not yet covered by repo-managed policies
+- policy is namespace-oriented, not app-specific
+
+That is a deliberate trade-off for a first hardening pass. It reduces blast radius materially while keeping troubleshooting straightforward.
 
 ---
 
@@ -368,6 +386,31 @@ Expected:
 READY=True
 ```
 
+### 5. Confirm Pod Security labels are present
+
+```bash
+kubectl get ns apps auth databases monitoring velero crowdsec ingress cert-manager --show-labels
+```
+
+Expected:
+
+- application and shared-service namespaces show `pod-security.kubernetes.io/enforce=baseline`
+- privileged infrastructure namespaces show `pod-security.kubernetes.io/enforce=privileged`
+
+### 6. Confirm NetworkPolicies exist
+
+```bash
+kubectl get networkpolicy -n apps
+kubectl get networkpolicy -n auth
+kubectl get networkpolicy -n databases
+```
+
+Expected:
+
+- a `default-deny-ingress` policy
+- an `allow-same-namespace` policy
+- explicit allow policies for ingress, monitoring, or database consumers where required
+
 ---
 
 ## Exit Criteria
@@ -378,7 +421,8 @@ This guide is complete when all of the following are true:
 - it is explicitly documented that `tywin`, `tyrion`, and `jaime` are all both server and worker nodes
 - no part of the operating model depends on a dedicated worker pool
 - scheduling decisions are made intentionally, not by inherited assumptions from the old topology
-- the next hardening steps are clear: Pod Security labels and NetworkPolicies
+- Pod Security labels are present on the intended namespaces
+- baseline NetworkPolicies are active for the main workload namespaces
 
 ---
 

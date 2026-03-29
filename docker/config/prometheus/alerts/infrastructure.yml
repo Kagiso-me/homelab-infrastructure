@@ -1,9 +1,9 @@
 ---
-# Infrastructure alert rules — Docker host, Raspberry Pi, TrueNAS
+# Infrastructure alert rules â€” Docker host, Raspberry Pi, TrueNAS
 #
 # Covers host-level health for the non-Kubernetes nodes:
 #   Docker host (bare metal NUC)  10.0.10.20  (job: node-docker, cadvisor-docker)
-#   Raspberry Pi hub              10.0.10.10  (job: node-rpi)
+#   varys control hub             10.0.10.10  (job: node-varys)
 #   TrueNAS MicroServer           10.0.10.80  (job: node-truenas)
 #
 # ZFS pool and SMART disk alerts for TrueNAS are in truenas.yml.
@@ -32,7 +32,7 @@ groups:
           summary: "Docker host (10.0.10.20) is unreachable"
           description: >
             Prometheus cannot scrape node-exporter on the Docker host
-            (10.0.10.20) — the target has been down for more than 3 minutes.
+            (10.0.10.20) â€” the target has been down for more than 3 minutes.
             All media services (Jellyfin, Sonarr, Radarr, etc.) are likely
             unavailable. This Prometheus and Grafana are also hosted here, so
             alerting may be degraded. Check host power and network connectivity.
@@ -61,8 +61,8 @@ groups:
       - alert: DockerContainerRestarting
         # container_start_time_seconds increases each time a container starts.
         # A rate > 0.016 per second over 1 hour corresponds to more than ~1
-        # restart per hour (1/3600 ≈ 0.000278/s; 0.016/s would be extreme —
-        # use a more realistic threshold: ~1 restart per hour = 1/3600 ≈ 0.00028).
+        # restart per hour (1/3600 â‰ˆ 0.000278/s; 0.016/s would be extreme â€”
+        # use a more realistic threshold: ~1 restart per hour = 1/3600 â‰ˆ 0.00028).
         # Adjusted: rate > 0.0003 over 1h catches containers restarting
         # roughly once per hour. Comment retained for operator clarity.
         expr: >
@@ -142,66 +142,66 @@ groups:
           runbook: "https://wiki.homelab/runbooks/docker-nfs-mount-missing"
 
   # ---------------------------------------------------------------------------
-  # Raspberry Pi control hub (10.0.10.10)
-  # Hosts cluster management tooling: kubectl, Flux CLI, Helm, cron scripts.
-  # The RPi is not in the critical data path, but losing it breaks the ability
-  # to manage the cluster interactively. SD card wear is the primary concern —
+  # varys control hub (10.0.10.10)
+  # Hosts cluster management tooling: kubectl, Flux CLI, Helm, Ansible, cron scripts, and the GitHub runner.
+  # varys is not in the critical data path, but losing it breaks the ability
+  # to manage the cluster interactively. SD card wear is the primary concern â€”
   # alert on disk space earlier than other hosts (30% / 15% thresholds).
   # ---------------------------------------------------------------------------
-  - name: infrastructure.rpi
+  - name: infrastructure.varys
     rules:
 
-      - alert: RpiDown
-        expr: up{job="node-rpi"} == 0
+      - alert: VarysDown
+        expr: up{job="node-varys"} == 0
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "Raspberry Pi control hub (10.0.10.10) is unreachable"
+          summary: "varys control hub (10.0.10.10) is unreachable"
           description: >
-            Prometheus cannot scrape node-exporter on the Raspberry Pi
-            (10.0.10.10) — the target has been down for more than 5 minutes.
+            Prometheus cannot scrape node-exporter on varys
+            (10.0.10.10) â€” the target has been down for more than 5 minutes.
             Cluster management scripts, kubeconfig, and SSH key material stored
             on the RPi are unavailable. Check RPi power and SD card health.
-          runbook: "https://wiki.homelab/runbooks/rpi-down"
+          runbook: "https://wiki.homelab/runbooks/varys-down"
 
-      - alert: RpiSDCardFull
+      - alert: VarysRootDiskHigh
         # SD cards have limited write endurance. Alerting at 30% (rather than
         # the usual 20%) gives more time to act before writes start failing.
         expr: >
           (
-            node_filesystem_avail_bytes{job="node-rpi", mountpoint="/"}
-            / node_filesystem_size_bytes{job="node-rpi", mountpoint="/"}
+            node_filesystem_avail_bytes{job="node-varys", mountpoint="/"}
+            / node_filesystem_size_bytes{job="node-varys", mountpoint="/"}
           ) * 100 < 30
         labels:
           severity: warning
         annotations:
           summary: "RPi SD card root filesystem is {{ $value | printf \"%.1f\" }}% free"
           description: >
-            The Raspberry Pi root filesystem (SD card) has less than 30% free
+            The varys root filesystem has less than 30% free
             space ({{ $value | printf "%.1f" }}% remaining). SD cards fail more
             suddenly than HDDs and have a lower write endurance; acting early
             prevents data loss. Clean up logs, remove unused packages, or
             replace with a larger card.
             df -h / && du -sh /* 2>/dev/null | sort -rh | head -10
-          runbook: "https://wiki.homelab/runbooks/rpi-sdcard-full"
+          runbook: "https://wiki.homelab/runbooks/varys-root-disk-full"
 
-      - alert: RpiSDCardCritical
+      - alert: VarysRootDiskCritical
         expr: >
           (
-            node_filesystem_avail_bytes{job="node-rpi", mountpoint="/"}
-            / node_filesystem_size_bytes{job="node-rpi", mountpoint="/"}
+            node_filesystem_avail_bytes{job="node-varys", mountpoint="/"}
+            / node_filesystem_size_bytes{job="node-varys", mountpoint="/"}
           ) * 100 < 15
         labels:
           severity: critical
         annotations:
           summary: "RPi SD card root filesystem critically full ({{ $value | printf \"%.1f\" }}% free)"
           description: >
-            The Raspberry Pi root filesystem has less than 15% free space
+            The varys root filesystem has less than 15% free space
             ({{ $value | printf "%.1f" }}% remaining). The system may become
             read-only or stop functioning soon. Immediate action required:
-            free space or replace the SD card. Back up key material first.
-          runbook: "https://wiki.homelab/runbooks/rpi-sdcard-full"
+            free space immediately and confirm the varys key backup is current.
+          runbook: "https://wiki.homelab/runbooks/varys-root-disk-full"
 
   # ---------------------------------------------------------------------------
   # TrueNAS HP MicroServer (10.0.10.80)
@@ -220,7 +220,7 @@ groups:
         annotations:
           summary: "TrueNAS MicroServer (10.0.10.80) is unreachable"
           description: >
-            Prometheus cannot scrape node-exporter on TrueNAS (10.0.10.80) —
+            Prometheus cannot scrape node-exporter on TrueNAS (10.0.10.80) â€”
             the target has been down for more than 3 minutes. All NFS exports
             serving the Docker host and Kubernetes PVCs are unavailable.
             Media services will begin failing as NFS mounts stall. Check

@@ -73,7 +73,8 @@ Summary:
 - MetalLB IPs are on the local network only (10.0.10.0/24).
 - All HTTP traffic redirected to HTTPS by Traefik middleware.
 - TLS certificates issued by Let's Encrypt (external) or internal CA (internal-only services).
-- Network policies are not currently enforced (accepted risk for homelab scale). If multi-tenant workloads are introduced, Calico or Cilium should replace Flannel for network policy enforcement.
+- Pod Security Admission labels are applied by namespace, using `baseline` for app/data namespaces and `privileged` only where platform components need host-level access.
+- Namespace-level NetworkPolicies now provide a baseline ingress boundary for the main workload namespaces. Egress remains broadly open by design.
 
 ---
 
@@ -93,8 +94,7 @@ Certificates are visible and their expiry monitored via Grafana. An alert fires 
 
 | Risk | Rationale |
 |------|-----------|
-| No network policies | Homelab scale; all workloads trusted. Revisit if multi-tenant. |
-| Single control-plane node | No HA; acceptable for homelab. Node failure requires rebuild. |
+| NetworkPolicies are baseline only | Ingress is segmented, but egress is still broadly open. |
 | Age private key loss = secret loss | Mitigated by offline backup requirement. |
 | Automation host = full cluster access | Mitigated by securing the automation host itself. |
 | No runtime security scanning | Falco not deployed. Acceptable for homelab threat model. |
@@ -106,7 +106,7 @@ Certificates are visible and their expiry monitored via Grafana. An alert fires 
 These controls are not currently implemented but should be considered for higher-assurance operation:
 
 1. **Falco** — runtime security monitoring and anomaly detection.
-2. **Network Policies** — Cilium or Calico for namespace-level traffic restriction.
-3. **Pod Security Admission** — enforce `restricted` policy on application namespaces.
+2. **Tighter Network Policies** — move from namespace-level baseline policies to app-aware ingress and egress controls.
+3. **Stricter Pod Security rollout** — expand `restricted` adoption where workloads allow it.
 4. **Container image scanning** — Trivy or Grype in CI to catch known CVEs before deployment.
 5. **Audit logging** — k3s API server audit log shipped to Loki.

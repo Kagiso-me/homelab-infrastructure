@@ -1,9 +1,9 @@
-﻿
+
 # 04 — Media Stack & Reverse Proxy
 ## Deploying the Full Media Automation Pipeline
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐⭐☆☆☆ (7/10)
+**Difficulty:** ?????????? (7/10)
 **Guide:** 04 of 06
 
 > The media stack is the reason this Docker host exists.
@@ -269,7 +269,7 @@ Verify NPM is healthy:
 docker ps --filter name=nginx-proxy-manager
 ```
 
-Access the admin UI at `http://10.0.10.32:81`
+Access the admin UI at `http://10.0.10.20:81`
 
 Default credentials — change these immediately after first login:
 
@@ -302,29 +302,29 @@ Before issuing the certificate, each service needs an A record in Cloudflare poi
 the Docker host's local IP. These records must be **DNS only** (grey cloud, not proxied)
 because the IP is private and Cloudflare cannot proxy it.
 
-Create the following A records in the Cloudflare dashboard (DNS → Records → Add Record):
+Create the following A records in the Cloudflare dashboard (DNS ? Records ? Add Record):
 
 | Name | Type | Content | Proxy Status |
 |---|---|---|---|
-| `plex` | A | `10.0.10.32` | DNS only |
-| `sonarr` | A | `10.0.10.32` | DNS only |
-| `radarr` | A | `10.0.10.32` | DNS only |
-| `lidarr` | A | `10.0.10.32` | DNS only |
-| `prowlarr` | A | `10.0.10.32` | DNS only |
-| `sabnzbd` | A | `10.0.10.32` | DNS only |
-| `requests` | A | `10.0.10.32` | DNS only |
-| `music` | A | `10.0.10.32` | DNS only |
-| `bazarr` | A | `10.0.10.32` | DNS only |
+| `plex` | A | `10.0.10.20` | DNS only |
+| `sonarr` | A | `10.0.10.20` | DNS only |
+| `radarr` | A | `10.0.10.20` | DNS only |
+| `lidarr` | A | `10.0.10.20` | DNS only |
+| `prowlarr` | A | `10.0.10.20` | DNS only |
+| `sabnzbd` | A | `10.0.10.20` | DNS only |
+| `requests` | A | `10.0.10.20` | DNS only |
+| `music` | A | `10.0.10.20` | DNS only |
+| `bazarr` | A | `10.0.10.20` | DNS only |
 
-> **Security note:** Because `10.0.10.32` is a private RFC-1918 address, these services are
+> **Security note:** Because `10.0.10.20` is a private RFC-1918 address, these services are
 > accessible only from devices on the local network. The DNS records exist solely to satisfy
 > Let's Encrypt's DNS-01 challenge and to allow LAN clients to resolve the hostnames to the
 > correct IP. No traffic is exposed to the internet.
 
 ## Issue the Certificate in NPM
 
-1. Open the NPM admin UI at `http://10.0.10.32:81`
-2. Navigate to **SSL Certificates → Add SSL Certificate → Let's Encrypt**
+1. Open the NPM admin UI at `http://10.0.10.20:81`
+2. Navigate to **SSL Certificates ? Add SSL Certificate ? Let's Encrypt**
 3. In the **Domain Names** field, add both:
    - `*.kagiso.me`
    - `kagiso.me`
@@ -349,7 +349,7 @@ Once issued, the certificate appears in the SSL Certificates list as `*.kagiso.m
 
 # Step 4 — Configure NPM Proxy Hosts
 
-For each service, create a proxy host in NPM. Navigate to **Proxy Hosts → Add Proxy Host**.
+For each service, create a proxy host in NPM. Navigate to **Proxy Hosts ? Add Proxy Host**.
 
 ## Proxy Host Settings
 
@@ -358,9 +358,9 @@ For every host, apply these common settings:
 - **Scheme:** `http`
 - **Forward Hostname:** use the container name (Docker's internal DNS resolves it automatically)
 - **Block Common Exploits:** enabled
-- **SSL Tab → SSL Certificate:** select `*.kagiso.me` (the wildcard cert from Step 3)
-- **SSL Tab → Force SSL:** enabled
-- **SSL Tab → HTTP/2 Support:** enabled
+- **SSL Tab ? SSL Certificate:** select `*.kagiso.me` (the wildcard cert from Step 3)
+- **SSL Tab ? Force SSL:** enabled
+- **SSL Tab ? HTTP/2 Support:** enabled
 
 | Domain Name | Forward Hostname | Forward Port |
 |---|---|---|
@@ -394,21 +394,21 @@ Open services via their HTTPS URLs or directly by IP during setup.
 Prowlarr is the indexer hub that feeds NZB sources to every *Arr application. Configure it
 before the others.
 
-1. Open `http://10.0.10.32:9696`
-2. Add indexers: **Indexers → Add Indexer** — search for and configure your Usenet indexers
-3. Under **Settings → Apps**, add each downstream application:
+1. Open `http://10.0.10.20:9696`
+2. Add indexers: **Indexers ? Add Indexer** — search for and configure your Usenet indexers
+3. Under **Settings ? Apps**, add each downstream application:
 
 | Application | URL | API Key source |
 |---|---|---|
-| Sonarr | `http://sonarr:8989` | Sonarr → Settings → General |
-| Radarr | `http://radarr:7878` | Radarr → Settings → General |
-| Lidarr | `http://lidarr:8686` | Lidarr → Settings → General |
+| Sonarr | `http://sonarr:8989` | Sonarr ? Settings ? General |
+| Radarr | `http://radarr:7878` | Radarr ? Settings ? General |
+| Lidarr | `http://lidarr:8686` | Lidarr ? Settings ? General |
 
 Prowlarr will automatically push indexer configurations to all connected applications.
 
 ## SABnzbd
 
-1. Open `http://10.0.10.32:8085`
+1. Open `http://10.0.10.20:8085`
 2. Complete the initial setup wizard — add your Usenet provider (server address, port, SSL, credentials)
 3. Set download categories:
 
@@ -418,19 +418,19 @@ Prowlarr will automatically push indexer configurations to all connected applica
 | `movies` | `/downloads/movies` |
 | `music` | `/downloads/music` |
 
-4. Note the API key from **Config → General → API Key** — needed for Sonarr, Radarr, and Lidarr.
+4. Note the API key from **Config ? General ? API Key** — needed for Sonarr, Radarr, and Lidarr.
 
 ## Sonarr / Radarr / Lidarr
 
 Each *Arr application follows the same setup pattern:
 
 1. Open the service UI
-2. **Settings → Download Clients → Add → SABnzbd**
+2. **Settings ? Download Clients ? Add ? SABnzbd**
    - Host: `sabnzbd`
    - Port: `8080` (internal container port, not 8085)
    - API Key: (from SABnzbd above)
-3. **Settings → Indexers** — Prowlarr will have already synced indexers automatically
-4. **Settings → Media Management** — set root folders:
+3. **Settings ? Indexers** — Prowlarr will have already synced indexers automatically
+4. **Settings ? Media Management** — set root folders:
    - Sonarr: `/media/tv`
    - Radarr: `/media/movies`
    - Lidarr: `/media/music`
@@ -442,7 +442,7 @@ automatically if it was set before the container started. If the token expired b
 remove the old token, generate a new one from `https://plex.tv/claim`, update `.env`, and
 recreate the container.
 
-1. Open `http://10.0.10.32:32400/web` — Plex will redirect to plex.tv to complete account linkage
+1. Open `http://10.0.10.20:32400/web` — Plex will redirect to plex.tv to complete account linkage
 2. Sign in with your Plex account
 3. Name your server (e.g. `homelab`)
 4. Add media libraries:
@@ -454,8 +454,8 @@ recreate the container.
 | Music | `/media/music` |
 
 5. Enable hardware transcoding (requires Plex Pass):
-   - **Settings → Transcoder → Use hardware acceleration when available**: enabled
-   - **Settings → Transcoder → Use Intel/AMD (VA-API) hardware-accelerated video encoding**: enabled
+   - **Settings ? Transcoder ? Use hardware acceleration when available**: enabled
+   - **Settings ? Transcoder ? Use Intel/AMD (VA-API) hardware-accelerated video encoding**: enabled
    - Plex will auto-detect `/dev/dri/renderD128`
 
 6. Run a library scan — Plex will scan `/media` and populate all libraries.
@@ -476,23 +476,23 @@ nano /srv/docker/compose/.env
 Overseerr is the user-facing request portal. It connects to Plex for library awareness and
 to Sonarr/Radarr to fulfil requests.
 
-1. Open `http://10.0.10.32:5055`
+1. Open `http://10.0.10.20:5055`
 2. On the setup wizard, sign in with your **Plex account** (OAuth)
 3. Connect to your Plex server:
    - Server: select your homelab server from the detected list, or enter `http://plex:32400`
    - Authenticate using your **Plex token** (found in Plex account settings under **Authorized Devices**,
      or via `https://plex.tv/devices.xml`) — Overseerr uses Plex token auth, not an API key
 4. Connect Sonarr and Radarr:
-   - **Settings → Services → Add Radarr Server**: `http://radarr:7878`, API key from Radarr
-   - **Settings → Services → Add Sonarr Server**: `http://sonarr:8989`, API key from Sonarr
+   - **Settings ? Services ? Add Radarr Server**: `http://radarr:7878`, API key from Radarr
+   - **Settings ? Services ? Add Sonarr Server**: `http://sonarr:8989`, API key from Sonarr
 5. Sync Plex users to allow family members to make requests
 
 ## Bazarr
 
-1. Open `http://10.0.10.32:6767`
-2. **Settings → Sonarr**: URL `http://sonarr:8989`, API key from Sonarr
-3. **Settings → Radarr**: URL `http://radarr:7878`, API key from Radarr
-4. **Settings → Providers**: add subtitle providers (OpenSubtitles, Subscene, etc.)
+1. Open `http://10.0.10.20:6767`
+2. **Settings ? Sonarr**: URL `http://sonarr:8989`, API key from Sonarr
+3. **Settings ? Radarr**: URL `http://radarr:7878`, API key from Radarr
+4. **Settings ? Providers**: add subtitle providers (OpenSubtitles, Subscene, etc.)
 5. Bazarr will monitor Sonarr and Radarr for new content and fetch subtitles automatically.
 
 ---
@@ -504,13 +504,13 @@ Direct IP access still works for administrative tasks or if DNS is unavailable.
 
 | Service | HTTPS URL | Direct IP |
 |---|---|---|
-| Plex | `https://plex.kagiso.me` | `http://10.0.10.32:32400/web` |
-| Sonarr | `https://sonarr.kagiso.me` | `http://10.0.10.32:8989` |
-| Radarr | `https://radarr.kagiso.me` | `http://10.0.10.32:7878` |
-| SABnzbd | `https://sabnzbd.kagiso.me` | `http://10.0.10.32:8085` |
-| Overseerr | `https://requests.kagiso.me` | `http://10.0.10.32:5055` |
-| Navidrome | `https://music.kagiso.me` | `http://10.0.10.32:4533` |
-| NPM Admin | `http://10.0.10.32:81` | (admin only, no HTTPS proxy) |
+| Plex | `https://plex.kagiso.me` | `http://10.0.10.20:32400/web` |
+| Sonarr | `https://sonarr.kagiso.me` | `http://10.0.10.20:8989` |
+| Radarr | `https://radarr.kagiso.me` | `http://10.0.10.20:7878` |
+| SABnzbd | `https://sabnzbd.kagiso.me` | `http://10.0.10.20:8085` |
+| Overseerr | `https://requests.kagiso.me` | `http://10.0.10.20:5055` |
+| Navidrome | `https://music.kagiso.me` | `http://10.0.10.20:4533` |
+| NPM Admin | `http://10.0.10.20:81` | (admin only, no HTTPS proxy) |
 
 ---
 
@@ -571,7 +571,7 @@ sudo usermod -aG render,video $(whoami)
 ```
 
 In the Plex UI, hardware transcoding is confirmed via:
-**Settings → Transcoder** — verify "Use hardware acceleration when available" is checked and
+**Settings ? Transcoder** — verify "Use hardware acceleration when available" is checked and
 that Intel/AMD VA-API appears as an available encoder in the Plex Dashboard during an active
 transcode session.
 
@@ -606,17 +606,17 @@ Repeat for at least one other subdomain to confirm the wildcard covers all proxy
 This phase is complete when:
 
 ```
-✓ All ten media stack containers show (healthy)
-✓ Nginx Proxy Manager running and admin UI accessible at :81
-✓ Wildcard certificate *.kagiso.me issued by Let's Encrypt and visible in NPM SSL Certificates
-✓ All nine proxy hosts configured in NPM with SSL using the wildcard cert
-✓ Browser shows valid certificate (no warning) for plex.kagiso.me
-✓ Prowlarr has at least one indexer configured and synced to Sonarr/Radarr
-✓ SABnzbd connected to Usenet provider (test download successful)
-✓ Sonarr and Radarr connected to SABnzbd (port 8080 internal) and Prowlarr
-✓ Plex server claimed, libraries populated with at least one title from /mnt/media
-✓ Plex hardware acceleration active (/dev/dri/renderD128 visible inside container)
-✓ Overseerr connected to Plex (via Plex token), Sonarr, and Radarr
+? All ten media stack containers show (healthy)
+? Nginx Proxy Manager running and admin UI accessible at :81
+? Wildcard certificate *.kagiso.me issued by Let's Encrypt and visible in NPM SSL Certificates
+? All nine proxy hosts configured in NPM with SSL using the wildcard cert
+? Browser shows valid certificate (no warning) for plex.kagiso.me
+? Prowlarr has at least one indexer configured and synced to Sonarr/Radarr
+? SABnzbd connected to Usenet provider (test download successful)
+? Sonarr and Radarr connected to SABnzbd (port 8080 internal) and Prowlarr
+? Plex server claimed, libraries populated with at least one title from /mnt/media
+? Plex hardware acceleration active (/dev/dri/renderD128 visible inside container)
+? Overseerr connected to Plex (via Plex token), Sonarr, and Radarr
 ```
 
 ---
@@ -640,7 +640,7 @@ This phase is complete when:
 Reboot the NUC and enter BIOS (press **F2** during POST).
 
 ```
-Advanced → Security → Security Features
+Advanced ? Security ? Security Features
   VT-d:  [Enable]
 ```
 
@@ -762,7 +762,7 @@ vainfo 2>/dev/null | grep -c VAEntrypointEncSlice
 
 # Next Guide
 
-➡ **[05 — Monitoring & Logging](./04_monitoring_and_logging.md)**
+? **[05 — Monitoring & Logging](./04_monitoring_and_logging.md)**
 
 The next guide deploys a full observability stack:
 
@@ -777,6 +777,6 @@ The next guide deploys a full observability stack:
 
 | | Guide |
 |---|---|
-| ← Previous | [03 — Docker Installation & Filesystem Setup](./02_docker_installation_and_filesystem.md) |
+| ? Previous | [03 — Docker Installation & Filesystem Setup](./02_docker_installation_and_filesystem.md) |
 | Current | **04 — Media Stack & Reverse Proxy** |
-| → Next | [05 — Monitoring & Logging](./04_monitoring_and_logging.md) |
+| ? Next | [05 — Monitoring & Logging](./04_monitoring_and_logging.md) |

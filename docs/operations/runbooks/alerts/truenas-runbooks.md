@@ -47,7 +47,7 @@
 
 ### What This Alert Means
 
-The affected ZFS pool is in a DEGRADED state, meaning one or more member disks have been removed, failed, or are reporting errors. ZFS is still operational and serving data via its redundancy, but any further disk failure may result in data loss. This is a race condition — act quickly.
+The affected ZFS pool is in a DEGRADED state, meaning one or more member disks have been removed, failed, or are reporting errors. ZFS is still operational and serving data via its redundancy, but any further disk failure may result in data loss. This is a race condition â€” act quickly.
 
 ### Diagnostic Steps
 
@@ -136,7 +136,7 @@ zpool status | grep "state:"
 
 ### What This Alert Means
 
-The affected ZFS pool is FAULTED. This is more severe than DEGRADED — the pool cannot satisfy its redundancy requirements and may not be serving data. This could mean multiple simultaneous disk failures or a catastrophic event. All NFS exports from TrueNAS are likely offline.
+The affected ZFS pool is FAULTED. This is more severe than DEGRADED â€” the pool cannot satisfy its redundancy requirements and may not be serving data. This could mean multiple simultaneous disk failures or a catastrophic event. All NFS exports from TrueNAS are likely offline.
 
 ### Diagnostic Steps
 
@@ -178,7 +178,7 @@ The affected ZFS pool is FAULTED. This is more severe than DEGRADED — the pool
 7. If data is accessible (pool recovers after import), immediately back up critical data:
    ```bash
    # From RPi, trigger all backup jobs:
-   ssh kagiso@10.0.10.32 "sudo /usr/local/bin/docker-backup.sh" &
+   ssh kagiso@10.0.10.20 "sudo /srv/docker/scripts/backup_docker.sh" &
    ssh kagiso@10.0.10.11 "sudo /usr/local/bin/etcd-backup.sh" &
    ```
 
@@ -191,7 +191,7 @@ The affected ZFS pool is FAULTED. This is more severe than DEGRADED — the pool
 | Multiple disks FAULTED | Potential data loss; invoke [backup-restoration.md](../backup-restoration.md) |
 | All disks visible but pool FAULTED | Try zpool export/import; may be metadata corruption |
 | Power event preceded fault | Check PSU; reseat all drives; reimport pool |
-| Single disk FAULTED in RAIDZ1 | Degraded but recoverable — treat as [ZFSPoolDegraded](#zpoolpooldegraded) |
+| Single disk FAULTED in RAIDZ1 | Degraded but recoverable â€” treat as [ZFSPoolDegraded](#zpoolpooldegraded) |
 
 ### Verify Recovery
 
@@ -200,7 +200,7 @@ ssh admin@10.0.10.80
 zpool status | grep "state:"
 # state must be ONLINE or DEGRADED (not FAULTED)
 # Then verify NFS is accessible:
-ssh kagiso@10.0.10.32 "ls /mnt/archive/ | head -3"
+ssh kagiso@10.0.10.20 "ls /mnt/archive/ | head -3"
 ```
 
 ---
@@ -453,7 +453,7 @@ A ZFS pool scrub has not been run in over 35 days. Regular scrubs are essential 
 
 2. Check if automatic scrub is scheduled in TrueNAS:
    ```bash
-   # Via TrueNAS UI: Data Protection → Scrub Tasks
+   # Via TrueNAS UI: Data Protection â†’ Scrub Tasks
    # Or via CLI:
    midclt call pool.scrub.query | python3 -m json.tool
    ```
@@ -473,7 +473,7 @@ A ZFS pool scrub has not been run in over 35 days. Regular scrubs are essential 
    ```
 
 5. If TrueNAS task was deleted or disabled, recreate it:
-   - TrueNAS UI → Data Protection → Scrub Tasks → Add
+   - TrueNAS UI â†’ Data Protection â†’ Scrub Tasks â†’ Add
    - Set pool: `core`, `archive`, or `tera`,; run scrubs on all pools: `zpool scrub core`, `zpool scrub archive`, `zpool scrub tera`
 
 ### Verify Recovery
@@ -496,7 +496,7 @@ zpool status | grep "scan:"
 
 ### What This Alert Means
 
-A disk in the TrueNAS system has a SMART overall health assessment of FAILED. This is the disk's own prediction that it will fail within 24 hours. Treat this as imminent disk failure — data loss is likely without immediate action.
+A disk in the TrueNAS system has a SMART overall health assessment of FAILED. This is the disk's own prediction that it will fail within 24 hours. Treat this as imminent disk failure â€” data loss is likely without immediate action.
 
 ### Diagnostic Steps
 
@@ -520,7 +520,7 @@ A disk in the TrueNAS system has a SMART overall health assessment of FAILED. Th
    # Match disk serial number from SMART output to disk ID in zpool status
    ```
 
-4. Check the pool state — is it still online?
+4. Check the pool state â€” is it still online?
    ```bash
    zpool status | grep "state:"
    ```
@@ -550,7 +550,7 @@ A disk in the TrueNAS system has a SMART overall health assessment of FAILED. Th
 | Pool is DEGRADED or FAULTED | See [ZFSPoolDegraded](#zpoolpooldegraded) or [ZFSPoolFaulted](#zpoolpoolfaulted) |
 | Pool still ONLINE, disk SMART FAILED | Replace disk immediately while pool is still redundant |
 | No spare disk available | Order one urgently; do NOT power cycle the NAS |
-| Other disks showing pre-failure SMART | See [DiskReallocatedSectors](#diskreallocatedsectors) — may need multiple replacements |
+| Other disks showing pre-failure SMART | See [DiskReallocatedSectors](#diskreallocatedsectors) â€” may need multiple replacements |
 
 ### Verify Recovery
 
@@ -628,7 +628,7 @@ A disk has begun remapping bad sectors to spare sectors. A small number (< 10) c
 | Count is small (1-5) and stable | Monitor monthly; no immediate action required |
 | Count > 10 or growing | Plan disk replacement within 2 weeks |
 | Count growing rapidly | See [DiskReallocatedSectorsCritical](#diskreallocatedsectorscritical) |
-| Also shows pending sectors | See [DiskPendingSectors](#diskpendingsectors) — escalate urgency |
+| Also shows pending sectors | See [DiskPendingSectors](#diskpendingsectors) â€” escalate urgency |
 | SMART test FAILED | See [DiskSMARTFailed](#disksmartfailed) |
 
 ### Verify Recovery
@@ -679,7 +679,7 @@ A disk has reallocated more than 50 sectors. At this count the disk is actively 
    zfs snapshot -r <pool>@pre-disk-replace-$(date +%Y%m%d-%H%M)
    ```
 
-5. Begin disk replacement — treat this as urgent:
+5. Begin disk replacement â€” treat this as urgent:
    ```bash
    # If a replacement disk is available and pool has redundancy:
    zpool replace <pool> /dev/sdX /dev/sdY_new
@@ -715,7 +715,7 @@ smartctl -H /dev/sdY_new | grep "overall-health"
 
 ### What This Alert Means
 
-A disk has sectors that have been read with errors and are "pending" reallocation. The disk will try to write to these sectors again; if the write succeeds, the sector is cleared; if not, it gets reallocated. Pending sectors indicate the disk has areas it cannot reliably read — those sectors may contain unreadable data.
+A disk has sectors that have been read with errors and are "pending" reallocation. The disk will try to write to these sectors again; if the write succeeds, the sector is cleared; if not, it gets reallocated. Pending sectors indicate the disk has areas it cannot reliably read â€” those sectors may contain unreadable data.
 
 ### Diagnostic Steps
 
@@ -733,7 +733,7 @@ A disk has sectors that have been read with errors and are "pending" reallocatio
    smartctl -A /dev/sdX | grep -E "Reallocated|Pending|Uncorrectable|Spin_Retry"
    ```
 
-3. Run a ZFS scrub — ZFS will attempt to read/repair affected blocks:
+3. Run a ZFS scrub â€” ZFS will attempt to read/repair affected blocks:
    ```bash
    zpool scrub core && zpool scrub archive && zpool scrub tera
    # After completion, check if ZFS found errors:
@@ -811,7 +811,7 @@ A disk has sectors that have permanently failed and cannot be read or written. D
    # "errors: X" = data is unrecoverable
    ```
 
-4. If ZFS shows unrecoverable errors — identify affected files:
+4. If ZFS shows unrecoverable errors â€” identify affected files:
    ```bash
    # ZFS doesn't directly tell you which files were affected,
    # but you can check zpool status for the vdev:
@@ -845,12 +845,12 @@ zpool scrub core && zpool scrub archive && zpool scrub tera
 | Field | Value |
 |-------|-------|
 | Severity | Warning |
-| Threshold | Disk temperature > 45°C |
+| Threshold | Disk temperature > 45Â°C |
 | First Response | 2 hours |
 
 ### What This Alert Means
 
-One or more disks in the TrueNAS system are running above 45°C. Hard drives operate best between 20-45°C. Sustained high temperatures accelerate wear and can trigger SMART thermal events that put the disk into a protection mode.
+One or more disks in the TrueNAS system are running above 45Â°C. Hard drives operate best between 20-45Â°C. Sustained high temperatures accelerate wear and can trigger SMART thermal events that put the disk into a protection mode.
 
 ### Diagnostic Steps
 
@@ -859,7 +859,7 @@ One or more disks in the TrueNAS system are running above 45°C. Hard drives ope
    ssh admin@10.0.10.80
    for disk in /dev/sd*; do
      temp=$(smartctl -A $disk | awk '/Temperature_Celsius/{print $10}')
-     echo "$disk: ${temp}°C"
+     echo "$disk: ${temp}Â°C"
    done
    ```
 
@@ -870,7 +870,7 @@ One or more disks in the TrueNAS system are running above 45°C. Hard drives ope
 
 3. Check fan status on TrueNAS:
    ```bash
-   # Via TrueNAS UI: System → Reporting → CPU Temperature, or use IPMI if available
+   # Via TrueNAS UI: System â†’ Reporting â†’ CPU Temperature, or use IPMI if available
    ipmitool sdr type Fan 2>/dev/null || echo "IPMI not available"
    ```
 
@@ -878,7 +878,7 @@ One or more disks in the TrueNAS system are running above 45°C. Hard drives ope
    ```bash
    for disk in /dev/sd*; do
      echo -n "$disk $(lsblk -no MODEL $disk 2>/dev/null): "
-     smartctl -A $disk | awk '/Temperature_Celsius/{print $10"°C"}'
+     smartctl -A $disk | awk '/Temperature_Celsius/{print $10"Â°C"}'
    done
    ```
 
@@ -902,9 +902,9 @@ One or more disks in the TrueNAS system are running above 45°C. Hard drives ope
 ssh admin@10.0.10.80
 for disk in /dev/sd*; do
   echo -n "$disk: "
-  smartctl -A $disk | awk '/Temperature_Celsius/{print $10"°C"}'
+  smartctl -A $disk | awk '/Temperature_Celsius/{print $10"Â°C"}'
 done
-# All disks should be below 45°C
+# All disks should be below 45Â°C
 ```
 
 ---
@@ -914,12 +914,12 @@ done
 | Field | Value |
 |-------|-------|
 | Severity | Critical |
-| Threshold | Disk temperature > 55°C |
+| Threshold | Disk temperature > 55Â°C |
 | First Response | 15 minutes |
 
 ### What This Alert Means
 
-A disk is at or above 55°C. Most hard drives have a maximum rated operating temperature of 60°C. At this temperature, drive failure rate increases significantly. The drive may also throttle IO, causing system-wide slowdowns.
+A disk is at or above 55Â°C. Most hard drives have a maximum rated operating temperature of 60Â°C. At this temperature, drive failure rate increases significantly. The drive may also throttle IO, causing system-wide slowdowns.
 
 ### Diagnostic Steps
 
@@ -928,7 +928,7 @@ A disk is at or above 55°C. Most hard drives have a maximum rated operating tem
    ssh admin@10.0.10.80
    for disk in /dev/sd*; do
      temp=$(smartctl -A $disk | awk '/Temperature_Celsius/{print $10}')
-     [ -n "$temp" ] && [ "$temp" -gt "50" ] && echo "CRITICAL: $disk: ${temp}°C"
+     [ -n "$temp" ] && [ "$temp" -gt "50" ] && echo "CRITICAL: $disk: ${temp}Â°C"
    done
    ```
 
@@ -951,7 +951,7 @@ A disk is at or above 55°C. Most hard drives have a maximum rated operating tem
 5. If temperature does not drop within 30 minutes, plan for graceful shutdown to prevent disk damage:
    ```bash
    # Alert others first, then:
-   # Via TrueNAS UI: System → Shutdown
+   # Via TrueNAS UI: System â†’ Shutdown
    # Or CLI:
    poweroff
    ```
@@ -963,7 +963,7 @@ A disk is at or above 55°C. Most hard drives have a maximum rated operating tem
 | Fan failure confirmed | Physical repair; do not run NAS without cooling |
 | No fan failure (environmental) | Immediate room cooling; consider graceful shutdown |
 | Temperature dropping | Continue monitoring; fix root cause |
-| Temperature stable at 55°C+ for >30min | Graceful shutdown to prevent hardware damage |
+| Temperature stable at 55Â°C+ for >30min | Graceful shutdown to prevent hardware damage |
 
 ### Verify Recovery
 
@@ -971,9 +971,9 @@ A disk is at or above 55°C. Most hard drives have a maximum rated operating tem
 ssh admin@10.0.10.80
 for disk in /dev/sd*; do
   echo -n "$disk: "
-  smartctl -A $disk | awk '/Temperature_Celsius/{print $10"°C"}'
+  smartctl -A $disk | awk '/Temperature_Celsius/{print $10"Â°C"}'
 done
-# All disks below 45°C
+# All disks below 45Â°C
 ```
 
 ---
@@ -1006,10 +1006,10 @@ A disk is having difficulty spinning up to operating speed within the expected t
    smartctl -a /dev/sdX | grep -E "Spin_Up_Time|Spin_Retry|Start_Stop_Count|Power_On_Hours"
    ```
 
-3. Check power supply capacity — spin-up draws high current:
+3. Check power supply capacity â€” spin-up draws high current:
    ```bash
    # Check if multiple drives are spinning up simultaneously at boot (staggered spin-up helps)
-   # TrueNAS UI: Storage → Disks → check for "advanced power management" settings
+   # TrueNAS UI: Storage â†’ Disks â†’ check for "advanced power management" settings
    ```
 
 4. Check the disk's spin-up time compared to spec:
@@ -1080,14 +1080,14 @@ CRC (Cyclic Redundancy Check) errors on the SATA/SAS interface between the disk 
    dmesg | grep -i "ata\|sata\|error\|exception\|CRC\|reset" | grep "sdX" | tail -20
    ```
 
-4. Physical investigation — check the SATA cable:
+4. Physical investigation â€” check the SATA cable:
    - Reseat the SATA data cable on both the disk and motherboard/HBA ends
    - Try a different SATA cable (most common fix)
    - Try a different SATA port on the HBA/motherboard
 
 5. Clear error counters and monitor after cable swap:
    ```bash
-   # Note: CRC errors don't clear easily on most drives — monitor rate of increase
+   # Note: CRC errors don't clear easily on most drives â€” monitor rate of increase
    # before and after cable swap
    smartctl -A /dev/sdX | grep "UDMA_CRC_Error_Count"
    ```
@@ -1139,7 +1139,7 @@ The `smartctl_exporter` process on TrueNAS (10.0.10.80) is not responding to Pro
    ```bash
    ssh kagiso@10.0.10.10
    curl -s --connect-timeout 5 http://10.0.10.80:9633/metrics | head -10
-   # 9633 is the default smartctl_exporter port — adjust if different
+   # 9633 is the default smartctl_exporter port â€” adjust if different
    ```
 
 2. SSH to TrueNAS and check the exporter process:

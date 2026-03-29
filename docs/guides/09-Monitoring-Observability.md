@@ -1,12 +1,12 @@
-# 09 — Monitoring & Observability
+# 09 Ã¢â‚¬â€ Monitoring & Observability
 ## Full-Stack Visibility Across the Entire Homelab
 
 **Author:** Kagiso Tjeane
-**Difficulty:** ⭐⭐⭐⭐⭐⭐⭐⭐☆☆ (8/10)
+**Difficulty:** Ã¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Â­ÂÃ¢Ëœâ€ Ã¢Ëœâ€  (8/10)
 **Guide:** 09 of 13
 
 > A system that cannot be observed cannot be operated. You don't know it's
-> broken until a user tells you — and by then the data that would explain
+> broken until a user tells you Ã¢â‚¬â€ and by then the data that would explain
 > *why* it broke has already rolled off the edge of your `kubectl logs`.
 > Observability means knowing something is wrong *before* anyone notices,
 > and knowing exactly why it happened *after* the fact.
@@ -46,7 +46,7 @@ An **observable system** lets you answer:
 - Did it affect any other system?
 - Is the remediation working?
 
-For a homelab, the practical difference is this: without observability, a drive quietly accumulating reallocated sectors goes unnoticed until the pool degrades. With observability, you get a `DiskReallocatedSectors` alert the moment the first bad block appears — days or weeks before failure — and you replace the drive on your schedule, not at 2 AM.
+For a homelab, the practical difference is this: without observability, a drive quietly accumulating reallocated sectors goes unnoticed until the pool degrades. With observability, you get a `DiskReallocatedSectors` alert the moment the first bad block appears Ã¢â‚¬â€ days or weeks before failure Ã¢â‚¬â€ and you replace the drive on your schedule, not at 2 AM.
 
 ### The Four Golden Signals (Applied to Homelab)
 
@@ -63,11 +63,11 @@ Every alert rule in this stack maps to one or more of these four signals. When a
 
 ### Knowing Why and When
 
-A metric time series gives you "when" for free — every data point is timestamped. Knowing "why" requires three things working together:
+A metric time series gives you "when" for free Ã¢â‚¬â€ every data point is timestamped. Knowing "why" requires three things working together:
 
-1. **Metrics** — quantitative measurements over time (Prometheus)
-2. **Logs** — event records with context (Loki)
-3. **Correlation** — the ability to pivot from a metric anomaly to the log lines that coincide with it (Grafana Explore)
+1. **Metrics** Ã¢â‚¬â€ quantitative measurements over time (Prometheus)
+2. **Logs** Ã¢â‚¬â€ event records with context (Loki)
+3. **Correlation** Ã¢â‚¬â€ the ability to pivot from a metric anomaly to the log lines that coincide with it (Grafana Explore)
 
 This is why the stack runs both Prometheus and Loki, and why Grafana is the single pane that surfaces both. A spike in `kube_pod_container_status_restarts_total` means nothing in isolation; the Loki log line showing `OOMKilled` or `panic: runtime error` at the same timestamp is the explanation.
 
@@ -89,7 +89,7 @@ graph TD
         prom_stack["kube-prometheus-stack\n(Prometheus + kube-state-metrics)"]
     end
 
-    subgraph docker["Docker Host — bare metal NUC (10.0.10.20)"]
+    subgraph docker["Docker Host Ã¢â‚¬â€ bare metal NUC (10.0.10.20)"]
         ne_docker["node-exporter :9100"]
         cadvisor["cAdvisor :8080"]
         backup_txt["textfile collector\n(backup timestamps)"]
@@ -215,13 +215,13 @@ Every signal collected by this stack, where it comes from, how to query it, and 
 
 | Signal | Source | Metric / PromQL | Why it matters |
 |--------|--------|-----------------|----------------|
-| etcd backup age | textfile (k8s node) | `time() - etcd_backup_last_success_timestamp_seconds > 86400` | etcd backup >24h old = disaster recovery gap |
-| Docker appdata backup age | textfile (docker-host) | `time() - docker_backup_last_success_timestamp_seconds > 86400` | Docker host appdata not backed up |
-| varys backup age | textfile (varys) | `time() - varys_backup_last_success_timestamp_seconds > 86400` | kubeconfig, age key, SSH keys not protected |
+| etcd backup age | textfile (k8s node) | `time() - backup_last_success_timestamp{job="etcd"} > 86400` | etcd backup >24h old = disaster recovery gap |
+| Docker appdata backup age | textfile (docker-host) | `time() - backup_last_success_timestamp{job="docker-appdata"} > 86400` | Docker host appdata not backed up |
+| varys backup age | textfile (varys) | `time() - backup_last_success_timestamp{job="varys-keys"} > 86400` | kubeconfig, age key, SSH keys not protected |
 | Velero schedule status | Velero | `velero_backup_success_total` / `velero_backup_failure_total` | PVC snapshots covering stateful workloads |
-| Backup duration trend | textfile | `docker_backup_duration_seconds` | Sudden increase indicates storage or network issue |
+| Backup duration trend | textfile | `backup_duration_seconds{job="docker-appdata"}` | Sudden increase indicates storage or network issue |
 
-### TrueNAS — ZFS
+### TrueNAS Ã¢â‚¬â€ ZFS
 
 | Signal | Source | Metric / PromQL | Why it matters |
 |--------|--------|-----------------|----------------|
@@ -230,18 +230,18 @@ Every signal collected by this stack, where it comes from, how to query it, and 
 | ZFS scrub errors | node-exporter (ZFS collector) | `node_zfs_pool_scan_errors` | Scrub found unrecoverable errors |
 | ZFS pool capacity | node-exporter (ZFS collector) | `node_zfs_pool_allocated / node_zfs_pool_size * 100 > 80` | ZFS performance degrades above ~80% full |
 
-### TrueNAS — SMART / Drive Health
+### TrueNAS Ã¢â‚¬â€ SMART / Drive Health
 
 | Signal | Source | Metric / PromQL | Why it matters |
 |--------|--------|-----------------|----------------|
-| Reallocated sectors | smartctl-exporter | `smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct"} > 0` | Drive hiding bad blocks — replace immediately |
-| Pending sectors | smartctl-exporter | `smartctl_device_attribute{attribute_name="Current_Pending_Sector"} > 0` | Sectors awaiting reallocation — drive unstable |
+| Reallocated sectors | smartctl-exporter | `smartctl_device_attribute{attribute_name="Reallocated_Sector_Ct"} > 0` | Drive hiding bad blocks Ã¢â‚¬â€ replace immediately |
+| Pending sectors | smartctl-exporter | `smartctl_device_attribute{attribute_name="Current_Pending_Sector"} > 0` | Sectors awaiting reallocation Ã¢â‚¬â€ drive unstable |
 | Uncorrectable errors | smartctl-exporter | `smartctl_device_attribute{attribute_name="Offline_Uncorrectable"} > 0` | Data loss has occurred or is occurring |
 | Drive temperature | smartctl-exporter | `smartctl_device_attribute{attribute_name="Temperature_Celsius"} > 50` | Thermal throttling or imminent failure |
 | Drive power-on hours | smartctl-exporter | `smartctl_device_attribute{attribute_name="Power_On_Hours"}` | Lifespan tracking; plan replacements proactively |
 | SMART overall health | smartctl-exporter | `smartctl_device_smart_status != 1` | Drive failed SMART self-assessment |
 
-### Docker Host — Container Health
+### Docker Host Ã¢â‚¬â€ Container Health
 
 The Docker host is a bare-metal Intel NUC i3-7100U at `10.0.10.20`. It runs Plex, SABnzbd, Sonarr, Radarr, and supporting services as Docker Compose stacks. node-exporter, cAdvisor, and Promtail run as compose services on this host, shipping metrics and logs to the cluster monitoring stack.
 
@@ -268,13 +268,13 @@ The HelmRelease pins to chart version `67.x` and configures the following:
 
 **Prometheus:**
 - Retention: `15d` with a 15GB size cap
-- `serviceMonitorSelectorNilUsesHelmValues: false` — Prometheus scrapes ServiceMonitors from all namespaces, not just the ones Helm created
-- Storage: 20Gi PVC on **`local-path`** (k3s built-in local provisioner — see [ADR-009](../adr/ADR-009-prometheus-local-storage.md) for why NFS cannot be used here)
+- `serviceMonitorSelectorNilUsesHelmValues: false` Ã¢â‚¬â€ Prometheus scrapes ServiceMonitors from all namespaces, not just the ones Helm created
+- Storage: 20Gi PVC on **`local-path`** (k3s built-in local provisioner Ã¢â‚¬â€ see [ADR-009](../adr/ADR-009-prometheus-local-storage.md) for why NFS cannot be used here)
 
 **Grafana:**
 - Admin credentials loaded from `grafana-admin` Secret (SOPS-encrypted, see Guide 11)
 - Persistence: 2Gi PVC on `nfs-truenas`
-- Ingress disabled at Helm level — managed via Traefik IngressRoute in the apps layer
+- Ingress disabled at Helm level Ã¢â‚¬â€ managed via Traefik IngressRoute in the apps layer
 - Root URL: `https://grafana.kagiso.me`
 
 **Alertmanager:**
@@ -298,7 +298,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: local-path   # NOT nfs-truenas — see ADR-009
+          storageClassName: local-path   # NOT nfs-truenas Ã¢â‚¬â€ see ADR-009
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
@@ -390,7 +390,7 @@ additionalScrapeConfigs:
 
 ### Why the smartctl scrape interval is 5m
 
-SMART polling via `smartctl` requires the drive head to perform a seek on spinning media. A 30-second interval would generate unnecessary wear and thermal load. Five minutes is sufficient for drive health monitoring — a reallocated sector that appeared in the last 5 minutes is still an emergency, not a missed alert.
+SMART polling via `smartctl` requires the drive head to perform a seek on spinning media. A 30-second interval would generate unnecessary wear and thermal load. Five minutes is sufficient for drive health monitoring Ã¢â‚¬â€ a reallocated sector that appeared in the last 5 minutes is still an emergency, not a missed alert.
 
 ### Firewall Requirements
 
@@ -447,18 +447,18 @@ The `--collector.textfile.directory` flag on node-exporter enables the textfile 
 
 Alert rule files are committed under `docker/config/prometheus/alerts/`. The full set lives in:
 
-- `docker/config/prometheus/alerts/kubernetes.yml` — node health, pod health, PVCs, certificates, Flux, Traefik
-- `docker/config/prometheus/alerts/backups.yml` — backup freshness for all backup types
-- `docker/config/prometheus/alerts/infrastructure.yml` — Docker container health, RPi SD card, NFS mounts
-- `docker/config/prometheus/alerts/truenas.yml` — ZFS pool state, SMART attributes, scrub status
+- `docker/config/prometheus/alerts/kubernetes.yml` Ã¢â‚¬â€ node health, pod health, PVCs, certificates, Flux, Traefik
+- `docker/config/prometheus/alerts/backups.yml` Ã¢â‚¬â€ backup freshness for all backup types
+- `docker/config/prometheus/alerts/infrastructure.yml` Ã¢â‚¬â€ Docker container health, RPi SD card, NFS mounts
+- `docker/config/prometheus/alerts/truenas.yml` Ã¢â‚¬â€ ZFS pool state, SMART attributes, scrub status
 
 The most critical rules are shown below. All rules follow the same severity routing:
-- `severity: warning` → `#homelab-alerts` Discord channel
-- `severity: critical` → `#homelab-critical` Discord + generic webhook
+- `severity: warning` Ã¢â€ â€™ `#homelab-alerts` Discord channel
+- `severity: critical` Ã¢â€ â€™ `#homelab-critical` Discord + generic webhook
 
-### Drive Failure — Reallocated Sectors (P0)
+### Drive Failure Ã¢â‚¬â€ Reallocated Sectors (P0)
 
-This is the single most important alert for a homelab with physical storage. A reallocated sector means the drive has found a bad block and remapped it to a spare sector. The drive is hiding data corruption. One reallocated sector is not immediately catastrophic — RAID/ZFS can tolerate it — but it is a definitive signal that the drive is dying. Replace within 24 hours.
+This is the single most important alert for a homelab with physical storage. A reallocated sector means the drive has found a bad block and remapped it to a spare sector. The drive is hiding data corruption. One reallocated sector is not immediately catastrophic Ã¢â‚¬â€ RAID/ZFS can tolerate it Ã¢â‚¬â€ but it is a definitive signal that the drive is dying. Replace within 24 hours.
 
 ```yaml
 - alert: DiskReallocatedSectors
@@ -473,7 +473,7 @@ This is the single most important alert for a homelab with physical storage. A r
       This drive is hiding bad blocks by remapping them to spare sectors.
       The drive is in the early stages of failure. Replace it immediately
       before the spare sector pool is exhausted and data loss begins.
-      ZFS may mask the failure — do not assume the pool health indicator
+      ZFS may mask the failure Ã¢â‚¬â€ do not assume the pool health indicator
       is sufficient. Run: smartctl -a {{ $labels.device }}
 ```
 
@@ -526,7 +526,7 @@ This is the single most important alert for a homelab with physical storage. A r
 
 ```yaml
 - alert: EtcdBackupTooOld
-  expr: time() - etcd_backup_last_success_timestamp_seconds > 86400
+  expr: time() - backup_last_success_timestamp{job="etcd"} > 86400
   for: 5m
   labels:
     severity: critical
@@ -551,7 +551,7 @@ This is the single most important alert for a homelab with physical storage. A r
   annotations:
     summary: "ZFS pool {{ $labels.pool }} on TrueNAS is {{ $labels.state }}"
     description: >
-      ZFS pool {{ $labels.pool }} is in a {{ $labels.state }} state — it is no
+      ZFS pool {{ $labels.pool }} is in a {{ $labels.state }} state Ã¢â‚¬â€ it is no
       longer in normal operation. Data redundancy has been reduced or lost.
       Run: zpool status {{ $labels.pool }} on TrueNAS immediately.
       If state is 'degraded', a vdev has failed but data is intact.
@@ -580,7 +580,7 @@ This is the single most important alert for a homelab with physical storage. A r
 
 ```yaml
 - alert: DockerBackupTooOld
-  expr: time() - docker_backup_last_success_timestamp_seconds > 86400
+  expr: time() - backup_last_success_timestamp{job="docker-appdata"} > 86400
   for: 5m
   labels:
     severity: warning
@@ -609,12 +609,12 @@ Import these dashboards from grafana.com into the Grafana instance at `https://g
 | Loki Dashboard | 13639 | Log ingest volume, error rate, query performance. Verify Loki is receiving all pod logs. |
 | Docker Container Monitoring | 893 | Per-container CPU, memory, and network on the Docker host via cAdvisor. |
 | ZFS on Linux | 12081 | ZFS pool metrics: allocated space, I/O ops, ARC hit rate, dataset breakdown. |
-| SMART Disk Monitor | custom | Drive health — reallocated sectors, temperature, pending sectors per drive on TrueNAS. |
+| SMART Disk Monitor | custom | Drive health Ã¢â‚¬â€ reallocated sectors, temperature, pending sectors per drive on TrueNAS. |
 | Backup Status | custom | All backup last-run times, backup sizes, age. See Section 8 for panel queries. |
 
 ### Importing a Dashboard
 
-1. In Grafana, navigate to **Dashboards → Import**
+1. In Grafana, navigate to **Dashboards Ã¢â€ â€™ Import**
 2. Enter the dashboard ID from the table above
 3. Select the **Prometheus** data source when prompted
 4. Save into an appropriate folder (`Infrastructure`, `Kubernetes`, `Storage`, etc.)
@@ -623,7 +623,7 @@ Import these dashboards from grafana.com into the Grafana instance at `https://g
 
 When the kube-prometheus-stack HelmRelease is deployed, Grafana is automatically configured with Prometheus as a data source (via the chart's built-in provisioning). Loki requires a manual data source addition:
 
-1. Navigate to **Connections → Data Sources → Add data source**
+1. Navigate to **Connections Ã¢â€ â€™ Data Sources Ã¢â€ â€™ Add data source**
 2. Select **Loki**
 3. URL: `http://loki-stack:3100`
 4. Save and test
@@ -634,11 +634,11 @@ When the kube-prometheus-stack HelmRelease is deployed, Grafana is automatically
 
 Create a new dashboard titled "Backup Status" with the following panels. This dashboard is the single place to verify that all backup jobs across all systems ran recently.
 
-### Panel 1 — etcd Last Backup (Stat)
+### Panel 1 Ã¢â‚¬â€ etcd Last Backup (Stat)
 
 **Query:**
 ```promql
-(time() - etcd_backup_last_success_timestamp_seconds) / 3600
+(time() - backup_last_success_timestamp{job="etcd"}) / 3600
 ```
 
 **Panel settings:**
@@ -647,11 +647,11 @@ Create a new dashboard titled "Backup Status" with the following panels. This da
 - Thresholds: green < 12h, yellow < 24h, red > 24h
 - Title: "etcd Last Backup"
 
-### Panel 2 — Docker Appdata Last Backup (Stat)
+### Panel 2 Ã¢â‚¬â€ Docker Appdata Last Backup (Stat)
 
 **Query:**
 ```promql
-(time() - docker_backup_last_success_timestamp_seconds) / 3600
+(time() - backup_last_success_timestamp{job="docker-appdata"}) / 3600
 ```
 
 **Panel settings:**
@@ -660,11 +660,11 @@ Create a new dashboard titled "Backup Status" with the following panels. This da
 - Thresholds: green < 12h, yellow < 24h, red > 24h
 - Title: "Docker Appdata Last Backup"
 
-### Panel 3 — varys Last Backup (Stat)
+### Panel 3 Ã¢â‚¬â€ varys Last Backup (Stat)
 
 **Query:**
 ```promql
-(time() - varys_backup_last_success_timestamp_seconds) / 3600
+(time() - backup_last_success_timestamp{job="varys-keys"}) / 3600
 ```
 
 **Panel settings:**
@@ -673,14 +673,14 @@ Create a new dashboard titled "Backup Status" with the following panels. This da
 - Thresholds: green < 48h, yellow < 72h, red > 72h (varys backup is less frequent)
 - Title: "varys Config Last Backup"
 
-### Panel 4 — Velero Backup Status by Schedule (Table)
+### Panel 4 Ã¢â‚¬â€ Velero Backup Status by Schedule (Table)
 
-**Query A — Successful:**
+**Query A Ã¢â‚¬â€ Successful:**
 ```promql
 velero_backup_success_total
 ```
 
-**Query B — Failed:**
+**Query B Ã¢â‚¬â€ Failed:**
 ```promql
 velero_backup_failure_total
 ```
@@ -692,26 +692,26 @@ velero_backup_failure_total
 - Color "Failures" column red if > 0
 - Title: "Velero Backup Results by Schedule"
 
-### Panel 5 — Backup Sizes Over 30 Days (Time Series)
+### Panel 5 Ã¢â‚¬â€ Backup Sizes Over 30 Days (Time Series)
 
 **Query A:**
 ```promql
-etcd_backup_size_bytes
+backup_size_bytes{job="etcd"}
 ```
 
 **Query B:**
 ```promql
-docker_backup_size_bytes
+backup_size_bytes{job="docker-appdata"}
 ```
 
 **Panel settings:**
 - Visualization: Time series
 - Time range: Last 30 days
 - Unit: `bytes (IEC)` (auto-formats to MiB/GiB)
-- Title: "Backup Sizes — 30 Day Trend"
+- Title: "Backup Sizes Ã¢â‚¬â€ 30 Day Trend"
 - Use this to detect when a backup unexpectedly shrinks (possible truncation) or grows (runaway data)
 
-### Panel 6 — Firing Backup Alerts (Alert List)
+### Panel 6 Ã¢â‚¬â€ Firing Backup Alerts (Alert List)
 
 **Panel settings:**
 - Visualization: Alert list
@@ -724,7 +724,7 @@ docker_backup_size_bytes
 
 ## 9. Log Monitoring with Loki
 
-Loki aggregates logs from all Kubernetes pods via the Promtail DaemonSet. Access logs through **Grafana → Explore**, selecting the Loki data source.
+Loki aggregates logs from all Kubernetes pods via the Promtail DaemonSet. Access logs through **Grafana Ã¢â€ â€™ Explore**, selecting the Loki data source.
 
 ### Essential LogQL Queries
 
@@ -802,32 +802,32 @@ Credentials (Discord webhook URLs, watchdog webhook URL) are in the SOPS-encrypt
 platform/observability/observability-config/alertmanager-secret.yaml
 ```
 
-Discord is used instead of Slack — see [ADR-010](../adr/ADR-010-discord-over-slack.md) for the rationale. Discord's `/slack` endpoint accepts Slack-formatted payloads, so Alertmanager's `slackConfigs` receiver type is used unchanged.
+Discord is used instead of Slack Ã¢â‚¬â€ see [ADR-010](../adr/ADR-010-discord-over-slack.md) for the rationale. Discord's `/slack` endpoint accepts Slack-formatted payloads, so Alertmanager's `slackConfigs` receiver type is used unchanged.
 
 ### Routing Logic
 
 ```
 All alerts
-├── alertname = "Watchdog"  →  watchdog-webhook receiver (healthchecks.io)
-├── severity = "critical"   →  discord-critical receiver
-│                               └── Discord #homelab-critical
-└── (default)               →  discord-alerts receiver
-                                └── Discord #homelab-alerts
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ alertname = "Watchdog"  Ã¢â€ â€™  watchdog-webhook receiver (healthchecks.io)
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ severity = "critical"   Ã¢â€ â€™  discord-critical receiver
+Ã¢â€â€š                               Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ Discord #homelab-critical
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ (default)               Ã¢â€ â€™  discord-alerts receiver
+                                Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ Discord #homelab-alerts
 ```
 
 **Group behaviour:**
 - Alerts are grouped by `alertname` + `namespace`
-- `groupWait: 30s` — wait 30s before sending the first notification in a new group (allows related alerts to batch)
-- `groupInterval: 5m` — send a follow-up if the group changes after 5m
-- `repeatInterval: 4h` — re-notify every 4h for unresolved warning alerts
-- `repeatInterval: 1h` — re-notify every 1h for unresolved critical alerts
+- `groupWait: 30s` Ã¢â‚¬â€ wait 30s before sending the first notification in a new group (allows related alerts to batch)
+- `groupInterval: 5m` Ã¢â‚¬â€ send a follow-up if the group changes after 5m
+- `repeatInterval: 4h` Ã¢â‚¬â€ re-notify every 4h for unresolved warning alerts
+- `repeatInterval: 1h` Ã¢â‚¬â€ re-notify every 1h for unresolved critical alerts
 
 ### Discord Webhook Setup
 
-Each receiver has its own webhook URL bound to a specific Discord channel — routing is determined by the URL, not the `channel` field (which Discord ignores).
+Each receiver has its own webhook URL bound to a specific Discord channel Ã¢â‚¬â€ routing is determined by the URL, not the `channel` field (which Discord ignores).
 
 1. In your Discord server, create two channels: `#homelab-alerts` and `#homelab-critical`
-2. For each: right-click → **Edit Channel → Integrations → Webhooks → New Webhook**
+2. For each: right-click Ã¢â€ â€™ **Edit Channel Ã¢â€ â€™ Integrations Ã¢â€ â€™ Webhooks Ã¢â€ â€™ New Webhook**
 3. Copy the webhook URL and **append `/slack`** to it
 4. Store both URLs in the SOPS-encrypted secret (see below)
 
@@ -839,7 +839,7 @@ Critical alerts include a `runbook_url` annotation that surfaces directly in the
 
 ## 11. Watchdog Pattern
 
-The Watchdog alert is an always-firing alert that acts as a heartbeat for the entire alerting pipeline. If the Watchdog stops arriving at healthchecks.io, it means something between Prometheus and the notification channel is broken — Prometheus is down, Alertmanager is down, or the webhook is unreachable.
+The Watchdog alert is an always-firing alert that acts as a heartbeat for the entire alerting pipeline. If the Watchdog stops arriving at healthchecks.io, it means something between Prometheus and the notification channel is broken Ã¢â‚¬â€ Prometheus is down, Alertmanager is down, or the webhook is unreachable.
 
 ```yaml
 - alert: Watchdog
@@ -957,7 +957,7 @@ curl -X POST http://localhost:9093/api/v1/alerts \
       "namespace": "test"
     },
     "annotations": {
-      "summary": "Test alert — verify delivery",
+      "summary": "Test alert Ã¢â‚¬â€ verify delivery",
       "description": "This is a synthetic test alert. If you see this in Discord, the alerting pipeline is working."
     }
   }]'
@@ -991,14 +991,14 @@ kubectl logs -n monitoring -l app.kubernetes.io/name=promtail --tail=50
 kubectl exec -n monitoring \
   deploy/kube-prometheus-stack-prometheus \
   -c prometheus -- \
-  wget -qO- 'http://localhost:9090/api/v1/query?query=etcd_backup_last_success_timestamp_seconds' | \
+  wget -qO- 'http://localhost:9090/api/v1/query?query=backup_last_success_timestamp{job="etcd"}' | \
   jq '.data.result'
 
 # Docker backup metric
 kubectl exec -n monitoring \
   deploy/kube-prometheus-stack-prometheus \
   -c prometheus -- \
-  wget -qO- 'http://localhost:9090/api/v1/query?query=docker_backup_last_success_timestamp_seconds' | \
+  wget -qO- 'http://localhost:9090/api/v1/query?query=backup_last_success_timestamp{job="docker-appdata"}' | \
   jq '.data.result'
 ```
 
@@ -1008,23 +1008,23 @@ If these return empty, the textfile collector on the relevant hosts is not writi
 
 ## 13. Alert Response Runbooks
 
-> **Runbooks are living documents** — the files listed below are the intended location
+> **Runbooks are living documents** Ã¢â‚¬â€ the files listed below are the intended location
 > once written. Until then, use the inline guidance in the alert annotations and the
-> triage procedure in [Guide 13 — Platform Operations & Lifecycle](./13-Platform-Operations-Lifecycle.md).
+> triage procedure in [Guide 13 Ã¢â‚¬â€ Platform Operations & Lifecycle](./13-Platform-Operations-Lifecycle.md).
 
 Intended runbook locations:
 
 ```
 docs/operations/runbooks/alerts/
-├── NodeNotReady.md       — kubelet logs, network check, node replacement
-├── NodeMemoryHigh.md     — OOM analysis, resource limit tuning
-├── DiskPressure.md       — PVC expansion, log rotation, eviction policy
-└── PodCrashLoop.md       — log analysis, OOMKill, image pull debugging
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ NodeNotReady.md       Ã¢â‚¬â€ kubelet logs, network check, node replacement
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ NodeMemoryHigh.md     Ã¢â‚¬â€ OOM analysis, resource limit tuning
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ DiskPressure.md       Ã¢â‚¬â€ PVC expansion, log rotation, eviction policy
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ PodCrashLoop.md       Ã¢â‚¬â€ log analysis, OOMKill, image pull debugging
 
 docs/operations/runbooks/
-├── certificate-failure.md    — cert-manager ACME troubleshooting
-├── backup-restoration.md     — restoring from etcd, Velero, and Docker backups
-└── node-replacement.md       — replacing a failed cluster node
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ certificate-failure.md    Ã¢â‚¬â€ cert-manager ACME troubleshooting
+Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ backup-restoration.md     Ã¢â‚¬â€ restoring from etcd, Velero, and Docker backups
+Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ node-replacement.md       Ã¢â‚¬â€ replacing a failed cluster node
 ```
 
 ### Immediate Response Guide (until runbooks are written)
@@ -1053,10 +1053,10 @@ kubectl logs -n cert-manager deploy/cert-manager | tail -50
 
 | Severity | Response time | Examples |
 |----------|--------------|---------|
-| **P0 — Immediate** | Within 1 hour | ZFS pool degraded, drive reallocated sectors, NodeNotReady |
-| **P1 — Same day** | Within 8 hours | etcd backup >24h old, PodCrashLooping (frequent), PVC >90% |
-| **P2 — Next day** | Within 24 hours | NodeMemoryHigh, cert expiry <7d, Flux reconciliation failed |
-| **P3 — This week** | Within 7 days | NodeCPUHigh, PVC >80%, cert expiry <30d, Flux suspended |
+| **P0 Ã¢â‚¬â€ Immediate** | Within 1 hour | ZFS pool degraded, drive reallocated sectors, NodeNotReady |
+| **P1 Ã¢â‚¬â€ Same day** | Within 8 hours | etcd backup >24h old, PodCrashLooping (frequent), PVC >90% |
+| **P2 Ã¢â‚¬â€ Next day** | Within 24 hours | NodeMemoryHigh, cert expiry <7d, Flux reconciliation failed |
+| **P3 Ã¢â‚¬â€ This week** | Within 7 days | NodeCPUHigh, PVC >80%, cert expiry <30d, Flux suspended |
 
 ### Drive and SMART Alerts Are P0
 
@@ -1078,21 +1078,21 @@ Procedure when a SMART alert fires:
 
 This guide is complete when all of the following are true:
 
-- [ ] All 5 external targets visible in Prometheus `/targets` — `varys` (10.0.10.10), `docker` (10.0.10.20), `truenas` (10.0.10.80), `smartctl-truenas` (10.0.10.80:9633), `cadvisor-docker` (10.0.10.20:8080) — all showing `State: UP`
+- [ ] All 5 external targets visible in Prometheus `/targets` Ã¢â‚¬â€ `varys` (10.0.10.10), `docker` (10.0.10.20), `truenas` (10.0.10.80), `smartctl-truenas` (10.0.10.80:9633), `cadvisor-docker` (10.0.10.20:8080) Ã¢â‚¬â€ all showing `State: UP`
 - [ ] k8s node-exporter DaemonSet scraping tywin, jaime, tyrion via ServiceMonitor
-- [ ] smartctl-exporter scraping TrueNAS — `smartctl_device_attribute` metrics present in Prometheus for each physical drive
-- [ ] ZFS metrics present — `node_zfs_pool_state` series visible in Prometheus
-- [ ] All backup metrics visible — `etcd_backup_last_success_timestamp_seconds`, `docker_backup_last_success_timestamp_seconds`, `varys_backup_last_success_timestamp_seconds`, and Velero metrics all queryable
-- [ ] Grafana dashboards imported — Node Exporter Full (1860), Kubernetes Cluster Monitoring (7249), Kubernetes PVC Monitor (13646), Flux CD (16714), Traefik v3 (17346), ZFS on Linux (12081)
+- [ ] smartctl-exporter scraping TrueNAS Ã¢â‚¬â€ `smartctl_device_attribute` metrics present in Prometheus for each physical drive
+- [ ] ZFS metrics present Ã¢â‚¬â€ `node_zfs_pool_state` series visible in Prometheus
+- [ ] All backup metrics visible Ã¢â‚¬â€ `backup_last_success_timestamp{job="etcd"}`, `backup_last_success_timestamp{job="docker-appdata"}`, `backup_last_success_timestamp{job="varys-keys"}`, and Velero metrics all queryable
+- [ ] Grafana dashboards imported Ã¢â‚¬â€ Node Exporter Full (1860), Kubernetes Cluster Monitoring (7249), Kubernetes PVC Monitor (13646), Flux CD (16714), Traefik v3 (17346), ZFS on Linux (12081)
 - [ ] Custom Backup Status dashboard created with all 6 panels showing current data
-- [ ] Alertmanager routing verified — synthetic `TestAlert` curl delivers to `#homelab-alerts` in Discord within 60 seconds
-- [ ] Critical routing verified — a `severity: critical` test alert delivers to `#homelab-critical` Discord channel
-- [ ] Watchdog heartbeat configured at healthchecks.io — check is in "up" state
-- [ ] Loki receiving logs — Grafana Explore query for `{namespace="monitoring"}` returns log lines
-- [ ] Promtail DaemonSet pods running on all 3 k8s nodes — `kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail`
+- [ ] Alertmanager routing verified Ã¢â‚¬â€ synthetic `TestAlert` curl delivers to `#homelab-alerts` in Discord within 60 seconds
+- [ ] Critical routing verified Ã¢â‚¬â€ a `severity: critical` test alert delivers to `#homelab-critical` Discord channel
+- [ ] Watchdog heartbeat configured at healthchecks.io Ã¢â‚¬â€ check is in "up" state
+- [ ] Loki receiving logs Ã¢â‚¬â€ Grafana Explore query for `{namespace="monitoring"}` returns log lines
+- [ ] Promtail DaemonSet pods running on all 3 k8s nodes Ã¢â‚¬â€ `kubectl get pods -n monitoring -l app.kubernetes.io/name=promtail`
 - [ ] Zero "Down" targets in Prometheus `/targets` page
 - [ ] At least one alert rule has been test-fired and confirmed delivered to the correct Discord channel
-- [ ] All alert rule files committed and reachable — `docker/config/prometheus/alerts/*.yml`
+- [ ] All alert rule files committed and reachable Ã¢â‚¬â€ `docker/config/prometheus/alerts/*.yml`
 
 ---
 
@@ -1100,7 +1100,6 @@ This guide is complete when all of the following are true:
 
 | | Guide |
 |---|---|
-| ← Previous | [08 — Storage Architecture](./08-Storage-Architecture.md) |
-| Current | **09 — Monitoring & Observability** |
-| → Next | [10 — Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |
-
+| Ã¢â€ Â Previous | [08 Ã¢â‚¬â€ Storage Architecture](./08-Storage-Architecture.md) |
+| Current | **09 Ã¢â‚¬â€ Monitoring & Observability** |
+| Ã¢â€ â€™ Next | [10 Ã¢â‚¬â€ Backups & Disaster Recovery](./10-Backups-Disaster-Recovery.md) |

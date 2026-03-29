@@ -26,7 +26,11 @@ spec:
     # k3s bundles its own Traefik — this deployment replaces it.
     # Disable k3s bundled Traefik in k3s config before applying this.
     deployment:
-      replicas: 1
+      replicas: 2
+
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
 
     service:
       type: LoadBalancer
