@@ -1,257 +1,493 @@
 # Beesly — Personal AI Assistant
 
-> **Status:** Planning — 2026-03-17
+> **Status:** Active — 2026-03-30
+> **Host:** varys (`10.0.10.10`)
+> **Stack:** OpenClaw · Claude API · Discord
 
-Beesly is a personal AI assistant with a voice interface. Call a SIP extension, speak naturally, and Beesly responds. She can also call *you* proactively — when a pod crashes, a disk fills, or a service goes down.
+---
 
-But Beesly is not just an infrastructure tool. The vision is a full personal assistant — the kind that can run you through your schedule for next Monday, remind you to cancel a gym membership, or handle anything else you'd ask a real assistant to do. Infrastructure awareness is one capability among many.
+## What Is Beesly
+
+Beesly is a personal AI assistant — the homelab's Siri. She lives on varys, connects via Discord, remembers context across sessions, and has direct access to every layer of the infrastructure.
+
+The interaction model is simple: open Discord on any device, ask Beesly something, get a useful answer. No SSH, no dashboards, no digging through logs. "Beesly, are all my pods healthy?" "Beesly, what's filling up the tera pool?" "Beesly, what does my Monday look like?" She handles all of it.
+
+Beesly is not just an infra tool. The scope is a full personal assistant — calendar, reminders, general queries — with infrastructure awareness as one capability among many.
+
+---
+
+## Why OpenClaw
+
+Beesly was originally designed around a SIP/voice stack: 3CX PBX, FreeSWITCH, Whisper STT, ElevenLabs TTS, and a custom beesly-server bridging everything to Claude. That architecture was shelved for the following reasons:
+
+- **Build cost.** The voice-app container (Drachtio + FreeSWITCH + STT/TTS bridge) is non-trivial to build and maintain. Most of the engineering effort would go into telephony plumbing, not the assistant itself.
+- **3CX friction.** Enterprise PBX software in a homelab introduces real operational overhead — SIP configuration, licensing quirks, and complex failure modes.
+- **Limited reach.** A SIP extension is only useful on the local LAN (or with Tailscale SIP configured separately). Discord works from anywhere.
+
+OpenClaw solves the build problem. It ships with a full agent framework: memory, skill system, multi-channel routing, and LLM integration out of the box. The result is an assistant that is operational in an afternoon rather than several weekends, with lower ongoing maintenance.
+
+Voice interaction via VoiceClaw (Whisper STT + ElevenLabs TTS) is planned as a future phase and will layer on top of the existing OpenClaw deployment without replacing anything.
+
+---
+
+## Value
+
+| Without Beesly | With Beesly |
+|---|---|
+| SSH into varys → run kubectl commands → parse output | "Beesly, which pods are not running?" |
+| Open TrueNAS UI → navigate to storage → check pool status | "Beesly, how much space is left on tera?" |
+| Open Grafana → find the right dashboard → read metrics | "Beesly, what's the CPU usage on tywin?" |
+| Open Google Calendar on phone | "Beesly, what does my Thursday look like?" |
+| Manually check Gatus at status.kagiso.me | "Beesly, are all my services up?" |
+
+The compounding value is memory. OpenClaw remembers context across sessions. After telling Beesly once that the archive pool is only used for backups, she factors that into every future storage question. After noting that SABnzbd has been slow lately, she connects that context when you ask about download speeds three days later.
 
 ---
 
 ## Architecture
 
 ```
-Your phone
-    │  (SIP/VoIP — local network, no telephony costs)
-    ▼
-3CX PBX  (self-hosted on docker-vm)
-    │
-    ▼
-voice-app  (Docker — Drachtio + FreeSWITCH + STT/TTS)
-    │  Whisper STT ──► text
-    │  text ◄── ElevenLabs TTS
-    ▼
-beesly-server  (HTTP :3333)
-    │
-    ▼
-Claude API  (system prompt + MCP tools)
-    ├── Infrastructure
-    │   ├── kubectl       ──► k3s cluster (tywin/jaime/tyrion)
-    │   ├── docker        ──► docker-vm containers
-    │   ├── Proxmox API   ──► NUC VMs
-    │   ├── TrueNAS API   ──► pool/disk health
-    │   ├── Prometheus    ──► PromQL queries
-    │   ├── Pulse         ──► service uptime
-    │   └── Ansible       ──► run playbooks
-    └── Personal
-        ├── Google Calendar ──► schedule queries + event creation
-        ├── Reminders       ──► create/read/complete tasks
-        ├── Slack API       ──► DMs / channel posts
-        └── Web search      ──► general knowledge queries
-
-Proactive alerts:
-    Pulse/Alertmanager webhook ──► beesly-server ──► 3CX outbound call ──► your phone
+Discord (any device, anywhere)
+        │
+        ▼
+┌───────────────────────────────────────────┐
+│  OpenClaw  —  varys (10.0.10.10)          │
+│                                           │
+│  Gateway   ──  Discord bot                │
+│  Brain     ──  Claude API (Sonnet 4.6)    │
+│  Memory    ──  local Markdown             │
+│  Skills    ──  infra + personal tools     │
+│  Heartbeat ──  scheduled tasks            │
+└───────────────────────────────────────────┘
+        │
+        ├── kubectl ──────────► k3s cluster (tywin/jaime/tyrion)
+        ├── SSH ─────────────► docker host (10.0.10.20)
+        ├── TrueNAS API ─────► NAS (10.0.10.80)
+        ├── Prometheus API ──► kube-prometheus-stack
+        ├── Gatus API ───────► status.kagiso.me
+        └── Google Calendar API
 ```
 
----
-
-## Stack Decisions
-
-| Component | Choice | Reason |
-|-----------|--------|--------|
-| PBX | 3CX self-hosted | Free tier, SIP standard, no per-minute cost |
-| STT | OpenAI Whisper API | Best accuracy; negligible cost at homelab volume |
-| TTS | ElevenLabs | Natural voice; free tier covers homelab use |
-| LLM | Claude API | Full tool-use; Claude Max already paid |
-| Deployment | All-in-one on docker-vm | bran (RPi 3B+) incompatible with Claude Code |
-
----
-
-## Deployment Target
-
-All containers run on **docker-vm** (`10.0.10.32`) inside Proxmox on the NUC.
+**Future — VoiceClaw (Phase 2):**
 
 ```
-docker-vm  10.0.10.32
-├── 3CX container         (SIP PBX)
-├── voice-app container   (STT/TTS/SIP bridge)
-└── beesly-server         (HTTP :3333 — Claude API)
+Laptop / phone microphone
+        │  Whisper STT
+        ▼
+VoiceClaw (local Node.js process)
+        │  WebSocket
+        ▼
+OpenClaw on varys  ──  same skills, same memory
+        │  ElevenLabs TTS
+        ▼
+Speaker output
 ```
 
-> After the NUC RAM upgrade (~2026-03-23), bump docker-vm to 8 GB to give Beesly headroom alongside the media stack.
+VoiceClaw runs on the client device (laptop, phone), not on varys. Varys remains headless. The voice layer is additive — it uses the same OpenClaw instance with no changes to the server deployment.
 
 ---
 
-## Prerequisites
+## Infrastructure Skills
 
-- [ ] docker-vm running and accessible at `10.0.10.32`
-- [ ] Claude API key configured
-- [ ] OpenAI API key (Whisper STT)
-- [ ] ElevenLabs API key (TTS)
-- [ ] Softphone registered to 3CX (Linphone or Zoiper on mobile)
-- [ ] `kubectl` configured on docker-vm pointing at k3s cluster
-- [ ] Ansible accessible from docker-vm (via SSH to bran or installed locally)
-- [ ] Google Calendar API credentials (for personal assistant features)
+These are the tools Beesly can invoke. Each is a shell script or API call registered as an OpenClaw skill.
 
----
-
-## Step 1 — Install 3CX
-
-### Option A: Docker on docker-vm (start here)
+### k3s cluster status
 
 ```bash
-# 3CX provides a Debian install script — run inside docker-vm
-bash <(curl -s https://downloads.3cx.com/downloads/3cxpbx/install-debian-12.sh)
+#!/bin/bash
+# skills/k3s-status.sh
+kubectl get nodes
+kubectl get pods -A --field-selector=status.phase!=Running
 ```
 
-Access web console at `http://10.0.10.32:5001` after install.
+### TrueNAS pool health
 
-### Option B: Dedicated Proxmox VM
+```bash
+#!/bin/bash
+# skills/nas-health.sh
+# Queries ZFS pool status across all three pools: core, archive, tera
+ssh root@10.0.10.80 "zpool status -x && zpool list"
+```
 
-Create a Debian 12 VM (1 vCPU, 2 GB RAM) on the NUC solely for 3CX. Useful if 3CX resource usage affects the media stack — revisit after observing actual load.
+### Docker host containers
 
-### 3CX initial setup
+```bash
+#!/bin/bash
+# skills/docker-status.sh
+ssh kagiso@10.0.10.20 "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+```
 
-1. Complete setup wizard — choose self-hosted
-2. Create extension `9000` for Beesly
-3. Note SIP credentials for voice-app config
+### Gatus uptime check
+
+```bash
+#!/bin/bash
+# skills/gatus-check.sh
+curl -s "https://status.kagiso.me/api/v1/endpoints/statuses" \
+  | jq '.[] | select(.results[-1].success==false) | .name'
+```
+
+### Prometheus query
+
+```bash
+#!/bin/bash
+# skills/prometheus-query.sh — usage: ./prometheus-query.sh '<promql>'
+QUERY="$1"
+curl -s "http://10.0.10.11:9090/api/v1/query" \
+  --data-urlencode "query=${QUERY}" \
+  | jq '.data.result'
+```
+
+### Ansible playbook runner
+
+```bash
+#!/bin/bash
+# skills/ansible-run.sh — usage: ./ansible-run.sh <playbook>
+cd ~/ansible
+ansible-playbook "$1" --diff
+```
+
+All skill scripts live at `~/.openclaw/skills/` on varys and must be executable (`chmod +x`).
 
 ---
 
-## Step 2 — Deploy voice-app + beesly-server
+## Personal Assistant Skills
+
+OpenClaw's community skill library covers most of these. Install via the OpenClaw skill registry:
+
+- **Google Calendar** — read schedule, create/update events
+- **Reminders** — create, list, complete tasks
+- **Web search** — general knowledge queries via configured search provider
+
+---
+
+## Security
+
+Running an AI assistant with direct access to infrastructure introduces real attack surface. The following controls are in place.
+
+### Threat model
+
+| Threat | Likelihood | Impact |
+|--------|-----------|--------|
+| Prompt injection via Discord message | Medium | High — could trigger skill execution |
+| Leaked API keys from `.env` | Low | High — full LLM + Discord access |
+| Unauthorised Discord user sending commands | Low | High — full infra access |
+| OpenClaw supply chain compromise | Low | High |
+| Beesly used to exfiltrate data | Low | Medium |
+
+### Mitigations
+
+**Discord access control**
+
+OpenClaw supports an allowlist of Discord user IDs. Only your user ID is permitted to send commands. Any message from an unlisted user is silently ignored — Beesly does not respond, does not acknowledge, and does not execute skills.
+
+Configure in `~/.openclaw/config/openclaw.json`:
+
+```json
+{
+  "channels": {
+    "discord": {
+      "allowed_users": ["YOUR_DISCORD_USER_ID"]
+    }
+  }
+}
+```
+
+**Prompt injection hardening**
+
+- Use `"api": "anthropic-messages"` to enable native Anthropic tool-calling. Claude's tool-use format is more resistant to injection than text-parsing approaches.
+- The system prompt explicitly instructs Beesly never to execute destructive actions (node deletion, data wipe, volume removal) without a confirmation phrase.
+- Skills that make write/mutate operations (Ansible playbooks, kubectl apply) are separated from read-only skills. Mutating skills require explicit confirmation in the conversation before executing.
+
+**API key isolation**
+
+- All secrets live in `~/.openclaw/.env` with `chmod 600` — readable only by the running user.
+- The `.env` file is never committed to version control. `.gitignore` covers it.
+- Anthropic API key is scoped to Claude API only — no admin console access.
+- Discord bot token is scoped to the single Beesly server only.
+
+**Skill execution scope**
+
+- Read-only skills (kubectl get, zpool status, docker ps, Prometheus query) are unrestricted.
+- Write skills (kubectl apply, ansible-playbook, docker restart) require the user to include a confirmation phrase in the same message: `"confirm: yes"`.
+- No skill has permission to delete Kubernetes resources, drop ZFS pools, or modify TrueNAS configuration.
+
+**Network**
+
+- OpenClaw binds only to localhost and the Docker bridge — not exposed on `0.0.0.0`.
+- The web UI (`beesly.kagiso.me`) is proxied via NPM and sits behind the `*.kagiso.me` wildcard cert. It is LAN-only — no public exposure. Cloudflare DNS record points to `10.0.10.10`, DNS-only (no proxy).
+- Discord communication travels outbound only — OpenClaw connects to Discord's gateway via WebSocket. No inbound ports are opened for Discord.
+
+**Updates**
+
+- Pin OpenClaw to a specific image tag in `docker-compose.yml`. Do not run `latest` in production.
+- Review the OpenClaw changelog before pulling a new version — the project is young and breaking changes are possible.
+- Keep `docker compose pull` behind a manual review step, not an automated cron.
+
+---
+
+## Deployment on varys
+
+### Prerequisites
+
+- varys (`10.0.10.10`) running Ubuntu Server with Docker and Docker Compose v2 installed
+- `kubectl` configured on varys pointing at `10.0.10.11:6443`
+- SSH keys in place for `root@10.0.10.80` (TrueNAS) and `kagiso@10.0.10.20` (Docker host)
+- Anthropic API key (Claude Max — already paid)
+- Discord bot token (see Step 1)
+- NPM running on `10.0.10.20` for reverse proxy
+
+---
+
+### Step 1 — Create the Discord Bot
+
+1. Go to [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application** → name it `Beesly`.
+2. Navigate to **Bot** → **Add Bot**.
+3. Under **Privileged Gateway Intents**, enable:
+   - Message Content Intent
+   - Server Members Intent
+4. Click **Reset Token** → copy the token. This is `DISCORD_BOT_TOKEN`.
+5. Navigate to **OAuth2 → URL Generator**:
+   - Scopes: `bot`, `applications.commands`
+   - Bot permissions: `Send Messages`, `Read Message History`, `Use Slash Commands`
+6. Open the generated URL to invite Beesly to your Discord server.
+7. In Discord, go to **Settings → Advanced → Developer Mode** → right-click your username → **Copy User ID**. This is your `DISCORD_USER_ID` for the allowlist.
+
+---
+
+### Step 2 — Deploy OpenClaw on varys
 
 ```bash
-ssh kagiso@10.0.10.32
+ssh kagiso@10.0.10.10
+```
 
-# Clone and configure
-git clone https://github.com/Kagiso-me/beesly ~/.beesly
-cd ~/.beesly
+**Clone OpenClaw:**
 
-cp .env.example .env
-# Fill in: 3CX SIP address, extension/password, Anthropic key, OpenAI key, ElevenLabs key
+```bash
+git clone https://github.com/openclaw/openclaw ~/.openclaw
+cd ~/.openclaw
+```
 
-# Start the stack
+**Create the `.env` file:**
+
+```bash
+cat > ~/.openclaw/.env <<'EOF'
+ANTHROPIC_API_KEY=sk-ant-...
+DISCORD_BOT_TOKEN=...
+EOF
+chmod 600 ~/.openclaw/.env
+```
+
+**Run the setup script:**
+
+```bash
+./scripts/docker/setup.sh
+```
+
+The setup script prompts for API keys (already set in `.env`) and generates a gateway token. Accept defaults unless prompted otherwise.
+
+**Start OpenClaw:**
+
+```bash
 docker compose up -d
 docker compose ps
 ```
 
----
-
-## Step 3 — Beesly's System Prompt
-
-Edit `config/system-prompt.txt`:
-
-```
-You are Beesly, an intelligent personal assistant.
-
-Infrastructure access — you can query and manage:
-- k3s Kubernetes cluster (nodes: tywin 10.0.10.11, jaime .12, tyrion .13)
-- Docker containers on the NUC bare metal host (10.0.10.20)
-- TrueNAS NAS (10.0.10.80) — pools: core (SSD mirror), archive (HDD mirror), tera (media)
-- Prometheus metrics via kube-prometheus-stack
-- Pulse uptime monitoring at status.kagiso.me
-- Ansible playbooks (control node: bran 10.0.10.10)
-
-Personal access — you can:
-- Read and create Google Calendar events
-- Create and complete reminders
-- Send Slack messages
-
-Keep responses concise — this is a voice interface. Avoid bullet points; speak in sentences.
-When asked about your schedule or personal tasks, be specific with dates and times.
-```
-
----
-
-## Step 4 — Homelab Tool Scripts
-
-Shell scripts in `tools/` that Beesly can invoke:
+All services should show `Up`. If anything is unhealthy:
 
 ```bash
-# tools/k3s-status.sh
-kubectl get nodes && kubectl get pods -A --field-selector=status.phase!=Running
-
-# tools/nas-health.sh
-ssh root@10.0.10.80 "zpool status -x"
-
-# tools/docker-status.sh
-docker ps --format "table {{.Names}}\t{{.Status}}"
-
-# tools/pulse-check.sh
-curl -s http://status.kagiso.me/api/v1/endpoints/statuses \
-  | jq '.[] | select(.results[-1].success==false) | .name'
+docker compose logs -f
 ```
 
 ---
 
-## Step 5 — Proactive Outbound Calls
+### Step 3 — Configure Claude as the LLM
 
-Configure Pulse and Alertmanager to POST to the beesly-server webhook:
+Edit `~/.openclaw/config/openclaw.json` (create from template if it doesn't exist):
 
-```yaml
-# In Pulse config
-alerting:
-  custom:
-    url: http://10.0.10.32:3333/webhook/alert
-    method: POST
-    body: |
-      {"service":"[ENDPOINT_NAME]","condition":"[CONDITION_RESULTS]","success":"[ALERT_TRIGGERED]"}
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "api": "anthropic-messages"
+}
 ```
 
-```yaml
-# Alertmanager receiver
-receivers:
-  - name: beesly
-    webhook_configs:
-      - url: http://10.0.10.32:3333/webhook/alert
+`"api": "anthropic-messages"` enables native Anthropic tool-calling format — required for skills to work correctly and for prompt injection resilience.
+
+---
+
+### Step 4 — Configure Discord allowlist
+
+In `~/.openclaw/config/openclaw.json`, add your Discord user ID:
+
+```json
+{
+  "model": "claude-sonnet-4-6",
+  "api": "anthropic-messages",
+  "channels": {
+    "discord": {
+      "allowed_users": ["YOUR_DISCORD_USER_ID"]
+    }
+  }
+}
 ```
 
-Beesly receives the webhook, assesses severity, and either:
-- **Calls your extension** for critical alerts (pod crashloop, node NotReady, disk >90%)
-- **Sends a Slack message** for informational alerts (backup complete, disk >80% warning)
+---
 
-> Outbound call initiation uses FreeSWITCH ESL (Event Socket Layer). Beesly-server opens a TCP connection to FreeSWITCH's ESL port (`:8021`) and issues a `bgapi originate` command.
+### Step 5 — Set Beesly's system prompt
+
+Create `~/.openclaw/config/system-prompt.txt`:
+
+```
+You are Beesly, a personal AI assistant.
+
+Infrastructure you can query:
+- k3s Kubernetes cluster: tywin (10.0.10.11, control plane), jaime (10.0.10.12), tyrion (10.0.10.13)
+- Docker host: docked (10.0.10.20) — runs Plex, Sonarr, Radarr, Lidarr, SABnzbd, Overseerr, Navidrome
+- TrueNAS NAS: 10.0.10.80 — pools: core (SSD mirror, k8s PVCs), archive (HDD mirror, backups), tera (8TB single, media)
+- Prometheus + Grafana: kube-prometheus-stack on k3s
+- Gatus uptime: status.kagiso.me
+- Ansible control node: varys (10.0.10.10)
+
+You are also a personal assistant — calendar, reminders, and general queries are in scope.
+
+Rules:
+- Never execute destructive actions (delete resources, drop pools, wipe data) without the user including "confirm: yes" in their message.
+- Keep responses concise. You are in Discord — markdown is fine, long prose is not.
+- When infrastructure queries return no issues, say so clearly and briefly.
+```
+
+---
+
+### Step 6 — Install infra skills
+
+```bash
+mkdir -p ~/.openclaw/skills
+```
+
+Create each skill script from the [Infrastructure Skills](#infrastructure-skills) section above. Then:
+
+```bash
+chmod +x ~/.openclaw/skills/*.sh
+```
+
+Verify SSH access works from varys before relying on any skill that SSH's to another host:
+
+```bash
+ssh root@10.0.10.80 "zpool status -x"
+ssh kagiso@10.0.10.20 "docker ps"
+```
+
+---
+
+### Step 7 — Reverse proxy via NPM
+
+Expose the OpenClaw web UI at `beesly.kagiso.me`:
+
+1. Open NPM on `10.0.10.20` → **Proxy Hosts** → **Add Proxy Host**
+2. Domain: `beesly.kagiso.me`
+3. Forward hostname: `10.0.10.10`
+4. Forward port: `3000` (confirm the actual port from `docker compose ps`)
+5. SSL: select the `*.kagiso.me` wildcard cert, enable **Force SSL**
+6. In Cloudflare: add DNS A record `beesly` → `10.0.10.20` — DNS-only (grey cloud, no proxy)
+
+---
+
+### Step 8 — Add OpenClaw to varys backup
+
+The `~/.openclaw/` directory contains Beesly's memory, config, and skills. Add it to the varys backup script so it's included in the daily encrypted backup to TrueNAS archive.
+
+Edit `/usr/local/bin/varys-backup.sh` — add `.openclaw/config` and `.openclaw/skills` to the `tar` command:
+
+```bash
+tar --create \
+    --gzip \
+    --file=- \
+    --ignore-failed-read \
+    -C "${HOME}" \
+      .kube/config \
+      .config/sops/age/keys.txt \
+      .ssh/id_ed25519 \
+      .ssh/id_ed25519.pub \
+      .ssh/config \
+      .ssh/known_hosts \
+      .openclaw/config \
+      .openclaw/skills \
+    2>>"${LOG_FILE}" \
+```
+
+> OpenClaw's memory store (conversation history) does not need to be backed up — it is useful but not critical. Config and skills are the things that take time to rebuild.
 
 ---
 
 ## Validation
 
+**Confirm OpenClaw is running:**
+
 ```bash
-# Stack health
-docker compose ps
-
-# Test inbound call — dial 9000 from softphone
-# "Beesly, what's the status of my k3s cluster?"
-# "Beesly, how much space is left on the tera pool?"
-# "Beesly, what does my Monday look like next week?"
-# "Beesly, remind me to cancel my gym membership on Friday"
-
-# Test proactive webhook
-curl -X POST http://10.0.10.32:3333/webhook/alert \
-  -H 'Content-Type: application/json' \
-  -d '{"service":"test-svc","condition":"[STATUS] == 503","success":"false"}'
+ssh kagiso@10.0.10.10
+docker compose -f ~/.openclaw/docker-compose.yml ps
 ```
+
+**Test via Discord — send these messages to Beesly:**
+
+```
+@Beesly are all my k3s pods healthy?
+@Beesly how much space is left on the tera pool?
+@Beesly what containers are running on the docker host?
+@Beesly are all services showing up in Gatus?
+@Beesly what does my calendar look like tomorrow?
+```
+
+**Test the allowlist — from a different Discord account:**
+Beesly should not respond at all.
+
+**Test the confirmation guard:**
+```
+@Beesly run the full-update ansible playbook
+```
+Beesly should ask for confirmation and refuse to proceed without `confirm: yes`.
 
 ---
 
-## Cost
+## Updating OpenClaw
 
-| Item | Cost |
-|------|------|
-| 3CX self-hosted | Free |
-| OpenAI Whisper | ~$0.006/min → <$1/month at homelab volume |
-| ElevenLabs | Free tier (10k chars/month) covers homelab use |
-| Claude Max | Already paid |
-| Telephony | $0 (local SIP, no PSTN) |
-| **New monthly cost** | **< $1** |
+```bash
+ssh kagiso@10.0.10.10
+cd ~/.openclaw
+git pull                      # review changelog before proceeding
+docker compose pull
+docker compose up -d
+docker compose ps
+```
+
+Always review the changelog between versions. OpenClaw is a young project — breaking config changes are possible.
 
 ---
 
 ## Roadmap
 
-### v1 — Infrastructure assistant
-- [ ] Bump docker-vm to 8 GB after NUC RAM upgrade (2026-03-23)
-- [ ] Inbound call: query k3s, Docker, TrueNAS, Proxmox, Pulse
-- [ ] Proactive outbound calls for critical alerts
-- [ ] Slack notification fallback for non-critical alerts
+### v1 — Discord assistant (current)
+- [ ] OpenClaw deployed on varys
+- [ ] Discord bot connected with user allowlist
+- [ ] Claude Sonnet 4.6 configured with native tool-calling
+- [ ] Infra skills: kubectl, TrueNAS, Docker host, Prometheus, Gatus
+- [ ] Personal skills: Google Calendar, reminders, web search
+- [ ] System prompt and confirmation guard in place
+- [ ] Beesly added to varys backup
 
-### v2 — Personal assistant
-- [ ] Google Calendar — read schedule, create events
-- [ ] Reminders — create, list, complete
-- [ ] Tailscale-accessible SIP — call Beesly from outside the home network
+### v2 — Voice (VoiceClaw)
+- [ ] VoiceClaw installed on laptop
+- [ ] Whisper STT + ElevenLabs TTS configured
+- [ ] Wake word activation
+- [ ] Same OpenClaw instance on varys — no server changes needed
 
-### v3 — Extended
-- [ ] Local TTS fallback (Piper) for internet outage resilience
-- [ ] Multiple extensions: Beesly `9000` + read-only guest `9001`
-- [ ] Call recording to `/mnt/archive/backups/voice-logs/`
-- [ ] Web search for general knowledge queries
+---
+
+## Related
+
+- [varys control hub](../../varys/README.md)
+- [varys backup script](../../varys/scripts/backup_varys.sh)
+- [Guide 09 — Monitoring & Observability](../../docs/guides/09-Monitoring-Observability.md)
+- [Guide 10 — Backups & Disaster Recovery](../../docs/guides/10-Backups-Disaster-Recovery.md)
+
+> The full Beesly deployment will live in its own dedicated repository. This README is the canonical reference from the homelab-infrastructure repo.
