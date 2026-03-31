@@ -136,7 +136,7 @@ Before copying SSH keys, all nodes must have stable IPs that match the inventory
 | Node | IP |
 |---|---|
 | varys (Intel NUC i3-5010U) | `10.0.10.10` |
-| tywin (k3s control-plane) | `10.0.10.11` |
+| tywin (k3s server) | `10.0.10.11` |
 | jaime (k3s server) | `10.0.10.13` |
 | tyrion (k3s server) | `10.0.10.12` |
 | docker host (NUC) | `10.0.10.20` |
