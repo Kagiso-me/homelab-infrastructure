@@ -58,7 +58,7 @@ Internet
 |  Storage Subnet                            |
 |                                            |
 |  10.0.10.80   TrueNAS SCALE                |
-|              NFS export: /mnt/core/k8s-volumes
+|              NFS export: /mnt/core/k8s_volumes
 +--------------------------------------------+
 ```
 

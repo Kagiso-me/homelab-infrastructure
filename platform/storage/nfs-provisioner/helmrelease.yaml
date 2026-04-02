@@ -25,7 +25,7 @@ spec:
   values:
     nfs:
       server: 10.0.10.80
-      path: /mnt/core/k8s-volumes
+      path: /mnt/core/k8s_volumes
 
     storageClass:
       name: nfs-truenas

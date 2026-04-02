@@ -24,7 +24,7 @@ correct pool by name.
 
 ```
 core/
-└── k8s-volumes/           # Kubernetes PVCs via NFS subdir provisioner
+└── k8s_volumes/           # Kubernetes PVCs via NFS subdir provisioner
     └── (subdirectories created automatically by NFS provisioner)
         # Naming pattern: <namespace>-<pvcname>-<pvname>/
         # e.g. monitoring-grafana-pvc-<uid>/
@@ -32,7 +32,7 @@ core/
         #      media-jellyfin-config-pvc-<uid>/
 ```
 
-NFS export path: `/mnt/core/k8s-volumes`
+NFS export path: `/mnt/core/k8s_volumes`
 NFS server: `10.0.10.80`
 
 ### `archive` — Backups
@@ -71,7 +71,7 @@ NFS server: `10.0.10.80`
 
 | Dataset | Compression | Sync | Record Size | Rationale |
 |---------|------------|------|-------------|-----------|
-| `core/k8s-volumes` | lz4 | Standard | 128K | NFS PVCs — general workloads |
+| `core/k8s_volumes` | lz4 | Standard | 128K | NFS PVCs — general workloads |
 | `archive/backups` | lz4 | Standard | 128K | Backup parent |
 | `archive/backups/k8s` | lz4 | Standard | 128K | k8s backup staging |
 | `archive/backups/k8s/minio` | off | Disabled | 1M | MinIO manages its own consistency |
@@ -89,7 +89,7 @@ Configured in TrueNAS UI under **Data Protection → Periodic Snapshot Tasks**:
 
 | Dataset | Schedule | Retention | Purpose |
 |---------|---------|-----------|---------|
-| `core/k8s-volumes` | Daily 01:00 | 7 days | Point-in-time recovery for PVC data |
+| `core/k8s_volumes` | Daily 01:00 | 7 days | Point-in-time recovery for PVC data |
 | `archive` (recursive) | Daily 01:30 | 30 days | Snapshot all backup data |
 
 `tera` is **not** included in the snapshot schedule — media is not backed up.
@@ -115,7 +115,7 @@ errors cannot be auto-repaired — they indicate imminent drive failure requirin
 
 TrueNAS Cloud Sync task runs nightly and syncs to Backblaze B2:
 
-- **Included:** `core/k8s-volumes`, `archive` (all subdatasets)
+- **Included:** `core/k8s_volumes`, `archive` (all subdatasets)
 - **Excluded:** `tera` — too large and not critical
 - **Credentials:** stored in TrueNAS keychain (see [`backblaze-sync.md`](backblaze-sync.md))
 
@@ -127,7 +127,7 @@ Run once via TrueNAS UI or SSH after pool creation:
 
 ```bash
 # core — k8s PVCs (SSD mirror)
-zfs create -o compression=lz4 core/k8s-volumes
+zfs create -o compression=lz4 core/k8s_volumes
 
 # archive — backups (HDD mirror)
 zfs create -o compression=lz4 archive/backups

@@ -9,7 +9,7 @@ and backup targets for the control plane and Docker host.
 
 | Share path | Purpose | Clients |
 |-----------|---------|---------|
-| `/mnt/core/k8s-volumes` | Kubernetes persistent volume claims | `10.0.10.0/24` |
+| `/mnt/core/k8s_volumes` | Kubernetes persistent volume claims | `10.0.10.0/24` |
 | `/mnt/archive/backups` | etcd snapshots + Docker appdata backups | `10.0.10.11`, `10.0.10.20` |
 | `/mnt/tera/media` | Media library | `10.0.10.20` |
 
@@ -19,11 +19,11 @@ and backup targets for the control plane and Docker host.
 
 Navigate to: **Shares → Unix (NFS) Shares → Add**
 
-### Share: k8s-volumes
+### Share: k8s_volumes
 
 | Setting | Value |
 |---------|-------|
-| Path | `/mnt/core/k8s-volumes` |
+| Path | `/mnt/core/k8s_volumes` |
 | Description | Kubernetes persistent volumes |
 | Maproot User | `root` |
 | Maproot Group | `wheel` |
@@ -81,14 +81,14 @@ Expected output:
 ```
 Export list for 10.0.10.80:
 /mnt/archive/backups   10.0.10.11 10.0.10.20
-/mnt/core/k8s-volumes  10.0.10.0/24
+/mnt/core/k8s_volumes  10.0.10.0/24
 /mnt/tera/media        10.0.10.20
 ```
 
 Test mounting manually:
 
 ```bash
-sudo mount -t nfs 10.0.10.80:/mnt/core/k8s-volumes /tmp/test-nfs
+sudo mount -t nfs 10.0.10.80:/mnt/core/k8s_volumes /tmp/test-nfs
 ls /tmp/test-nfs
 sudo umount /tmp/test-nfs
 ```
@@ -120,7 +120,7 @@ See [Guide 10 — Backups & Disaster Recovery](../../docs/guides/10-Backups-Disa
 
 **Permission denied on mounted volume**
 - Check Maproot User is set to `root` — k3s runs the NFS provisioner as root
-- Verify the dataset permissions: `ls -la /mnt/core/k8s-volumes` in TrueNAS shell
+- Verify the dataset permissions: `ls -la /mnt/core/k8s_volumes` in TrueNAS shell
 
 **Stale NFS handle**
 - The PVC backing directory was deleted on TrueNAS while still mounted in the cluster

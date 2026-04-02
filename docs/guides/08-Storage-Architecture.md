@@ -157,7 +157,7 @@ The NFS provisioner points at:
 ```yaml
 nfs:
   server: 10.0.10.80
-  path: /mnt/core/k8s-volumes
+  path: /mnt/core/k8s_volumes
 ```
 
 Key storage class settings:

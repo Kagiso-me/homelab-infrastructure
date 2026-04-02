@@ -13,7 +13,7 @@
 
 ## What This Alert Means
 
-ZFS snapshots are point-in-time, read-only copies of a dataset. TrueNAS creates automatic periodic snapshots for `core/k8s-volumes` and `archive` datasets. Snapshots allow recovery without needing a full backup restore.
+ZFS snapshots are point-in-time, read-only copies of a dataset. TrueNAS creates automatic periodic snapshots for `core/k8s_volumes` and `archive` datasets. Snapshots allow recovery without needing a full backup restore.
 
 Three recovery paths are covered here:
 
@@ -33,7 +33,7 @@ Three recovery paths are covered here:
 | ZFS pools | `core` (k8s PVCs), `archive` (backups + personal), `tera` (media — no snapshots) |
 | SSH access | `ssh kagiso@10.0.10.80` (or via RPi: `ssh kagiso@10.0.10.10`, then `ssh kagiso@10.0.10.80`) |
 | Snapshot naming convention | `<pool>/<dataset>@auto-YYYY-MM-DD_HH-MM` |
-| NFS exports | `/mnt/core/k8s-volumes`, `/mnt/archive/backups/k8s`, `/mnt/tera` |
+| NFS exports | `/mnt/core/k8s_volumes`, `/mnt/archive/backups/k8s`, `/mnt/tera` |
 
 ---
 
@@ -57,23 +57,23 @@ List all snapshots for the relevant dataset:
 zfs list -t snapshot -o name,creation,used -s creation |
 ```
 
-To filter to a specific dataset (e.g., `core/k8s-volumes` or `archive/backups/k8s`):
+To filter to a specific dataset (e.g., `core/k8s_volumes` or `archive/backups/k8s`):
 
 ```bash
-zfs list -t snapshot -o name,creation,used -s creation core/k8s-volumes
+zfs list -t snapshot -o name,creation,used -s creation core/k8s_volumes
 ```
 
 Expected output:
 
 ```
 NAME                                      CREATION              USED
-core/k8s-volumes@auto-2026-03-15_02-00        Sat Mar 15  2:00 2026  0B
-core/k8s-volumes@auto-2026-03-14_14-00        Fri Mar 14 14:00 2026  84K
-core/k8s-volumes@auto-2026-03-14_02-00        Fri Mar 14  2:00 2026  1.2M
-core/k8s-volumes@auto-2026-03-13_14-00        Thu Mar 13 14:00 2026  3.6M
+core/k8s_volumes@auto-2026-03-15_02-00        Sat Mar 15  2:00 2026  0B
+core/k8s_volumes@auto-2026-03-14_14-00        Fri Mar 14 14:00 2026  84K
+core/k8s_volumes@auto-2026-03-14_02-00        Fri Mar 14  2:00 2026  1.2M
+core/k8s_volumes@auto-2026-03-13_14-00        Thu Mar 13 14:00 2026  3.6M
 ```
 
-Note the snapshot name you want to restore from, e.g., `core/k8s-volumes@auto-2026-03-14_14-00`.
+Note the snapshot name you want to restore from, e.g., `core/k8s_volumes@auto-2026-03-14_14-00`.
 
 ---
 
@@ -139,7 +139,7 @@ nfsstat -c 2>/dev/null || showmount -a 10.0.10.80
 # Syntax: zfs rollback [-r] <snapshot>
 # -r destroys any snapshots taken AFTER the target snapshot
 
-zfs rollback -r core/k8s-volumes@auto-2026-03-14_14-00
+zfs rollback -r core/k8s_volumes@auto-2026-03-14_14-00
 ```
 
 Expected output: the command returns silently on success.
@@ -147,7 +147,7 @@ Expected output: the command returns silently on success.
 Verify the rollback:
 
 ```bash
-zfs list -t snapshot core/k8s-volumes | head -5
+zfs list -t snapshot core/k8s_volumes | head -5
 # The snapshots newer than the rollback target should be gone
 ```
 
@@ -168,7 +168,7 @@ Use this to access an old snapshot as a fully writable dataset without modifying
 ### Step C1 — Create a clone from the snapshot
 
 ```bash
-zfs clone core/k8s-volumes@auto-2026-03-14_14-00 core/k8s-volumes-restore-temp
+zfs clone core/k8s_volumes@auto-2026-03-14_14-00 core/k8s_volumes-restore-temp
 ```
 
 ### Step C2 — Browse or copy from the clone
@@ -182,7 +182,7 @@ cp /mnt/archive/appdata-restore-temp/sonarr/sonarr.db /mnt/archive/appdata/sonar
 ### Step C3 — Destroy the clone when done
 
 ```bash
-zfs destroy core/k8s-volumes-restore-temp
+zfs destroy core/k8s_volumes-restore-temp
 ```
 
 ---

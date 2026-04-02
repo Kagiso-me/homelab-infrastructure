@@ -341,6 +341,34 @@ means "k3s server" rather than "dedicated non-workload node".
 
 ---
 
+# Adding the KUBECONFIG Secret to GitHub
+
+The CI pipeline runs `kubectl dry-run` and cluster health checks against the production cluster.
+It authenticates using a kubeconfig stored as a GitHub repository secret. Now that the cluster
+is running and the kubeconfig is on varys, add it to GitHub.
+
+> **Why not SOPS here?** SOPS-encrypted secrets are decrypted by Flux inside the cluster.
+> GitHub Actions runs outside the cluster and cannot use Flux's decryption mechanism. Repository
+> secrets in GitHub are the correct storage mechanism for CI credentials.
+
+Copy the kubeconfig content:
+
+```bash
+cat ~/.kube/prod-config
+```
+
+Copy the entire output, then add it to GitHub:
+
+1. Navigate to your repository → **Settings → Secrets and variables → Actions**
+2. Click **New repository secret**
+3. Name: `KUBECONFIG`
+4. Value: paste the raw kubeconfig content (not base64-encoded)
+5. Click **Add secret**
+
+> The CI workflow writes this secret directly to disk at runtime with `echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config`.
+
+---
+
 # Confirming Traefik and ServiceLB Are Disabled
 
 The Ansible role passes `--disable traefik --disable servicelb` to the k3s installer. Confirm
@@ -484,6 +512,10 @@ ansible k3s_primary,k3s_servers \
 grep KUBECONFIG ~/.bashrc
 # Expected: export KUBECONFIG=~/.kube/prod-config
 ```
+
+**KUBECONFIG secret added to GitHub:**
+
+Navigate to **Settings → Secrets and variables → Actions** — `KUBECONFIG` must appear in the list.
 
 ---
 

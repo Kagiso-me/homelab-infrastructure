@@ -83,7 +83,7 @@ The consequences of single-CP failure are accepted and mitigated by the followin
 
 | Mitigation | Detail |
 |---|---|
-| **etcd snapshots every 6 hours** | k3s embedded etcd is configured to snapshot every 6 hours. Snapshots are retained for 5 generations. Snapshots are stored on the NFS mount (`10.0.10.80:/mnt/core/k8s-volumes`) so they survive node failure. |
+| **etcd snapshots every 6 hours** | k3s embedded etcd is configured to snapshot every 6 hours. Snapshots are retained for 5 generations. Snapshots are stored on the NFS mount (`10.0.10.80:/mnt/core/k8s_volumes`) so they survive node failure. |
 | **Nightly Velero backups to MinIO** | Velero runs a nightly backup of all cluster resources and PVC data to MinIO on TrueNAS. This captures application state beyond what etcd holds. |
 | **Nightly offsite copy to Backblaze B2** | MinIO bucket contents (including Velero backups) are synced to Backblaze B2 nightly. This protects against NAS failure or site-level loss. |
 | **Documented recovery runbook** | A step-by-step control-plane recovery procedure is maintained at [`docs/operations/runbooks/cluster-rebuild.md`](../../operations/runbooks/cluster-rebuild.md). The runbook is tested at least once per quarter or after any major platform change. |

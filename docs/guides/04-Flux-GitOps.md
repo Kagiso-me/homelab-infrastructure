@@ -756,7 +756,7 @@ corresponding Kustomization will fail and may require manual recovery.
 
 | Prerequisite | How to verify |
 |---|---|
-| TrueNAS `core/k8s-volumes` NFS share exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s-volumes` |
+| TrueNAS `core/k8s_volumes` NFS share exported | `showmount -e 10.0.10.80` — must list `/mnt/core/k8s_volumes` |
 | `nfs-common` installed on all k3s nodes | `ansible k3s_primary,k3s_servers -m shell -a "dpkg -l nfs-common" --become` |
 | `sops-age` secret created in `flux-system` namespace (Guide 03) | `kubectl get secret sops-age -n flux-system` |
 | Cloudflare API token secret created in `cert-manager` namespace | `kubectl get secret cloudflare-api-token -n cert-manager` |

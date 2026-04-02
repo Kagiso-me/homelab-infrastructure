@@ -71,6 +71,11 @@ graph TD
 
 # Step 1 — Install Tools on the Automation Host (varys)
 
+> **If you followed Guide 00.5:** `kubectl`, `flux`, `kubeconform`, `kustomize`, `pluto`, and `gh`
+> were already installed there for the self-hosted runner. This step adds `ansible`, `git`, and
+> `nfs-common` — the remaining tools needed for day-to-day cluster management. Skip anything
+> already present.
+
 Install all tools required across the entire guide series. These only need to be installed once.
 The self-hosted runner tool installations (kubeconform, pluto, etc.) are covered in Guide 00.5.
 This step covers the tools needed for day-to-day cluster management from varys.
@@ -104,6 +109,9 @@ git --version
 
 # Step 2 — Generate SSH Keys
 
+> **If your nodes were already reachable before starting this guide series:** you likely generated
+> an SSH key during initial OS setup. Run `ls ~/.ssh/id_ed25519` — if the file exists, skip to Step 3.
+
 Ansible relies on passwordless SSH access. Generate an SSH key on the automation host.
 
 ```bash
@@ -128,6 +136,9 @@ The **public key** will be copied to all nodes in the next steps.
 ---
 
 # Step 3 — Assign Static IPs to Nodes
+
+> **If your nodes were already reachable at the IPs in the table below:** static IPs are already
+> assigned. Verify the addresses match and move on to Step 4.
 
 Before copying SSH keys, all nodes must have stable IPs that match the inventory.
 
@@ -180,6 +191,9 @@ sudo netplan apply
 
 # Step 4 — Copy SSH Keys to Nodes
 
+> **If you could already SSH into nodes without a password before starting this guide series:**
+> this step is done. Verify with `ssh kagiso@10.0.10.11` — if it connects without a prompt, move on.
+
 The automation host must be able to connect to every node without passwords.
 
 ```bash
@@ -202,6 +216,9 @@ copied correctly — check that the remote user exists and that `~/.ssh/authoriz
 ---
 
 # Step 5 — Clone the Repository
+
+> **If you followed Guide 00.5:** the repo was already cloned to run the self-hosted runner setup.
+> Verify with `ls ~/homelab-infrastructure` — if it exists, skip this step.
 
 The Ansible inventory already lives in this repo at `ansible/inventory/homelab.yml`. Rather than creating one manually, clone the repo on the machine you will run Ansible from:
 
@@ -278,9 +295,10 @@ chmod 600 ~/.vault_pass
 
 Before running any automation, confirm Ansible can reach all nodes.
 
-Run from the repo root:
+Run from the repo root — Ansible reads `ansible.cfg` from the current directory to locate the inventory:
 
 ```bash
+cd ~/homelab-infrastructure
 ansible all -m ping
 ```
 
@@ -389,6 +407,12 @@ graph LR
 Run each playbook in order. The `-l k3s_primary,k3s_servers` limit targets only the cluster
 nodes, not varys (which was already hardened in Step 8).
 
+All commands in this step must be run from the repo root on `varys`:
+
+```bash
+cd ~/homelab-infrastructure
+```
+
 ### Upgrade Nodes
 
 Ensure all cluster nodes are fully updated before installing Kubernetes. Running Kubernetes on
@@ -433,13 +457,16 @@ ansible-playbook ansible/playbooks/security/time-sync.yml \
   -l k3s_primary,k3s_servers
 ```
 
-This installs and enables `chrony` (or `systemd-timesyncd`) to synchronize with NTP servers.
+This installs chrony and removes any conflicting NTP daemons. chrony takes over NTP directly,
+so `timedatectl`'s `NTPSynchronized` field will remain `no` — that field reflects systemd-timesyncd,
+which is no longer active. Use chrony's own tracking command to verify sync.
 
 Verify time sync is active:
 
 ```bash
-ansible k3s_primary,k3s_servers -m shell -a "timedatectl show | grep NTPSynchronized"
-# Expected: NTPSynchronized=yes
+ansible k3s_primary,k3s_servers -m shell -a "chronyc tracking" --become
+# Expected: output includes "Reference ID" and "System time" offset in seconds
+# A reference source of 162.159.200.1 (time.cloudflare.com) confirms sync
 ```
 
 ### Configure Firewall

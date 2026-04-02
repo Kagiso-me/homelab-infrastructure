@@ -17,7 +17,7 @@ TrueNAS is the **persistent storage layer** for the entire homelab. It serves tw
 ```
 k3s cluster
     â”‚
-    â”œâ”€â”€â–º NFS (10.0.10.80:/mnt/core/k8s-volumes)     â† Kubernetes PVCs
+    â”œâ”€â”€â–º NFS (10.0.10.80:/mnt/core/k8s_volumes)     â† Kubernetes PVCs
     â”‚
     â”œâ”€â”€â–º NFS (10.0.10.80:/mnt/archive/backups/k8s) â† etcd snapshots + host backups
     â”‚
@@ -48,7 +48,7 @@ k3s cluster
 
 | Pool | Layout | Datasets |
 |------|--------|---------|
-| `core` | SSD Mirror | `k8s-volumes` |
+| `core` | SSD Mirror | `k8s_volumes` |
 | `archive` | HDD Mirror | `backups/k8s`, `backups/docker`, `backups/varys` |
 | `tera` | Single HDD | `media`, `downloads` |
 

@@ -34,7 +34,7 @@ That split is deliberate. It avoids forcing database workloads onto NFS while st
 Kubernetes cluster
 |
 |-- nfs-truenas
-|   `-- TrueNAS 10.0.10.80:/mnt/core/k8s-volumes
+|   `-- TrueNAS 10.0.10.80:/mnt/core/k8s_volumes
 |
 `-- local-path
     `-- /var/lib/rancher/k3s/storage on the selected node
