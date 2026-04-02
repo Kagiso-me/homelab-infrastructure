@@ -1,8 +1,15 @@
+- name: Read node token from primary
+  command: cat /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  changed_when: false
+  delegate_to: "{{ groups['k3s_primary'][0] }}"
+  become: true
+
 - name: Install K3s additional server (join existing cluster)
   shell: |
     curl -sfL https://get.k3s.io | \
       INSTALL_K3S_VERSION="{{ k3s_version }}" \
-      K3S_TOKEN="{{ hostvars[groups['k3s_primary'][0]].k3s_node_token_value }}" \
+      K3S_TOKEN="{{ k3s_token_raw.stdout }}" \
       INSTALL_K3S_EXEC="server \
         --server https://{{ k3s_api_endpoint }}:6443 \
         --node-ip {{ ansible_host }} \
