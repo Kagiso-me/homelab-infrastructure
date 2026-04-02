@@ -17,6 +17,8 @@
 - name: Deploy kube-vip control-plane VIP on the bootstrap server
   hosts: k3s_primary
   become: true
+  vars_files:
+    - ../../roles/k3s_install/defaults/main.yml
   tasks:
     - name: Create k3s manifests directory
       file:
