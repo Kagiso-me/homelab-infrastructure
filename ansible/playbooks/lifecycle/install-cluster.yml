@@ -38,9 +38,11 @@
         dest: /var/lib/rancher/k3s/server/manifests/kube-vip-daemonset.yaml
         mode: "0644"
 
-    - name: Wait for K3s to process kube-vip manifest
-      pause:
-        seconds: 15
+    - name: Apply kube-vip manifests directly
+      command: kubectl apply -f /var/lib/rancher/k3s/server/manifests/kube-vip-rbac.yaml -f /var/lib/rancher/k3s/server/manifests/kube-vip-daemonset.yaml
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
     - name: Wait for kube-vip DaemonSet rollout
       command: kubectl -n kube-system rollout status daemonset/kube-vip-ds --timeout=180s
