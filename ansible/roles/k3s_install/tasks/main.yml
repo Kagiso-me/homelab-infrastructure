@@ -1,7 +1,7 @@
 - name: Install K3s primary server (cluster-init)
-  include_tasks: server.yml
+  import_tasks: server.yml
   when: inventory_hostname in groups['k3s_primary']
 
 - name: Install K3s additional server (join)
-  include_tasks: server-join.yml
+  import_tasks: server-join.yml
   when: inventory_hostname in groups['k3s_servers']
