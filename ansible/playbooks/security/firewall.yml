@@ -35,16 +35,27 @@
       when: inventory_hostname in groups['control_hub']
 
     # -------------------------------------------------------------------------
-    # Kubernetes API — controller only, LAN only
-    # Workers and external hosts do not need to reach the API server directly.
+    # Kubernetes API — all server nodes, LAN only
     # -------------------------------------------------------------------------
-    - name: Allow Kubernetes API (controller only, LAN only)
+    - name: Allow Kubernetes API (all server nodes, LAN only)
       ufw:
         rule: allow
         from_ip: "{{ lan_subnet }}"
         to_port: "6443"
         proto: tcp
-      when: inventory_hostname in groups['k3s_primary']
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
+
+    # -------------------------------------------------------------------------
+    # etcd peer communication — server nodes only, LAN only
+    # Required for embedded etcd cluster formation and replication.
+    # -------------------------------------------------------------------------
+    - name: Allow etcd peer communication (server nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "2380"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     # -------------------------------------------------------------------------
     # Kubernetes internals — k3s nodes only, LAN only
