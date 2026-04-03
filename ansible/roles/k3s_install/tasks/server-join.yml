@@ -69,71 +69,71 @@
     path: /var/lib/rancher/k3s/server/db/etcd
     state: absent
 
-- name: Create systemd override directory
-  file:
-    path: /etc/systemd/system/k3s.service.d
-    state: directory
-    mode: "0755"
-
-- name: Extend systemd startup timeout for etcd join
-  copy:
-    dest: /etc/systemd/system/k3s.service.d/timeout.conf
-    content: |
-      [Service]
-      TimeoutStartSec=300
-    mode: "0644"
-
-- name: Reload systemd daemon
-  systemd:
-    daemon_reload: true
-
-- name: Start k3s and wait for etcd join
-  shell: |
-    # Enable debug logging for this join attempt
-    echo 'K3S_DEBUG=true' >> /etc/systemd/system/k3s.service.env
-
-    systemctl start k3s &
-    START_PID=$!
-
-    # Poll for up to 180 seconds — etcd join + node ready
-    for i in $(seq 1 180); do
-      if KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
-         kubectl get node "$(hostname)" \
-         -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q True; then
-        # Remove debug flag
-        sed -i '/K3S_DEBUG/d' /etc/systemd/system/k3s.service.env
-        echo "JOIN SUCCESSFUL after ${i}s"
-        wait $START_PID 2>/dev/null || true
-        exit 0
-      fi
-      sleep 1
-    done
-
-    # Join failed — capture diagnostics
-    echo "=== ETCD JOIN FAILED ==="
-    echo "--- k3s service status ---"
-    systemctl status k3s --no-pager 2>&1 || true
-    echo "--- last 40 lines of journal ---"
-    journalctl -u k3s --no-pager -n 40 2>&1 || true
-    echo "--- etcd members on primary ---"
-    echo "(check primary node manually)"
-    echo "--- local etcd data ---"
-    ls -la /var/lib/rancher/k3s/server/db/etcd/ 2>&1 || echo "no etcd data directory"
-    echo "--- listening ports ---"
-    ss -tlnp | grep -E '2379|2380|6443' 2>&1 || true
-
-    # Cleanup debug flag
-    sed -i '/K3S_DEBUG/d' /etc/systemd/system/k3s.service.env
-    exit 1
-  register: join_result
-  timeout: 240
-
-- name: Display join output
-  debug:
-    var: join_result.stdout_lines
-  when: join_result is defined
-
 - name: Enable k3s service
   systemd:
     name: k3s
     enabled: true
+    daemon_reload: true
+
+- name: Start k3s (allow initial failure — systemd will retry)
+  command: systemctl start k3s
+  register: k3s_start
+  failed_when: false
+  changed_when: k3s_start.rc == 0
+
+- name: Wait for node to join cluster
+  command: >-
+    kubectl get node {{ ansible_hostname }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: node_ready
+  retries: 60
+  delay: 10
+  until: node_ready.stdout == "True"
+  changed_when: false
+  delegate_to: "{{ groups['k3s_primary'][0] }}"
+  become: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Capture diagnostics on failure
+  when: node_ready is failed
+  block:
+    - name: Get k3s journal
+      command: journalctl -u k3s --no-pager -n 50
+      register: k3s_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Get etcd members from primary
+      shell: |
+        etcdctl \
+          --endpoints=https://127.0.0.1:2379 \
+          --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+          --cert=/var/lib/rancher/k3s/server/tls/etcd/client.crt \
+          --key=/var/lib/rancher/k3s/server/tls/etcd/client.key \
+          member list -w table 2>&1 || true
+      register: etcd_members
+      delegate_to: "{{ groups['k3s_primary'][0] }}"
+      become: true
+      changed_when: false
+      failed_when: false
+
+    - name: Get listening ports
+      command: ss -tlnp
+      register: listening_ports
+      changed_when: false
+      failed_when: false
+
+    - name: Display diagnostics
+      fail:
+        msg: |
+          ETCD JOIN FAILED FOR {{ inventory_hostname }}
+
+          === K3S JOURNAL (last 50 lines) ===
+          {{ k3s_journal.stdout }}
+
+          === ETCD MEMBERS ON PRIMARY ===
+          {{ etcd_members.stdout }}
+
+          === LISTENING PORTS ===
+          {{ listening_ports.stdout }}
