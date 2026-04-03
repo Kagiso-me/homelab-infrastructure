@@ -46,9 +46,18 @@
       when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
     # -------------------------------------------------------------------------
-    # etcd peer communication — server nodes only, LAN only
-    # Required for embedded etcd cluster formation and replication.
+    # etcd — server nodes only, LAN only
+    # 2379: client port (joining servers connect here during cluster formation)
+    # 2380: peer port (etcd-to-etcd replication)
     # -------------------------------------------------------------------------
+    - name: Allow etcd client port (server nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "2379"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
+
     - name: Allow etcd peer communication (server nodes, LAN only)
       ufw:
         rule: allow
