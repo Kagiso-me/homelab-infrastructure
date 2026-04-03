@@ -75,12 +75,14 @@
 
 - name: Fix kubeconfig endpoint
   hosts: localhost
+  vars_files:
+    - ../../roles/k3s_install/defaults/main.yml
   tasks:
     - name: Replace 127.0.0.1 with control-plane VIP in kubeconfig
       replace:
         path: "{{ lookup('env','HOME') }}/.kube/config"
         regexp: '^(\s*server: https://).*(:6443.*)$'
-        replace: '\g<1>{{ hostvars[groups["k3s_primary"][0]].k3s_api_endpoint }}\g<2>'
+        replace: '\g<1>{{ kube_vip_address }}\g<2>'
 
 - name: Verify cluster health
   hosts: k3s_primary
