@@ -36,22 +36,22 @@
 creation_rules:
   # Platform manifests — encrypt any file with "secret" in the name
   - path_regex: platform/.*secret.*\.yaml$
-    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+    age: age180pmegq0jh7s9ufesme920uda9f3j904pn2xyp452xdg6hx6dc7sxyctxh
 
   # App manifests — encrypt any file with "secret" in the name
   - path_regex: apps/.*secret.*\.yaml$
-    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+    age: age180pmegq0jh7s9ufesme920uda9f3j904pn2xyp452xdg6hx6dc7sxyctxh
 
   # Cluster layer — encrypt any file with "secret" in the name
   - path_regex: clusters/.*secret.*\.yaml$
-    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+    age: age180pmegq0jh7s9ufesme920uda9f3j904pn2xyp452xdg6hx6dc7sxyctxh
 
   # Any .yaml file inside a secrets/ directory (anywhere in the repo)
   - path_regex: .*/secrets/.*\.yaml$
-    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+    age: age180pmegq0jh7s9ufesme920uda9f3j904pn2xyp452xdg6hx6dc7sxyctxh
 
   # Velero MinIO credentials (filename does not contain "secret")
   - path_regex: platform/backup/velero/minio-credentials\.yaml$
-    age: age12c5gj3na6wvwxsmqav9f0x8cg6cycpaas036uy9vyr7jq4uyduhstcvlqe
+    age: age180pmegq0jh7s9ufesme920uda9f3j904pn2xyp452xdg6hx6dc7sxyctxh
 
 
