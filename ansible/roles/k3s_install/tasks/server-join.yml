@@ -5,7 +5,7 @@
   delegate_to: "{{ groups['k3s_primary'][0] }}"
   become: true
 
-- name: Install K3s additional server (join existing cluster)
+- name: Install K3s additional server (binary only)
   shell: |
     curl -sfL https://get.k3s.io | \
       INSTALL_K3S_VERSION="{{ k3s_version }}" \
@@ -24,6 +24,26 @@
   args:
     creates: /usr/local/bin/k3s
 
+- name: Create systemd override directory
+  file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    mode: "0755"
+
+- name: Extend systemd startup timeout for etcd join
+  copy:
+    dest: /etc/systemd/system/k3s.service.d/timeout.conf
+    content: |
+      [Service]
+      TimeoutStartSec=300
+    mode: "0644"
+  register: k3s_override
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: true
+  when: k3s_override.changed
+
 - name: Enable and start k3s
   systemd:
     name: k3s
@@ -31,7 +51,9 @@
     state: started
 
 - name: Wait for node to join cluster
-  command: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  command: >-
+    kubectl get node {{ ansible_hostname }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   register: node_ready
   retries: 36
   delay: 10
