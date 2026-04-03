@@ -275,29 +275,30 @@ Save and exit. SOPS encrypts the file on save.
 
 ---
 
-## Secret 3 — Alertmanager Webhook / Slack URLs
+## Secret 3 — Alertmanager Discord Webhook URLs
 
-These are the notification endpoints Alertmanager uses to send alerts when something goes wrong
-in the cluster.
+These are the Discord webhook endpoints Alertmanager uses to send alerts when something goes wrong
+in the cluster. Alerts use Discord's Slack-compatible webhook format (`/slack` suffix).
 
-Open and edit the file:
+Create and encrypt the secret:
 
 ```bash
-sops platform/observability/alertmanager-config/alertmanager-secret.yaml
-```
+kubectl create secret generic alertmanager-secret \
+  --namespace monitoring \
+  --from-literal=discord-alerts-url=https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN/slack \
+  --from-literal=discord-critical-url=https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN/slack \
+  --from-literal=watchdog-webhook-url=https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN/slack \
+  --dry-run=client -o yaml \
+  > platform/observability/observability-config/alertmanager-secret.yaml
 
-Replace the three placeholder values:
+sops --encrypt --in-place platform/observability/observability-config/alertmanager-secret.yaml
+```
 
 | Key | Where to get it |
 |-----|----------------|
-| `slack-api-url` | Slack App settings → Incoming Webhooks → copy URL |
-| `webhook-url` | Your webhook endpoint (ntfy.sh, Grafana OnCall, etc.) |
-| `watchdog-webhook-url` | healthchecks.io ping URL or similar heartbeat endpoint |
-
-If you do not use Slack or a watchdog yet, put a placeholder URL (e.g. `https://placeholder`)
-— you can update it later with `sops` without going through this full setup again.
-
-Save and exit. SOPS encrypts the file on save.
+| `discord-alerts-url` | Discord channel → Edit → Integrations → Webhooks → copy URL, append `/slack` |
+| `discord-critical-url` | Discord channel → Edit → Integrations → Webhooks → copy URL, append `/slack` |
+| `watchdog-webhook-url` | Discord channel → Edit → Integrations → Webhooks → copy URL, append `/slack` |
 
 ---
 
