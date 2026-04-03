@@ -24,7 +24,6 @@ spec:
       retries: 3
   values:
     auth:
-      # Admin credentials loaded from SOPS-encrypted Secret.
       existingSecret: postgresql-secret
       secretKeys:
         adminPasswordKey: postgres-password
@@ -48,8 +47,6 @@ spec:
 
       persistence:
         enabled: true
-        # local-path — NFS is unsuitable for WAL-heavy database workloads.
-        # See ADR-009 and ADR-011.
         storageClass: local-path
         size: 8Gi
 

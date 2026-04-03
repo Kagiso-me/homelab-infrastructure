@@ -110,7 +110,8 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/Chart.yaml\")",
       "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/values.yaml\")",
       "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/redis/values.yaml\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/Chart.yaml)"
     ]
   }
 }
