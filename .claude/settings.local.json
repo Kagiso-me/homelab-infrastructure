@@ -107,7 +107,10 @@
       "Bash(grep -n \"raspberry.pi\\\\|raspberry-pi\\\\|rpi\\\\|RPi\\\\|bran\\\\b\" --include=*.md --include=*.yml --include=*.yaml --include=*.sh -r c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/)",
       "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/.github/workflows/ci-pipeline.yml\")",
       "Bash(curl -s \"https://raw.githubusercontent.com/helm/chart-releaser-action/main/README.md\")",
-      "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/Chart.yaml\")"
+      "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/Chart.yaml\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/values.yaml\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/bitnami/charts/main/bitnami/redis/values.yaml\")",
+      "Bash(git checkout:*)"
     ]
   }
 }
