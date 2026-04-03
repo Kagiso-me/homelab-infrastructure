@@ -5,14 +5,32 @@
   delegate_to: "{{ groups['k3s_primary'][0] }}"
   become: true
 
-- name: Install K3s additional server (binary only)
+- name: Set primary server IP fact
+  set_fact:
+    k3s_primary_ip: "{{ hostvars[groups['k3s_primary'][0]].ansible_host }}"
+
+- name: Verify etcd peer port reachable on primary
+  wait_for:
+    host: "{{ k3s_primary_ip }}"
+    port: 2380
+    timeout: 10
+    msg: "Cannot reach etcd peer port 2380 on primary ({{ k3s_primary_ip }}). Check firewall."
+
+- name: Verify K3s API reachable on primary
+  wait_for:
+    host: "{{ k3s_primary_ip }}"
+    port: 6443
+    timeout: 10
+    msg: "Cannot reach K3s API port 6443 on primary ({{ k3s_primary_ip }}). Check firewall."
+
+- name: Install K3s binary only (skip start)
   shell: |
     curl -sfL https://get.k3s.io | \
       INSTALL_K3S_VERSION="{{ k3s_version }}" \
       INSTALL_K3S_SKIP_START=true \
       K3S_TOKEN="{{ k3s_token_raw.stdout }}" \
       INSTALL_K3S_EXEC="server \
-        --server https://{{ k3s_api_endpoint }}:6443 \
+        --server https://{{ k3s_primary_ip }}:6443 \
         --node-ip {{ ansible_host }} \
         --cluster-cidr {{ k3s_cluster_cidr }} \
         --service-cidr {{ k3s_service_cidr }} \
@@ -23,6 +41,33 @@
       sh -
   args:
     creates: /usr/local/bin/k3s
+
+- name: Remove stale etcd members for this node
+  shell: |
+    etcdctl \
+      --endpoints=https://127.0.0.1:2379 \
+      --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+      --cert=/var/lib/rancher/k3s/server/tls/etcd/client.crt \
+      --key=/var/lib/rancher/k3s/server/tls/etcd/client.key \
+      member list -w simple 2>/dev/null | \
+      grep "{{ ansible_host }}:2380" | cut -d',' -f1 | \
+      while read -r MID; do
+        [ -n "$MID" ] && etcdctl \
+          --endpoints=https://127.0.0.1:2379 \
+          --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+          --cert=/var/lib/rancher/k3s/server/tls/etcd/client.crt \
+          --key=/var/lib/rancher/k3s/server/tls/etcd/client.key \
+          member remove "$MID" 2>/dev/null || true
+      done
+    true
+  delegate_to: "{{ groups['k3s_primary'][0] }}"
+  become: true
+  changed_when: false
+
+- name: Clean local etcd data from previous attempts
+  file:
+    path: /var/lib/rancher/k3s/server/db/etcd
+    state: absent
 
 - name: Create systemd override directory
   file:
@@ -37,29 +82,58 @@
       [Service]
       TimeoutStartSec=300
     mode: "0644"
-  register: k3s_override
 
 - name: Reload systemd daemon
   systemd:
     daemon_reload: true
-  when: k3s_override.changed
 
-- name: Enable and start k3s
+- name: Start k3s and wait for etcd join
+  shell: |
+    # Enable debug logging for this join attempt
+    echo 'K3S_DEBUG=true' >> /etc/systemd/system/k3s.service.env
+
+    systemctl start k3s &
+    START_PID=$!
+
+    # Poll for up to 180 seconds — etcd join + node ready
+    for i in $(seq 1 180); do
+      if KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+         kubectl get node "$(hostname)" \
+         -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q True; then
+        # Remove debug flag
+        sed -i '/K3S_DEBUG/d' /etc/systemd/system/k3s.service.env
+        echo "JOIN SUCCESSFUL after ${i}s"
+        wait $START_PID 2>/dev/null || true
+        exit 0
+      fi
+      sleep 1
+    done
+
+    # Join failed — capture diagnostics
+    echo "=== ETCD JOIN FAILED ==="
+    echo "--- k3s service status ---"
+    systemctl status k3s --no-pager 2>&1 || true
+    echo "--- last 40 lines of journal ---"
+    journalctl -u k3s --no-pager -n 40 2>&1 || true
+    echo "--- etcd members on primary ---"
+    echo "(check primary node manually)"
+    echo "--- local etcd data ---"
+    ls -la /var/lib/rancher/k3s/server/db/etcd/ 2>&1 || echo "no etcd data directory"
+    echo "--- listening ports ---"
+    ss -tlnp | grep -E '2379|2380|6443' 2>&1 || true
+
+    # Cleanup debug flag
+    sed -i '/K3S_DEBUG/d' /etc/systemd/system/k3s.service.env
+    exit 1
+  register: join_result
+  timeout: 240
+
+- name: Display join output
+  debug:
+    var: join_result.stdout_lines
+  when: join_result is defined
+
+- name: Enable k3s service
   systemd:
     name: k3s
     enabled: true
-    state: started
-
-- name: Wait for node to join cluster
-  command: >-
-    kubectl get node {{ ansible_hostname }}
-    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-  register: node_ready
-  retries: 36
-  delay: 10
-  until: node_ready.stdout == "True"
-  changed_when: false
-  delegate_to: "{{ groups['k3s_primary'][0] }}"
-  become: true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml

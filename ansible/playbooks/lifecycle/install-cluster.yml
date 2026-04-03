@@ -14,7 +14,14 @@
   roles:
     - k3s_install
 
-- name: Deploy kube-vip control-plane VIP on the bootstrap server
+- name: Install K3s additional servers (join cluster)
+  hosts: k3s_servers
+  become: true
+  serial: 1
+  roles:
+    - k3s_install
+
+- name: Deploy kube-vip control-plane VIP
   hosts: k3s_primary
   become: true
   vars_files:
@@ -55,13 +62,6 @@
         host: "{{ k3s_api_endpoint }}"
         port: 6443
         timeout: 180
-
-- name: Install K3s additional servers (join cluster)
-  hosts: k3s_servers
-  become: true
-  serial: 1
-  roles:
-    - k3s_install
 
 - name: Fetch kubeconfig
   hosts: k3s_primary
