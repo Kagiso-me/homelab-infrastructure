@@ -23,26 +23,6 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    global:
-      security:
-        allowInsecureImages: true
-
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/redis
-
-    metrics:
-      enabled: true
-      image:
-        registry: docker.io
-        repository: bitnamilegacy/redis-exporter
-      serviceMonitor:
-        enabled: true
-        interval: 30s
-
-    # Single instance — no Sentinel or Cluster needed for homelab scale.
-    architecture: standalone
-
     auth:
       enabled: true
       existingSecret: redis-secret
@@ -73,3 +53,14 @@ spec:
         requests:
           memory: 128Mi
           cpu: 100m
+
+    # local-path provisions volumes owned by root. Fix ownership so the
+    # redis container (uid 1000) can write to its data directory.
+    volumePermissions:
+      enabled: true
+
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s

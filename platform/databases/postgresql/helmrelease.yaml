@@ -23,23 +23,6 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    global:
-      security:
-        allowInsecureImages: true
-
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/postgresql
-
-    metrics:
-      enabled: true
-      image:
-        registry: docker.io
-        repository: bitnamilegacy/postgres-exporter
-      serviceMonitor:
-        enabled: true
-        interval: 30s
-
     auth:
       # Admin credentials loaded from SOPS-encrypted Secret.
       existingSecret: postgresql-secret
@@ -76,3 +59,14 @@ spec:
         requests:
           memory: 256Mi
           cpu: 250m
+
+    # local-path provisions volumes owned by root. Fix ownership so the
+    # postgres container (uid 999) can write to its data directory.
+    volumePermissions:
+      enabled: true
+
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s
