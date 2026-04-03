@@ -12,9 +12,9 @@ all:
 
     k3s_servers:
       hosts:
-        tyrion:
-          ansible_host: 10.0.10.12
         jaime:
+          ansible_host: 10.0.10.12
+        tyrion:
           ansible_host: 10.0.10.13
 
     docker:
