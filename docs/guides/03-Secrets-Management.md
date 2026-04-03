@@ -310,7 +310,7 @@ Each file must contain `ENC[` strings and a `sops:` footer — not plaintext val
 grep -l "ENC\[" \
   platform/backup/velero/minio-credentials.yaml \
   platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml \
-  platform/observability/alertmanager-config/alertmanager-secret.yaml
+  platform/observability/observability-config/alertmanager-secret.yaml
 ```
 
 All three filenames should be printed. If any are missing from the output, that file is still
@@ -322,7 +322,7 @@ Commit the encrypted files:
 git add \
   platform/backup/velero/minio-credentials.yaml \
   platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml \
-  platform/observability/alertmanager-config/alertmanager-secret.yaml
+  platform/observability/observability-config/alertmanager-secret.yaml
 
 git commit -m "chore: encrypt repository secrets with SOPS"
 git push
@@ -394,7 +394,7 @@ grep "age:" .sops.yaml
 grep -l "ENC\[" \
   platform/backup/velero/minio-credentials.yaml \
   platform/observability/kube-prometheus-stack/grafana-admin-secret.yaml \
-  platform/observability/alertmanager-config/alertmanager-secret.yaml
+  platform/observability/observability-config/alertmanager-secret.yaml
 # All three filenames must be printed
 
 # 4. sops-age Secret exists in the cluster
