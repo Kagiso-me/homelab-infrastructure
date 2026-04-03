@@ -143,6 +143,7 @@ services:
     volumes:
       - /srv/docker/appdata/lidarr:/config
       - /mnt/media:/media
+      - /mnt/downloads:/downloads
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8686/ping || exit 1"]
       interval: 30s
@@ -234,7 +235,6 @@ services:
       - TZ=${TZ:-Africa/Johannesburg}
     volumes:
       - /srv/docker/appdata/sabnzbd:/config
-      - /srv/docker/downloads:/srv/docker/downloads
       - /mnt/downloads:/downloads
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8080/api?mode=version || exit 1"]
