@@ -564,12 +564,12 @@ Bootstrap commands must target the prod cluster. Copy the kubeconfig from `tywin
 
 ```bash
 # On varys
-scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
+scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/config
 # k3s writes 127.0.0.1:6443 — correct on tywin but unreachable from varys
-sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/prod-config
-chmod 600 ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/config
+chmod 600 ~/.kube/config
 
-export KUBECONFIG=~/.kube/prod-config
+export KUBECONFIG=~/.kube/config
 
 # Verify connectivity
 kubectl cluster-info
@@ -773,7 +773,7 @@ ansible k3s_primary,k3s_servers -i ansible/inventory/homelab.yml \
 From `varys` with `KUBECONFIG` pointing at the prod cluster:
 
 ```bash
-export KUBECONFIG=~/.kube/prod-config
+export KUBECONFIG=~/.kube/config
 
 # Verify you are targeting the correct cluster
 kubectl config current-context
@@ -1505,7 +1505,7 @@ The Ansible playbook recreates the `sops-age` Secret from vault automatically. O
 additional secret must be recreated manually — the Cloudflare API token for cert-manager:
 
 ```bash
-export KUBECONFIG=~/.kube/prod-config
+export KUBECONFIG=~/.kube/config
 
 # Get the token from vault
 ansible-vault view ansible/vars/vault.yml | grep cloudflare_api_token

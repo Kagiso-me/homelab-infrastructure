@@ -342,7 +342,7 @@ time. It holds your age **private key**.
 
 ```bash
 # Ensure the kubeconfig is pointing at the production cluster
-export KUBECONFIG=~/.kube/prod-config
+export KUBECONFIG=~/.kube/config
 
 # Create the flux-system namespace if it does not exist yet
 # (bootstrap will also create it, but creating it now avoids a timing issue)

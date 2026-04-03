@@ -193,33 +193,11 @@ graph TD
 
 ---
 
-# Retrieving the Kubeconfig
+# Verifying the Installation
 
-After installation, copy the kubeconfig from the control-plane node (`tywin`) to the
-automation host (`varys`) and configure `kubectl` to use it.
-
-k3s writes `127.0.0.1` as the API server address in the generated kubeconfig. This address
-is only reachable on tywin itself. Replace it with the kube-vip endpoint so varys can connect.
-
-Run on **varys**:
-
-```bash
-# Create the .kube directory if it does not exist
-mkdir -p ~/.kube
-
-# Copy the kubeconfig and patch the server address
-scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/prod-config
-sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/prod-config
-
-# Restrict file permissions (kubectl warns if the file is world-readable)
-chmod 600 ~/.kube/prod-config
-
-# Activate for this session
-export KUBECONFIG=~/.kube/prod-config
-
-# Persist so future sessions don't need the export
-echo 'export KUBECONFIG=~/.kube/prod-config' >> ~/.bashrc
-```
+The install playbook automatically fetches the kubeconfig from `tywin` and patches the API
+server address from `127.0.0.1` to the kube-vip VIP (`10.0.10.100`), placing it at
+`~/.kube/config` on `varys`. No manual kubeconfig retrieval is needed.
 
 Verify connectivity:
 
@@ -281,41 +259,9 @@ Because etcd now runs as a 3-member embedded cluster across `tywin`, `tyrion`, a
 the platform can tolerate the loss of a single server node without losing cluster state.
 What still matters is maintaining quorum and keeping recent snapshots available.
 
-**This is why etcd snapshots to TrueNAS storage are configured in the playbook** — they provide a
+**This is why etcd snapshots to MinIO are configured as a post-install step** — they provide a
 point-in-time consistent backup of the cluster state independent of any single node. Guide 10
 covers the full backup and restore procedures.
-
----
-
-# Verifying etcd Snapshot Configuration
-
-Confirm that k3s is configured to write etcd snapshots to the TrueNAS NFS path.
-
-SSH into tywin and check the k3s configuration:
-
-```bash
-ssh kagiso@10.0.10.11
-sudo cat /etc/rancher/k3s/config.yaml
-```
-
-You should see snapshot configuration similar to:
-
-```yaml
-etcd-snapshot-dir: /mnt/archive/backups/k8s/etcd
-etcd-snapshot-schedule-cron: "0 */6 * * *"
-etcd-snapshot-retention: 10
-```
-
-This schedules snapshots every 6 hours, retaining the 10 most recent snapshots. Verify the
-NFS path is mounted:
-
-```bash
-ls /mnt/archive/backups/k8s/etcd
-# Should list snapshot files after the first scheduled snapshot runs
-```
-
-If the directory is empty immediately after install, that is expected — the first snapshot
-runs on the configured cron schedule.
 
 ---
 
@@ -354,7 +300,7 @@ is running and the kubeconfig is on varys, add it to GitHub.
 Copy the kubeconfig content:
 
 ```bash
-cat ~/.kube/prod-config
+cat ~/.kube/config
 ```
 
 Copy the entire output, then add it to GitHub:
@@ -426,7 +372,7 @@ sudo ufw status | grep 6443
 The most common cause is forgetting to replace `127.0.0.1` with `10.0.10.100` in the kubeconfig.
 
 ```bash
-grep server ~/.kube/prod-config
+grep server ~/.kube/config
 # Expected: server: https://10.0.10.100:6443
 # Wrong:    server: https://127.0.0.1:6443
 ```
@@ -434,7 +380,7 @@ grep server ~/.kube/prod-config
 If wrong, run the `sed` command again:
 
 ```bash
-sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/prod-config
+sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/config
 ```
 
 ### nfs-common not installed after playbook
@@ -463,7 +409,7 @@ This phase is complete when the following are all true.
 **Cluster is reachable from varys:**
 
 ```bash
-export KUBECONFIG=~/.kube/prod-config
+export KUBECONFIG=~/.kube/config
 kubectl get nodes
 ```
 
@@ -510,7 +456,7 @@ ansible k3s_primary,k3s_servers \
 
 ```bash
 grep KUBECONFIG ~/.bashrc
-# Expected: export KUBECONFIG=~/.kube/prod-config
+# Expected: export KUBECONFIG=~/.kube/config
 ```
 
 **KUBECONFIG secret added to GitHub:**
