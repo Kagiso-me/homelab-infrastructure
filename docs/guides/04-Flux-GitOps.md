@@ -25,15 +25,14 @@
 1. [Overview — What GitOps Means](#1-overview--what-gitops-means)
 2. [How It Works — Branch Model and CI Pipeline](#2-how-it-works--branch-model-and-ci-pipeline)
 3. [Prerequisites](#3-prerequisites)
-4. [Setting Up the Self-Hosted Runner on varys](#4-setting-up-the-self-hosted-runner-on-varys)
-5. [Bootstrapping Flux on the Prod Cluster](#5-bootstrapping-flux-on-the-prod-cluster)
-6. [Adding KUBECONFIG to GitHub Secrets](#6-adding-kubeconfig-to-github-secrets)
-7. [Enabling Branch Protection on main](#7-enabling-branch-protection-on-main)
-8. [The PR Workflow — Day-to-Day Operations](#8-the-pr-workflow--day-to-day-operations)
-9. [Post-Merge — Flux Reconciles and Health Check Runs](#9-post-merge--flux-reconciles-and-health-check-runs)
-10. [Monitoring Flux](#10-monitoring-flux)
-11. [Troubleshooting](#11-troubleshooting)
-12. [Cluster Rebuild via Ansible](#12-cluster-rebuild-via-ansible)
+4. [Bootstrapping Flux on the Prod Cluster](#4-bootstrapping-flux-on-the-prod-cluster)
+5. [Adding KUBECONFIG to GitHub Secrets](#5-adding-kubeconfig-to-github-secrets)
+6. [Enabling Branch Protection on main](#6-enabling-branch-protection-on-main)
+7. [The PR Workflow — Day-to-Day Operations](#7-the-pr-workflow--day-to-day-operations)
+8. [Post-Merge — Flux Reconciles and Health Check Runs](#8-post-merge--flux-reconciles-and-health-check-runs)
+9. [Monitoring Flux](#9-monitoring-flux)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Cluster Rebuild via Ansible](#11-cluster-rebuild-via-ansible)
 
 ---
 
@@ -510,84 +509,24 @@ jobs:
 
 ## 3. Prerequisites
 
-Before proceeding, verify these tools are installed and configured on the machine you
-will run bootstrap commands from (varys, the Intel NUC control hub, at `10.0.10.10`).
+The following were set up in [Guide 00.5 — Infrastructure Prerequisites](./00.5-Infrastructure-Prerequisites.md)
+and must be in place before continuing:
 
-### Flux CLI
+| Prerequisite | Verify with |
+|---|---|
+| `kubectl` installed on varys | `kubectl version --client` |
+| `flux` CLI installed on varys | `flux --version` |
+| `gh` CLI installed and authenticated on varys | `gh auth status` |
+| kubeconfig on varys pointing at `10.0.10.100:6443` | `kubectl cluster-info` |
+| Self-hosted GitHub Actions runner on varys (status: Idle) | GitHub → Settings → Actions → Runners |
+| Branch protection enabled on `main` | GitHub → Settings → Branches |
 
-```bash
-# Install
-curl -s https://fluxcd.io/install.sh | sudo bash
-
-# Verify
-flux --version
-# Expected: flux version 2.x.x
-```
-
-### kubectl
-
-```bash
-# amd64 (varys is an Intel NUC x86_64)
-curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
-  -o /usr/local/bin/kubectl
-chmod +x /usr/local/bin/kubectl
-
-# Verify
-kubectl version --client
-```
-
-### gh CLI (GitHub CLI)
-
-The `gh` CLI is used by the `cluster-diff` job to post PR comments. It must be installed
-on `varys` with a token that has `repo` scope.
-
-```bash
-# Install (Debian/Ubuntu amd64)
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
-  https://cli.github.com/packages stable main" \
-  | sudo tee /etc/apt/sources.list.d/github-cli.list
-sudo apt update && sudo apt install gh -y
-
-# Authenticate (follow interactive prompts)
-gh auth login
-
-# Verify
-gh auth status
-```
-
-### kubeconfig for the Prod Cluster
-
-Bootstrap commands must target the prod cluster. Copy the kubeconfig from `tywin`
-(the prod control plane) to `varys` and patch the server address:
-
-```bash
-# On varys
-scp kagiso@10.0.10.11:/etc/rancher/k3s/k3s.yaml ~/.kube/config
-# k3s writes 127.0.0.1:6443 — correct on tywin but unreachable from varys
-sed -i 's/127.0.0.1/10.0.10.100/' ~/.kube/config
-chmod 600 ~/.kube/config
-
-export KUBECONFIG=~/.kube/config
-
-# Verify connectivity
-kubectl cluster-info
-# Expected: Kubernetes control plane is running at https://10.0.10.100:6443
-```
-
-### SOPS-Age Secret
-
-Flux needs the age private key to decrypt SOPS-encrypted secrets during reconciliation.
-This secret must exist in the `flux-system` namespace **before** Flux bootstraps. If it
-does not exist, every Kustomization that references an encrypted secret will fail
-immediately.
+Additionally, the SOPS age secret must exist in the cluster before Flux bootstraps.
+If it does not, every Kustomization referencing an encrypted secret will fail immediately.
 
 > **Complete [Guide 03 — Secrets Management](./03-Secrets-Management.md) before
 > proceeding.** That guide covers age key generation, `.sops.yaml` configuration, and
-> creating the `sops-age` Secret. All of those steps must be done first.
-
-Verify:
+> creating the `sops-age` Secret.
 
 ```bash
 kubectl get secret sops-age -n flux-system
@@ -599,147 +538,7 @@ If this returns `NotFound`, complete Guide 03 before continuing.
 
 ---
 
-## 4. Setting Up the Self-Hosted Runner on varys
-
-The `cluster-diff` and `health-check` jobs run on a self-hosted runner installed on
-`varys` (`10.0.10.10`). GitHub-hosted runners run in GitHub's cloud and cannot reach
-private LAN addresses (`10.0.10.x`). Rather than routing through a VPN, a permanent
-runner agent on `varys` — which already has direct LAN access to both clusters — keeps
-CI simple and fast.
-
-See [ADR-007](../adr/ADR-007-self-hosted-runners.md) for the full rationale.
-
-### Step 1 — Install Pre-required Tools on varys
-
-All cluster-touching CI tools must be installed on `varys` before the runner is
-registered. The runner executes jobs using whatever is already on the machine — there is
-no per-job tool installation for these.
-
-```bash
-# kubectl (amd64 — varys is an Intel NUC x86_64)
-curl -sL "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
-  -o /usr/local/bin/kubectl
-chmod +x /usr/local/bin/kubectl
-kubectl version --client
-
-# flux CLI (amd64)
-curl -s https://fluxcd.io/install.sh | sudo bash
-flux --version
-
-# kubeconform (amd64) — used by validate job if it ever runs on the self-hosted runner
-KUBECONFORM_VERSION="v0.6.7"
-curl -sSL \
-  "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-  | tar -xz -C /usr/local/bin kubeconform
-kubeconform -v
-
-# kustomize (amd64)
-curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
-sudo mv kustomize /usr/local/bin/
-kustomize version
-
-# pluto (amd64) — deprecated API version detector
-PLUTO_VERSION="v5.19.0"
-curl -sSL \
-  "https://github.com/FairwindsOps/pluto/releases/download/${PLUTO_VERSION}/pluto_${PLUTO_VERSION#v}_linux_amd64.tar.gz" \
-  | tar -xz -C /usr/local/bin pluto
-pluto version
-
-# gh CLI — for posting PR comments in the cluster-diff job
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
-  https://cli.github.com/packages stable main" \
-  | sudo tee /etc/apt/sources.list.d/github-cli.list
-sudo apt update && sudo apt install gh -y
-gh --version
-```
-
-### Step 2 — Download the Runner Agent
-
-```bash
-# Create directory
-sudo mkdir -p /opt/github-runner
-sudo chown kagiso:kagiso /opt/github-runner
-cd /opt/github-runner
-
-# Check https://github.com/actions/runner/releases for latest version
-RUNNER_VERSION="2.321.0"
-curl -sL \
-  "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
-  | tar -xz
-```
-
-### Step 3 — Get a Registration Token
-
-1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
-2. **Settings** → **Actions** → **Runners** → **New self-hosted runner**
-3. Set architecture to **Linux / x64**
-4. Copy the token from the `./config.sh` command shown on the page
-
-> The token is valid for **one hour** and is single-use. Run the config step
-> immediately after generating it.
-
-### Step 4 — Configure the Runner
-
-```bash
-cd /opt/github-runner
-
-./config.sh \
-  --url https://github.com/Kagiso-me/homelab-infrastructure \
-  --token <TOKEN_FROM_GITHUB> \
-  --labels homelab \
-  --name varys \
-  --unattended
-```
-
-The `--labels homelab` flag is what the workflow YAML targets with
-`runs-on: [self-hosted, linux, homelab]`. The `linux` label is added automatically
-by the runner agent.
-
-### Step 5 — Install as a systemd Service
-
-Do not run `./run.sh`. That runs the runner in the foreground and stops when the SSH
-session ends. Install it as a systemd service so it starts automatically on boot:
-
-```bash
-cd /opt/github-runner
-
-# Install the service (this creates /etc/systemd/system/actions.runner.*.service)
-sudo ./svc.sh install
-
-# Start it
-sudo ./svc.sh start
-
-# Verify it is running
-sudo ./svc.sh status
-# Expected: Active: active (running)
-```
-
-### Step 6 — Verify the Runner Appears in GitHub
-
-1. Go to `https://github.com/Kagiso-me/homelab-infrastructure`
-2. **Settings** → **Actions** → **Runners**
-3. The runner named `varys` should appear with status **Idle**
-
-> **If the runner shows Offline:** Check the systemd service logs.
-> ```bash
-> journalctl -u actions.runner.Kagiso-me-homelab-infrastructure.varys.service -f
-> ```
-
-### Runner Maintenance
-
-The runner agent updates itself automatically when GitHub requires a new minimum version.
-The systemd service handles the update without intervention. Check the runner status
-periodically:
-
-```bash
-sudo ./svc.sh status
-```
-
----
-
-## 5. Bootstrapping Flux on the Prod Cluster
+## 4. Bootstrapping Flux on the Prod Cluster
 
 This section walks through bootstrapping Flux onto the prod cluster for the first time.
 
@@ -918,7 +717,7 @@ apps                          main@sha1:xxxxxxxx   True    Applied revision: ...
 
 ---
 
-## 6. Adding KUBECONFIG to GitHub Secrets
+## 5. Adding KUBECONFIG to GitHub Secrets
 
 The `cluster-diff` and `health-check` jobs authenticate to the prod cluster using a
 kubeconfig stored as a GitHub Actions secret. This is the **one additional secret**
@@ -980,7 +779,7 @@ changed in the cluster manifests.
 
 ---
 
-## 7. Enabling Branch Protection on main
+## 6. Enabling Branch Protection on main
 
 Branch protection ensures that infrastructure changes can only land on `main` after CI
 passes. Without it, a push with a YAML syntax error or a broken kustomization could
@@ -1022,7 +821,7 @@ This queues the PR for automatic merge the moment all required status checks tur
 
 ---
 
-## 8. The PR Workflow — Day-to-Day Operations
+## 7. The PR Workflow — Day-to-Day Operations
 
 This is the standard workflow for every infrastructure change.
 
@@ -1119,7 +918,7 @@ No PR is required. No CI runs. The push lands directly.
 
 ---
 
-## 9. Post-Merge: Flux Reconciles and Health Check Runs
+## 8. Post-Merge: Flux Reconciles and Health Check Runs
 
 After a PR merges to `main`, two things happen simultaneously:
 
@@ -1173,7 +972,7 @@ Flux will apply the revert commit within 60 seconds.
 
 ---
 
-## 10. Monitoring Flux
+## 9. Monitoring Flux
 
 ### CLI Commands (on varys)
 
@@ -1229,7 +1028,7 @@ an intermittent dependency problem.
 
 ---
 
-## 11. Troubleshooting
+## 10. Troubleshooting
 
 ### Flux Not Reconciling After a Push
 
@@ -1447,7 +1246,7 @@ internet. Check the k3s node network configuration and the upstream DNS server.
 
 ---
 
-## 12. Cluster Rebuild via Ansible
+## 11. Cluster Rebuild via Ansible
 
 GitOps means the cluster is fully disposable. If a node is lost or the cluster needs
 to be rebuilt from scratch, the recovery sequence is exactly two commands.
