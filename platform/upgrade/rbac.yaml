@@ -21,6 +21,10 @@ rules:
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  # Read namespaces (required by controller startup)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
   # Create and monitor Jobs that run the actual upgrade on each node
   - apiGroups: ["batch"]
     resources: ["jobs", "jobs/status"]
