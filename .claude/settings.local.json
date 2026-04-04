@@ -114,7 +114,9 @@
       "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/Chart.yaml)",
       "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/values.yaml)",
       "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/templates/server/deployment.yaml)",
-      "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/templates/_helpers.tpl)"
+      "Bash(curl -s https://raw.githubusercontent.com/goauthentik/helm/main/charts/authentik/templates/_helpers.tpl)",
+      "Bash(curl -sL \"https://github.com/rancher/system-upgrade-controller/releases/download/v0.14.2/crd.yaml\")",
+      "Bash(\"c:/Users/ktjea/OneDrive/Documents/Repos/homelab-infrastructure/platform/upgrade/crd.yaml\")"
     ]
   }
 }
