@@ -8,10 +8,10 @@ spec:
   chart:
     spec:
       chart: authentik
-      version: ">=2024.8.0"
+      version: "0.1.0"
       sourceRef:
         kind: HelmRepository
-        name: authentik
+        name: kagiso-me
         namespace: flux-system
       interval: 24h
   install:
@@ -88,18 +88,7 @@ spec:
               key: bootstrap-token
 
     server:
-      # Disable built-in ingress — Traefik IngressRoute is used instead.
-      ingress:
-        enabled: false
       metrics:
         serviceMonitor:
           enabled: true
           interval: 30s
-
-    # Bundled PostgreSQL disabled — using the shared central PostgreSQL instance.
-    postgresql:
-      enabled: false
-
-    # Bundled Redis disabled — using the shared central Redis instance.
-    redis:
-      enabled: false

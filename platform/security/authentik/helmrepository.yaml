@@ -1,8 +1,7 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
-  name: authentik
-  namespace: flux-system
-spec:
-  interval: 24h
-  url: https://charts.goauthentik.io
+# The authentik chart is now served from the kagiso-me charts repository.
+# kagiso-me HelmRepository is defined in platform/databases/helmrepository.yaml
+# and shared across all platform charts — no separate HelmRepository needed here.
+#
+# This file is kept as a placeholder. The upstream goauthentik HelmRepository
+# (https://charts.goauthentik.io) has been removed; the HelmRelease now
+# references sourceRef: kagiso-me / flux-system.
