@@ -1,0 +1,48 @@
+name: Auto-merge
+
+# Automatically merges a PR when all required status checks pass.
+# This keeps the PR flow friction-free for a solo operator — open a PR,
+# CI validates, merge happens without manual intervention.
+#
+# Requires: "Allow auto-merge" enabled in repo Settings → General.
+
+on:
+  workflow_run:
+    workflows: ["Validate & Health Check"]
+    types: [completed]
+
+jobs:
+  auto-merge:
+    name: Merge PR on CI pass
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Auto-merge PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find the open PR that triggered this workflow run
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --json number,headRefName \
+            --jq --arg sha "${{ github.event.workflow_run.head_sha }}" \
+            '.[] | select(.headRefName != "main") | .number' \
+            | head -1)
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found for this workflow run — nothing to merge."
+            exit 0
+          fi
+
+          echo "Merging PR #${PR_NUMBER}..."
+          gh pr merge "$PR_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --squash \
+            --auto \
+            --delete-branch
