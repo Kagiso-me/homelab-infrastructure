@@ -144,6 +144,15 @@ jobs:
               except Exception:
                   continue
 
+              # Skip semver ranges — Flux resolves these dynamically and they
+              # don't correspond to a single publishable version (e.g. "4.0.x",
+              # ">=0.9.0", "28.x"). Only pinned versions like "0.3.3" can be
+              # checked against the index.
+              import re
+              if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+                  print(f"  ~ {chart}@{version} ({repo_name}) — semver range, skipping")
+                  continue
+
               if repo_name not in repo_urls:
                   errors.append(f"{f}: HelmRepository '{repo_name}' not found in repo")
                   continue
