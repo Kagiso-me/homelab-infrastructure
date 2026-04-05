@@ -163,8 +163,17 @@ jobs:
                       with urllib.request.urlopen(f"{repo_url}/index.yaml") as r:
                           index_cache[repo_url] = yaml.safe_load(r.read())
                   except Exception as e:
-                      errors.append(f"{f}: failed to fetch {repo_url}/index.yaml: {e}")
+                      # Some chart repos (e.g. charts.goauthentik.io via Netlify/Cloudflare)
+                      # block GitHub Actions IP ranges with 403. Treat fetch failures as a
+                      # skip rather than a hard error — the chart version will be validated
+                      # by Flux at reconcile time instead.
+                      index_cache[repo_url] = None
+                      print(f"  ~ {chart}@{version} ({repo_name}) — skipping (repo unreachable from CI: {e})")
                       continue
+
+              if index_cache[repo_url] is None:
+                  print(f"  ~ {chart}@{version} ({repo_name}) — skipping (repo unreachable from CI)")
+                  continue
 
               available = [str(e.get("version", "")) for e in index_cache[repo_url].get("entries", {}).get(chart, [])]
               if version in available:
