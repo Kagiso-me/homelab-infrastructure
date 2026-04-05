@@ -38,6 +38,8 @@ spec:
         enabled: true
         storageClassName: nfs-truenas
         size: 5Gi
+      initChownData:
+        enabled: false
       ingress:
         enabled: false   # Using Traefik IngressRoute instead
       grafana.ini:
