@@ -59,6 +59,23 @@ Self-hosted visual project board. Freeform canvas with notes, tasks, images, lin
 
 </td>
 </tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🖥️ PiKVM
+`INFRA` &nbsp;&nbsp; 🟡 Planning
+
+KVM-over-IP using a Raspberry Pi Zero 2W. Remote keyboard, video, and mouse access for any homelab machine — BIOS access, recovery, OS reinstall — from the browser, even when SSH is down.
+
+**Stack:** PiKVM · USB HDMI capture · USB OTG
+
+[→ Open project](INFRA-pikvm/)
+
+</td>
+<td width="50%" valign="top">
+
+</td>
+</tr>
 </table>
 
 ---
