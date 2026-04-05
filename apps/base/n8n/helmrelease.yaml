@@ -79,7 +79,3 @@ spec:
         storageClass: nfs-truenas
         accessMode: ReadWriteOnce
         size: 5Gi
-      # Pin to tywin (control-plane) where CoreDNS runs.
-      # tyrion has intermittent DNS resolution failures on pod startup.
-      nodeSelector:
-        kubernetes.io/hostname: tywin
