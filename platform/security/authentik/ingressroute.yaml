@@ -11,5 +11,5 @@ spec:
       kind: Rule
       services:
         - name: authentik-server
-          port: 80
+          port: 9000
   tls: {}
