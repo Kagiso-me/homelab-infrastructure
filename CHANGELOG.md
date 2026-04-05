@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** add allow-from-ingress NetworkPolicy to monitoring namespace `3f9e01e`
 - **[CONFIG]** correct admin secret name to grafana-admin `6d5b682`
 - **[CONFIG]** disable initChownData — NFS blocks chown from non-root containers `84fe40b`
 - **[DEPLOY]** enable Grafana and Alertmanager in-cluster with Discord (#9) `eb0d10b`
