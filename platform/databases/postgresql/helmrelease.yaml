@@ -23,6 +23,12 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    # pgvector image — includes the vector extension required by Immich.
+    # Functionally identical to the vanilla postgres image for all other uses.
+    image:
+      repository: pgvector/pgvector
+      tag: pg17
+
     auth:
       existingSecret: postgresql-secret
       secretKeys:
