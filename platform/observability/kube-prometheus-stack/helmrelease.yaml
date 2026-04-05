@@ -26,12 +26,33 @@ spec:
       retries: 3
   values:
     # ----- Grafana -----
-    # Grafana runs as a native systemd service on varys (10.0.10.10).
-    # Managed by Ansible — see ansible/playbooks/services/install-monitoring.yml.
     defaultRules:
       create: true
     grafana:
-      enabled: false
+      enabled: true
+      admin:
+        existingSecret: grafana-admin-secret
+        userKey: admin-user
+        passwordKey: admin-password
+      persistence:
+        enabled: true
+        storageClassName: nfs-truenas
+        size: 5Gi
+      ingress:
+        enabled: false   # Using Traefik IngressRoute instead
+      grafana.ini:
+        server:
+          domain: grafana.kagiso.me
+          root_url: https://grafana.kagiso.me
+        analytics:
+          check_for_updates: false
+      sidecar:
+        dashboards:
+          enabled: true
+          searchNamespace: ALL
+        datasources:
+          enabled: true
+          searchNamespace: ALL
 
     # ----- Prometheus -----
     prometheus:
@@ -49,15 +70,6 @@ spec:
               resources:
                 requests:
                   storage: 20Gi
-        # Send alerts to Alertmanager on varys (10.0.10.10)
-        additionalAlertManagerConfigs:
-          - scheme: http
-            timeout: 10s
-            api_version: v2
-            static_configs:
-              - targets:
-                  - "10.0.10.10:9093"
-
         # Scrape all namespaces
         serviceMonitorSelectorNilUsesHelmValues: false
         podMonitorSelectorNilUsesHelmValues: false
@@ -98,11 +110,40 @@ spec:
                   instance: truenas
 
     # ----- Alertmanager -----
-    # Alertmanager runs as a native systemd service on varys (10.0.10.10).
-    # Managed by Ansible — see ansible/playbooks/services/install-monitoring.yml.
-    # Prometheus is configured below to send alerts to 10.0.10.10:9093.
     alertmanager:
-      enabled: false
+      enabled: true
+      alertmanagerSpec:
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: nfs-truenas
+              accessModes: ["ReadWriteMany"]
+              resources:
+                requests:
+                  storage: 1Gi
+      config:
+        global:
+          resolve_timeout: 5m
+        route:
+          group_by: ["alertname", "namespace"]
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 4h
+          receiver: discord-alerts
+          routes:
+            - receiver: discord-critical
+              matchers:
+                - name: severity
+                  value: critical
+              repeat_interval: 1h
+            - receiver: watchdog-webhook
+              matchers:
+                - name: alertname
+                  value: Watchdog
+        receivers:
+          - name: discord-alerts
+          - name: discord-critical
+          - name: watchdog-webhook
 
     # ----- Node Exporter -----
     prometheus-node-exporter:

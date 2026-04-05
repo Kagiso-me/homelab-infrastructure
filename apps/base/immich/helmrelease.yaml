@@ -31,7 +31,7 @@ spec:
   values:
     env:
       TZ: Africa/Johannesburg
-      DB_HOSTNAME: postgresql.databases.svc.cluster.local
+      DB_HOSTNAME: postgresql-primary.databases.svc.cluster.local
       DB_PORT: "5432"
       DB_DATABASE_NAME: immich
       DB_USERNAME: immich
