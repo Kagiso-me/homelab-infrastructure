@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** disable postgres metrics sidecar (PG17 incompatible) `f30d336`
 - **[CONFIG]** use valuesFrom for redis password instead of valueFrom `ffdb0b2`
 - **[CONFIG]** remove memory limit and increase request for pgvector `2a3ad92`
 - **[CONFIG]** switch postgres to pgvector image for Immich support `4e4e779`
