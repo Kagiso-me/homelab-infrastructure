@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** enable Grafana and Alertmanager in-cluster with Discord (#9) `eb0d10b`
 - **[DEPLOY]** switch to official upstream chart (#8) `852fa2d`
 - **[CONFIG]** use port 9000 in IngressRoute (#7) `db75a07`
 
