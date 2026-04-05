@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** remove memory limit and increase request for pgvector `2a3ad92`
 - **[CONFIG]** switch postgres to pgvector image for Immich support `4e4e779`
 - **[CONFIG]** move env vars under server.controllers path `d7ac8c5`
 - **[CONFIG]** use correct timezone key and chart schema `fb19ece`
