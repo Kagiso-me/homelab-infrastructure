@@ -68,9 +68,7 @@ spec:
     # encryptionKey injected via valuesFrom.
     # WARNING: changing this after first deploy invalidates all stored credentials.
 
-    extraEnv:
-      GENERIC_TIMEZONE: Africa/Johannesburg
-      TZ: Africa/Johannesburg
+    timezone: Africa/Johannesburg
 
     ingress:
       enabled: false
