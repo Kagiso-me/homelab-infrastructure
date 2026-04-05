@@ -149,7 +149,7 @@ spec:
     externalDatabase:
       enabled: true
       type: postgresql
-      host: postgresql.databases.svc.cluster.local
+      host: postgresql-primary.databases.svc.cluster.local
       database: nextcloud
       user: nextcloud
       # password injected via valuesFrom
