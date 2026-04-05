@@ -60,8 +60,10 @@ spec:
       # use available RAM. Request ensures the scheduler accounts for it.
       resources:
         requests:
-          memory: 256Mi
+          memory: 512Mi
           cpu: 250m
+        limits:
+          cpu: 500m
 
     # local-path provisions volumes owned by root. Fix ownership so the
     # postgres container (uid 999) can write to its data directory.
