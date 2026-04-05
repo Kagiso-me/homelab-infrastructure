@@ -36,7 +36,7 @@ spec:
         passwordKey: admin-password
       persistence:
         enabled: true
-        storageClassName: local-path
+        storageClassName: nfs-truenas
         size: 5Gi
       ingress:
         enabled: false   # Using Traefik IngressRoute instead
@@ -116,8 +116,8 @@ spec:
         storage:
           volumeClaimTemplate:
             spec:
-              storageClassName: local-path
-              accessModes: ["ReadWriteOnce"]
+              storageClassName: nfs-truenas
+              accessModes: ["ReadWriteMany"]
               resources:
                 requests:
                   storage: 1Gi
