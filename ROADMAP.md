@@ -69,6 +69,10 @@ For completed work, see [CHANGELOG.md](CHANGELOG.md). For detailed records of si
 ### Grafana Dashboards
 **Why:** Currently running default dashboards. Custom dashboards for TrueNAS pool health, ZFS scrub status, Plex sessions, Sonarr/Radarr queue, and backup success/failure would give a real operations view of the entire homelab at a glance.
 
+### PiKVM (KVM-over-IP)
+**Why:** Out-of-band access for nodes that are unreachable over SSH — BIOS config, recovery, OS reinstall. Pi Zero 2W + USB HDMI capture card replicates JetKVM for ~$30. Useful once the cluster is actively running production workloads and physical access for recovery becomes a friction point.
+**Linked:** [projects/INFRA-pikvm/](projects/INFRA-pikvm/)
+
 ### NUC RAM Upgrade (8GB → 16GB)
 **Why:** The Intel NUC i3-7100U is running Docker bare metal with 8GB. 16GB would give comfortable headroom as the media stack grows. ~$30–40 for a SO-DIMM DDR4 kit.
 
