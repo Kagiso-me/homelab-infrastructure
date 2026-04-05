@@ -15,6 +15,10 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 
 ---
 
+## 2026-04
+
+- **[CONFIG]** correct postgresql hostname to postgresql-primary (#6) `14bde9b`
+
 ## 2026-03
 - **[CONFIG]** relocate downloads path under /srv/docker/downloads `122a6ba`
 - **[CONFIG]** rewrite n8n helmrelease using correct chart schema `fa684cb`
