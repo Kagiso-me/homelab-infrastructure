@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** correct admin secret name to grafana-admin `6d5b682`
 - **[CONFIG]** disable initChownData — NFS blocks chown from non-root containers `84fe40b`
 - **[DEPLOY]** enable Grafana and Alertmanager in-cluster with Discord (#9) `eb0d10b`
 - **[DEPLOY]** switch to official upstream chart (#8) `852fa2d`
