@@ -113,6 +113,69 @@ jobs:
             kustomize build "${path}" > /dev/null
           done
 
+      - name: Verify HelmRelease chart versions exist in repositories
+        run: |
+          python3 << 'EOF'
+          import sys, glob, yaml, urllib.request
+
+          repo_urls = {}
+          for f in glob.glob("**/*.yaml", recursive=True):
+              if "gotk-components" in f:
+                  continue
+              try:
+                  doc = yaml.safe_load(open(f))
+                  if doc and doc.get("kind") == "HelmRepository":
+                      repo_urls[doc["metadata"]["name"]] = doc["spec"]["url"].rstrip("/")
+              except Exception:
+                  pass
+
+          index_cache = {}
+          errors = []
+
+          for f in sorted(glob.glob("**/*.yaml", recursive=True)):
+              if "gotk-components" in f:
+                  continue
+              try:
+                  doc = yaml.safe_load(open(f))
+                  if not doc or doc.get("kind") != "HelmRelease":
+                      continue
+                  cs = doc["spec"]["chart"]["spec"]
+                  chart, version, repo_name = cs["chart"], str(cs["version"]), cs["sourceRef"]["name"]
+              except Exception:
+                  continue
+
+              if repo_name not in repo_urls:
+                  errors.append(f"{f}: HelmRepository '{repo_name}' not found in repo")
+                  continue
+
+              repo_url = repo_urls[repo_name]
+              if repo_url not in index_cache:
+                  try:
+                      with urllib.request.urlopen(f"{repo_url}/index.yaml") as r:
+                          index_cache[repo_url] = yaml.safe_load(r.read())
+                  except Exception as e:
+                      errors.append(f"{f}: failed to fetch {repo_url}/index.yaml: {e}")
+                      continue
+
+              available = [str(e.get("version", "")) for e in index_cache[repo_url].get("entries", {}).get(chart, [])]
+              if version in available:
+                  print(f"  ✓ {chart}@{version} ({repo_name})")
+              else:
+                  errors.append(
+                      f"{f}: {chart}@{version} not found in '{repo_name}'.\n"
+                      f"    Available: {', '.join(available[:5]) or 'none'}\n"
+                      f"    Publish the chart before bumping the version reference."
+                  )
+
+          if errors:
+              print("\nChart version validation FAILED:")
+              for e in errors:
+                  print(f"  ✗ {e}")
+              sys.exit(1)
+
+          print("All HelmRelease chart versions verified.")
+          EOF
+
       - name: Check for deprecated Kubernetes APIs
         run: |
           KUSTOMIZE_PATHS=(
