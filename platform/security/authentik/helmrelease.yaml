@@ -49,7 +49,7 @@ spec:
         # Uses the shared central PostgreSQL in the databases namespace.
         # The 'authentik' database and user must be created before first deploy —
         # see platform/security/authentik/README instructions.
-        host: postgresql.databases.svc.cluster.local
+        host: postgresql-primary.databases.svc.cluster.local
         port: 5432
         name: authentik
         user: authentik
