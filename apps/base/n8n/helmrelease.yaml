@@ -45,7 +45,7 @@ spec:
 
     # External PostgreSQL.
     externalPostgresql:
-      host: postgresql.databases.svc.cluster.local
+      host: postgresql-primary.databases.svc.cluster.local
       port: 5432
       database: n8n
       username: n8n
@@ -68,8 +68,9 @@ spec:
     # encryptionKey injected via valuesFrom.
     # WARNING: changing this after first deploy invalidates all stored credentials.
 
-    generic:
-      timezone: Africa/Johannesburg
+    extraEnv:
+      GENERIC_TIMEZONE: Africa/Johannesburg
+      TZ: Africa/Johannesburg
 
     ingress:
       enabled: false
