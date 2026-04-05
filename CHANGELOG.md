@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** fix env var structure for bjw-s common chart `09e20a6`
 - **[CONFIG]** fix schema error and postgres hostname `9376ff9`
 - **[CONFIG]** re-encrypt app secrets with cluster age key `7738e0d`
 - **[CONFIG]** add allow-from-ingress to crowdsec namespace `df55956`
