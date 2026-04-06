@@ -28,12 +28,21 @@ spec:
     # ----- Grafana -----
     defaultRules:
       create: true
-      # Disable rules that fire false positives on k3s — these components
-      # are embedded and don't expose the endpoints kube-prometheus-stack expects.
-      disabled:
-        KubeProxyDown: true
-        KubeControllerManagerDown: true
-        KubeSchedulerDown: true
+      # Disable entire rule groups for k3s components that are embedded and
+      # don't expose the endpoints kube-prometheus-stack expects.
+      # Using rules.* to disable the groups entirely avoids null rule arrays
+      # that cause PrometheusRule validation failures on chart install.
+      rules:
+        kubeProxy: false
+        kubeControllerManager: false
+        kubeScheduler: false
+
+    kubeProxy:
+      enabled: false
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
     grafana:
       enabled: true
       admin:
