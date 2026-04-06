@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** disable occ-init job (needs rework for official chart) `04aea03`
 - **[CONFIG]** fix occ-init job for official chart (not bitnami) `2d76ef7`
 - **[CONFIG]** fix IngressRoute service name from n8n-main to n8n `87098f7`
 - **[CONFIG]** add init container to wait for PostgreSQL before startup `7ace908`
