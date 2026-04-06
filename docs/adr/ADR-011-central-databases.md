@@ -1,7 +1,7 @@
 
 # ADR-011 — Central PostgreSQL and Redis on Control Plane
 
-**Status:** Accepted
+**Status:** Amended — 2026-04-06
 **Date:** 2026-03-24
 **Deciders:** Platform team
 
@@ -20,12 +20,32 @@ questions arise:
 
 ## Decision
 
-**One central PostgreSQL instance and one central Redis instance**, both
-deployed to the `databases` namespace, both pinned to the control-plane node
-(`tywin`, 10.0.10.11) with `local-path` storage.
+**One central PostgreSQL instance and one central Redis instance**, both in
+the `databases` namespace.
+
+- **PostgreSQL** — `nfs-databases` StorageClass (dedicated NFS export on
+  TrueNAS, no uid squash). No node affinity — can schedule on any node.
+- **Redis** — `local-path`, pinned hard to `tywin` by hostname. Redis is a
+  cache; data loss on node failure is acceptable. Pinning to `tywin` is stable
+  because `tywin` going down means full etcd quorum loss anyway.
 
 Each application gets its own database and user on the shared PostgreSQL
 instance. All applications share the single Redis instance.
+
+### Amendment — 2026-04-06
+
+Original decision used `local-path` for both PostgreSQL and Redis, pinned to
+the control-plane role (not a specific hostname). When `jaime` went
+unreachable, PostgreSQL and Redis PVs were stuck on that node and could not
+reschedule — taking down all applications despite the other two nodes being
+healthy. This proved that `local-path` for PostgreSQL is not viable on a
+3-node HA etcd cluster where any node can go down independently.
+
+PostgreSQL moved to a dedicated `nfs-databases` NFS export (separate from the
+app `nfs-truenas` export) which uses `maproot_user=root` with no `mapall`
+squash, preserving container uid 999. Redis remains on `local-path` pinned to
+`tywin` by hostname — the original `control-plane role` selector was the
+specific failure: it allowed the PV to land on any control-plane node.
 
 ---
 

@@ -1,0 +1,280 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-nfs-postgres-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ─── NFS Mount Health ─────────────────────────────────────────────────────
+    # Detects stale/hung NFS mounts before PostgreSQL notices. A stale mount
+    # causes PostgreSQL WAL writes to hang indefinitely — alerting here is
+    # earlier than waiting for a postgres crash.
+    - name: nfs.mount_health
+      rules:
+        - alert: NFSDatabasesMountDown
+          expr: |
+            node_filesystem_readonly{
+              mountpoint=~".*/k8s_databases/.*",
+              job=~"node-.*"
+            } == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NFS k8s_databases mount is read-only on {{ $labels.instance }}"
+            description: |
+              The NFS mount backing PostgreSQL and Prometheus data has gone
+              read-only on {{ $labels.instance }}. This typically indicates a
+              stale file handle or TrueNAS NFS server issue. PostgreSQL writes
+              will fail immediately. Investigate TrueNAS NFS service.
+
+        - alert: NFSDatabasesMountStale
+          expr: |
+            (
+              node_filesystem_avail_bytes{
+                mountpoint=~".*/k8s_databases/.*",
+                job=~"node-.*"
+              } == 0
+            ) and (
+              node_filesystem_size_bytes{
+                mountpoint=~".*/k8s_databases/.*",
+                job=~"node-.*"
+              } > 0
+            )
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NFS k8s_databases mount may be stale on {{ $labels.instance }}"
+            description: |
+              NFS mount {{ $labels.mountpoint }} on {{ $labels.instance }}
+              reports 0 bytes available on a non-zero volume — classic stale
+              file handle signature. PostgreSQL may be hanging on writes.
+
+    # ─── I/O Wait — NFS Performance Canary ───────────────────────────────────
+    # High iowait on the node running PostgreSQL is the primary indicator that
+    # NFS latency is impacting database performance. Threshold is tight because
+    # this is a homelab with low expected baseline I/O.
+    - name: nfs.io_performance
+      rules:
+        - alert: PostgreSQLNodeHighIOWait
+          expr: |
+            (
+              avg by(instance) (
+                rate(node_cpu_seconds_total{
+                  mode="iowait",
+                  job=~"node-.*"
+                }[5m])
+              ) * 100
+            ) > 20
+            and on(instance) (
+              kube_pod_info{
+                namespace="databases",
+                pod=~"postgresql-primary-.*"
+              } * on(node) group_left(instance)
+              label_replace(
+                node_uname_info{job=~"node-.*"},
+                "node", "$1", "nodename", "(.*)"
+              )
+            )
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High I/O wait on PostgreSQL node {{ $labels.instance }}"
+            description: |
+              I/O wait on {{ $labels.instance }} (running postgresql-primary)
+              is {{ $value | printf "%.1f" }}% — above 20% threshold.
+              This suggests NFS latency is impacting PostgreSQL write throughput.
+              Check TrueNAS disk utilisation and NFS server load.
+
+        - alert: PostgreSQLNodeCriticalIOWait
+          expr: |
+            (
+              avg by(instance) (
+                rate(node_cpu_seconds_total{
+                  mode="iowait",
+                  job=~"node-.*"
+                }[5m])
+              ) * 100
+            ) > 40
+            and on(instance) (
+              kube_pod_info{
+                namespace="databases",
+                pod=~"postgresql-primary-.*"
+              } * on(node) group_left(instance)
+              label_replace(
+                node_uname_info{job=~"node-.*"},
+                "node", "$1", "nodename", "(.*)"
+              )
+            )
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Critical I/O wait on PostgreSQL node {{ $labels.instance }}"
+            description: |
+              I/O wait on {{ $labels.instance }} is {{ $value | printf "%.1f" }}%
+              — above 40% critical threshold. PostgreSQL is likely stalling on
+              NFS writes. Applications will experience timeouts. Immediate
+              investigation of TrueNAS NFS required.
+
+    # ─── PostgreSQL Availability ──────────────────────────────────────────────
+    - name: postgresql.availability
+      rules:
+        - alert: PostgreSQLDown
+          expr: |
+            pg_up{job="postgresql"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL is unreachable"
+            description: |
+              Prometheus cannot scrape PostgreSQL metrics. The database is
+              either down or the exporter has crashed. All applications
+              (Nextcloud, Immich, n8n, Vaultwarden) will be unable to connect.
+
+        - alert: PostgreSQLPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              namespace="databases",
+              pod=~"postgresql-primary-.*",
+              condition="true"
+            } == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL pod is not ready"
+            description: |
+              {{ $labels.pod }} in namespace databases has been not-ready for
+              2 minutes. Check pod logs and NFS mount status.
+
+    # ─── PostgreSQL Performance — NFS Baseline Monitoring ────────────────────
+    # These alerts establish whether NFS is hurting query performance.
+    # Thresholds are intentionally tight to catch any degradation early.
+    - name: postgresql.performance
+      rules:
+        - alert: PostgreSQLHighConnectionCount
+          expr: |
+            sum(pg_stat_activity_count{job="postgresql"}) > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL connection count is high ({{ $value }})"
+            description: |
+              {{ $value }} active connections. Max is typically 100. High
+              connection counts can indicate apps are not releasing connections
+              due to slow queries — which on NFS can be caused by I/O latency.
+
+        - alert: PostgreSQLLowCacheHitRatio
+          expr: |
+            (
+              sum(rate(pg_stat_database_blks_hit{job="postgresql"}[5m]))
+              /
+              (
+                sum(rate(pg_stat_database_blks_hit{job="postgresql"}[5m]))
+                + sum(rate(pg_stat_database_blks_read{job="postgresql"}[5m]))
+              )
+            ) < 0.90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL cache hit ratio below 90%"
+            description: |
+              Cache hit ratio is {{ $value | humanizePercentage }}. Blocks are
+              being read from disk (NFS) rather than shared_buffers. On NFS
+              this directly translates to query latency. Consider increasing
+              shared_buffers or investigate query patterns.
+
+        - alert: PostgreSQLHighDeadlocks
+          expr: |
+            rate(pg_stat_database_deadlocks{job="postgresql"}[5m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL deadlocks detected"
+            description: |
+              Deadlocks are occurring at {{ $value | printf "%.3f" }}/s across
+              all databases. On NFS, lock contention can be exacerbated by
+              increased transaction latency.
+
+        - alert: PostgreSQLTempFilesGrowing
+          expr: |
+            rate(pg_stat_database_temp_files{job="postgresql"}[10m]) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL creating temp files (spilling to NFS disk)"
+            description: |
+              PostgreSQL is creating temp files at {{ $value | printf "%.2f" }}/s.
+              Temp files are written to NFS — this is a direct NFS write load
+              that will increase I/O latency. Queries may need work_mem tuning.
+
+        - alert: PostgreSQLTransactionIDExhaustion
+          expr: |
+            max(pg_database_wraparound_estimate_remaining_transactions{job="postgresql"}) < 10000000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL transaction ID wraparound risk"
+            description: |
+              Only {{ $value }} transactions remaining before XID wraparound.
+              VACUUM FREEZE is needed. On NFS this operation is I/O intensive
+              — schedule during off-peak hours.
+
+    # ─── NFS Storage Capacity ─────────────────────────────────────────────────
+    - name: nfs.capacity
+      rules:
+        - alert: NFSDatabasesLowSpace
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes{
+                namespace="databases",
+                persistentvolumeclaim="data-postgresql-primary-0"
+              }
+              /
+              kubelet_volume_stats_capacity_bytes{
+                namespace="databases",
+                persistentvolumeclaim="data-postgresql-primary-0"
+              }
+            ) < 0.20
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL PVC below 20% free space"
+            description: |
+              PostgreSQL data volume has {{ $value | humanizePercentage }} space
+              remaining. Expand the PVC or clean up old data.
+
+        - alert: NFSDatabasesCriticalSpace
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes{
+                namespace="databases",
+                persistentvolumeclaim="data-postgresql-primary-0"
+              }
+              /
+              kubelet_volume_stats_capacity_bytes{
+                namespace="databases",
+                persistentvolumeclaim="data-postgresql-primary-0"
+              }
+            ) < 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL PVC critically low — under 5% remaining"
+            description: |
+              PostgreSQL data volume has {{ $value | humanizePercentage }} space
+              remaining. PostgreSQL will crash when the volume fills. Immediate
+              action required.
