@@ -281,26 +281,6 @@ services:
         max-file: "3"
 
   # ---------------------------------------------------------------------------
-  # Glance — Dashboard
-  # Web UI: http://10.0.10.20:8800
-  # ---------------------------------------------------------------------------
-  glance:
-    image: glanceapp/glance
-    container_name: glance
-    restart: unless-stopped
-    networks:
-      - media-net
-    ports:
-      - "8800:8080"
-    volumes:
-      - /srv/docker/appdata/glance:/app/config
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ---------------------------------------------------------------------------
   # Navidrome — Music streaming server (Subsonic-compatible)
   # Web UI: http://10.0.10.20:4533
   # ---------------------------------------------------------------------------

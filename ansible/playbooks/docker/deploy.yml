@@ -91,3 +91,13 @@
       args:
         chdir: "{{ stacks_dest }}"
       when: target_stack == 'all' or target_stack == 'monitoring-stack'
+
+    - name: Deploy platform-stack
+      # Glance dashboard and Uptime Kuma — platform tooling independent of media-net.
+      shell: >
+        docker compose
+        -f {{ stacks_dest }}/platform-stack.yml
+        up -d --pull always --remove-orphans
+      args:
+        chdir: "{{ stacks_dest }}"
+      when: target_stack == 'all' or target_stack == 'platform-stack'

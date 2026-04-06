@@ -1,0 +1,61 @@
+# =============================================================================
+# Platform Stack — Docker Compose
+# Host: 10.0.10.20
+#
+# Platform-level tooling: dashboards, monitoring, uptime tracking.
+# These services are infrastructure concerns, not media-stack concerns.
+#
+# Network: platform-net (internal) + host port exposure
+# Prerequisites:
+#   1. .env file at /srv/docker/stacks/.env
+# =============================================================================
+
+name: platform-stack
+
+networks:
+  platform-net:
+    name: platform-net
+    driver: bridge
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Glance — Homepage dashboard
+  # Web UI: http://10.0.10.20:8800
+  # Config: /srv/docker/appdata/glance/glance.yml
+  # ---------------------------------------------------------------------------
+  glance:
+    image: glanceapp/glance
+    container_name: glance
+    restart: unless-stopped
+    networks:
+      - platform-net
+    ports:
+      - "8800:8080"
+    volumes:
+      - /srv/docker/appdata/glance:/app/config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Uptime Kuma — Service uptime monitoring
+  # Web UI: http://10.0.10.20:3001
+  # ---------------------------------------------------------------------------
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    networks:
+      - platform-net
+    ports:
+      - "3001:3001"
+    volumes:
+      - /srv/docker/appdata/uptime-kuma:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
