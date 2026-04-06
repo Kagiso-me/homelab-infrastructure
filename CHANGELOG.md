@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** override dnsConfig to avoid stale node search domains `4c8a479`
 - **[CONFIG]** pin to tywin node to avoid DNS failures on tyrion `33ea0a3`
 - **[CONFIG]** disable postgres metrics sidecar (PG17 incompatible) `f30d336`
 - **[CONFIG]** use valuesFrom for redis password instead of valueFrom `ffdb0b2`
