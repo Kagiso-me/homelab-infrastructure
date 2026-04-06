@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** re-enable AlertmanagerConfig and secret for in-cluster alertmanager `b8493b9`
 - **[CONFIG]** simplify inline config to valid null receiver `bb6799e`
 - **[CONFIG]** disable occ-init job (needs rework for official chart) `04aea03`
 - **[CONFIG]** fix occ-init job for official chart (not bitnami) `2d76ef7`
