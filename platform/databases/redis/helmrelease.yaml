@@ -29,16 +29,19 @@ spec:
       existingSecretPasswordKey: redis-password
 
     master:
-      # Pin to control plane alongside PostgreSQL — both data services on tywin.
-      # local-path PV is node-local; pod must always land on the same node.
-      # See ADR-011.
+      # Pin hard to tywin by hostname — local-path PV is node-local.
+      # Redis is a cache; losing it on node failure is acceptable. Pinning to
+      # tywin (primary control plane) gives it the most stable node in the
+      # cluster. Toleration required for the control-plane NoSchedule taint.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: Exists
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - tywin
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

@@ -70,10 +70,11 @@ spec:
         storageSpec:
           volumeClaimTemplate:
             spec:
-              # local-path (k3s built-in) — Prometheus writes to WAL every few seconds.
-              # NFS causes stale file handle errors on any server blip, silently
-              # dropping all metrics. Local disk is the only reliable choice for TSDB.
-              storageClassName: local-path
+              # NFS — Prometheus TSDB survives any single node failure.
+              # WAL writes over gigabit LAN to TrueNAS are acceptable at homelab
+              # scrape volumes. Stale file handle risk is lower than the outage
+              # caused by local-path node failure.
+              storageClassName: nfs-truenas
               accessModes: ["ReadWriteOnce"]
               resources:
                 requests:

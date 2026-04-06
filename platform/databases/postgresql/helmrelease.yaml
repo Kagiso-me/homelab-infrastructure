@@ -35,17 +35,9 @@ spec:
         adminPasswordKey: postgres-password
 
     primary:
-      # Pin to control plane — central data services live on tywin.
-      # See ADR-011. Toleration required for the NoSchedule taint k3s applies
-      # to control-plane nodes. local-path PV is node-local, so the pod must
-      # always land on the same node to access its data.
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: Exists
+      # No node affinity — PV is on NFS (TrueNAS), accessible from any node.
+      # Toleration still required so the pod can schedule on control-plane
+      # nodes if that is where the scheduler places it.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -53,7 +45,7 @@ spec:
 
       persistence:
         enabled: true
-        storageClass: local-path
+        storageClass: nfs-truenas
         size: 8Gi
 
       # No memory limit — OOM-killing a database is worse than letting it
@@ -65,10 +57,10 @@ spec:
         limits:
           cpu: 500m
 
-    # local-path provisions volumes owned by root. Fix ownership so the
-    # postgres container (uid 999) can write to its data directory.
+    # NFS volumes are provisioned with correct ownership by the nfs-subdir
+    # provisioner. volumePermissions init container not needed.
     volumePermissions:
-      enabled: true
+      enabled: false
 
     metrics:
       # Disabled: postgres_exporter query for pg_stat_bgwriter.checkpoints_timed
