@@ -53,6 +53,22 @@ spec:
       podSecurityContext:
         fsGroup: 999
 
+      # Extended startup probe — NFS WAL replay on an unclean shutdown can take
+      # several minutes. Default liveness probe kills PostgreSQL mid-recovery,
+      # causing an infinite restart loop. 30s period * 40 failures = 20 minutes
+      # before the pod is considered failed, giving recovery time to complete.
+      livenessProbe:
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        failureThreshold: 40
+        timeoutSeconds: 10
+
+      startupProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        failureThreshold: 40
+        timeoutSeconds: 10
+
       # No memory limit — OOM-killing a database is worse than letting it
       # use available RAM. Request ensures the scheduler accounts for it.
       resources:
