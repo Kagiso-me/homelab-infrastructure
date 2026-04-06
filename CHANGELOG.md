@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** add platform-stack with glance and uptime-kuma `70ddc88`
 - **[DEPLOY]** add NFS PostgreSQL performance alerts `a31b26a`
 - **[CONFIG]** fix docker ps format string causing Ansible Jinja2 template error `e3e1485`
 - **[DEPLOY]** add glance dashboard on port 8800 `f381373`
