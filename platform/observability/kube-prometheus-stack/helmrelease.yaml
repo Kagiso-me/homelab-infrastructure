@@ -123,6 +123,9 @@ spec:
               resources:
                 requests:
                   storage: 1Gi
+        # Select AlertmanagerConfig resources from all namespaces.
+        alertmanagerConfigSelector: {}
+        alertmanagerConfigNamespaceSelector: {}
       config:
         global:
           resolve_timeout: 5m
@@ -131,21 +134,9 @@ spec:
           group_wait: 30s
           group_interval: 5m
           repeat_interval: 4h
-          receiver: discord-alerts
-          routes:
-            - receiver: discord-critical
-              matchers:
-                - name: severity
-                  value: critical
-              repeat_interval: 1h
-            - receiver: watchdog-webhook
-              matchers:
-                - name: alertname
-                  value: Watchdog
+          receiver: "null"
         receivers:
-          - name: discord-alerts
-          - name: discord-critical
-          - name: watchdog-webhook
+          - name: "null"
 
     # ----- Node Exporter -----
     prometheus-node-exporter:
