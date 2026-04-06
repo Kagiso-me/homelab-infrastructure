@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** add traefik-internal for LAN-only ingress tier `76ea486`
 - **[CONFIG]** increase replicas to 3 to match 3-node cluster `c234666`
 - **[CONFIG]** quote database port to prevent float encoding in DB URI `a1f652f`
 - **[CONFIG]** switch chart source to guerzon HelmRepository `0fc8d9b`
