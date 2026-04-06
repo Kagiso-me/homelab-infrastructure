@@ -43,7 +43,7 @@ spec:
             - |
               echo "Waiting for Nextcloud to be ready..."
               until curl -sf --max-time 5 \
-                "http://nextcloud-nextcloud.apps.svc.cluster.local:8080/status.php" \
+                "http://nextcloud.apps.svc.cluster.local:8080/status.php" \
                 | grep -q '"installed":true'; do
                 echo "Not ready yet — retrying in 10s..."
                 sleep 10
@@ -52,7 +52,7 @@ spec:
       containers:
         - name: occ
           # Pin to the same tag as the HelmRelease chart image.
-          image: bitnami/nextcloud:30
+          image: nextcloud:33.0.0-apache
           command:
             - /bin/bash
             - -c
@@ -60,26 +60,16 @@ spec:
               set -euo pipefail
 
               echo "--- Enabling oidc_login app ---"
-              php /var/www/html/occ app:enable oidc_login
+              php /var/www/html/occ app:enable oidc_login || true
 
               echo "--- Running maintenance:repair ---"
               php /var/www/html/occ maintenance:repair
 
               echo "--- occ init complete ---"
-          env:
-            - name: NEXTCLOUD_DATA_DIR
-              value: /bitnami/nextcloud/data
-          envFrom:
-            - secretRef:
-                # The same Secret referenced by the HelmRelease valuesFrom.
-                # Contains: NEXTCLOUD_DATABASE_PASSWORD, REDIS_HOST_PASSWORD,
-                # OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, etc.
-                name: nextcloud-secret
           volumeMounts:
             - name: nextcloud-data
-              mountPath: /bitnami/nextcloud
+              mountPath: /var/www/html/data
       volumes:
         - name: nextcloud-data
           persistentVolumeClaim:
-            # Bitnami chart names the PVC <release-name>-nextcloud.
             claimName: nextcloud-nextcloud
