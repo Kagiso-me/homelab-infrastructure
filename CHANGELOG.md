@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** disable k3s-incompatible PrometheusRule groups properly `8de02bb`
 - **[DEPLOY]** move freshrss to media-stack `deab6b4`
 - **[DEPLOY]** add freshrss to platform-stack `008c5c7`
 - **[DEPLOY]** add platform-stack with glance and uptime-kuma `70ddc88`
