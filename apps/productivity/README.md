@@ -1,7 +1,10 @@
 # apps/productivity
 
-Flux Kustomizations for productivity applications (Nextcloud, Vaultwarden, etc.).
+Flux Kustomizations for productivity applications.
 
-> **Status: Placeholder** — No productivity apps are deployed yet. This directory is reserved for future use.
+| App | Namespace | URL | Status |
+|---|---|---|---|
+| Vaultwarden | `apps` | `vault.kagiso.me` | Deployed via `apps/base/vaultwarden` |
 
-When ready, follow the same pattern as [apps/base/grafana/](../base/grafana/) for adding applications to the cluster.
+Vaultwarden uses the shared central PostgreSQL instance (`vaultwarden` database)
+and NFS storage (`nfs-truenas`) for attachments and icon cache.

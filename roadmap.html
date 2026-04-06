@@ -642,14 +642,6 @@ const items = [
     start: '2026-03-22', end: '2026-03-28',
   },
   {
-    phase: 'next', title: 'NUC RAM Upgrade (16GB → 32GB)',
-    why: '16GB leaves zero headroom (Proxmox 2GB + docker-vm 6GB + staging-k3s 8GB). 32GB unlocks 14GB for LXC containers and future VMs. ~$50.',
-    deps: 'None',
-    tags: ['hardware'],
-    target: '2026-03-23',
-    start: '2026-03-23', end: '2026-03-23',
-  },
-  {
     phase: 'next', title: 'Flux Bootstrap — Staging',
     why: 'clusters/staging/ and the GitOps promotion pipeline are ready. The staging cluster needs bootstrapping once staging-k3s VM is provisioned.',
     deps: 'Proxmox migration (staging-k3s VM)',
@@ -682,18 +674,6 @@ const items = [
   },
 
   // ── LATER ──
-  {
-    phase: 'later', title: 'Nextcloud',
-    why: 'Self-hosted file sync — replaces commercial cloud storage for personal documents. Runs in k3s, exposed via Cloudflare Tunnel.',
-    tags: ['storage', 'self-hosted'],
-    start: '2026-04-10', end: '2026-04-20',
-  },
-  {
-    phase: 'later', title: 'Immich (Photo Library)',
-    why: 'Self-hosted Google Photos replacement. Media stored on TrueNAS archive. Bulk import via Tailscale, daily access via Cloudflare Tunnel.',
-    tags: ['media', 'self-hosted'],
-    start: '2026-04-14', end: '2026-04-24',
-  },
   {
     phase: 'later', title: 'Media Conversion App',
     why: 'ffprobe scans the library for files requiring transcoding, queues ffmpeg conversion. Eliminates transcoding overhead on the NUC entirely.',
@@ -743,17 +723,9 @@ const items = [
   },
   {
     phase: 'someday', title: 'Home Assistant',
-    why: 'Smart home integration as LXC on Proxmox once 32GB RAM upgrade is in and headroom exists. Low priority until other fundamentals are solid.',
-    deps: '32GB RAM upgrade',
+    why: 'Smart home integration — low priority until other fundamentals are solid.',
     tags: ['smart-home'],
     start: '2026-07-15', end: '2026-07-20',
-  },
-  {
-    phase: 'someday', title: 'Additional LXC Workloads',
-    why: 'With 32GB RAM: Headscale server, Vaultwarden (self-hosted Bitwarden), additional monitoring nodes — ~14GB of headroom beyond docker-vm and staging-k3s.',
-    deps: '32GB RAM upgrade',
-    tags: ['proxmox', 'infrastructure'],
-    start: '2026-07-20', end: '2026-08-01',
   },
 ];
 
@@ -763,6 +735,12 @@ const shipped = [
   { date: '2026-03-16', what: 'Architecture pivot — Intel NUC to Proxmox hypervisor', link: 'docs/ops-log/2026-03-16-pivot-nuc-to-proxmox.md' },
   { date: '2026-03-16', what: 'GitOps promotion pipeline — main → staging → prod automation', link: 'docs/guides/04-Flux-GitOps.md' },
   { date: '2026-03-16', what: 'Ops-log system and CHANGELOG automation', link: 'docs/ops-log/README.md' },
+  { date: '2026-04-06', what: 'Nextcloud — self-hosted file sync on k3s with NFS storage' },
+  { date: '2026-04-06', what: 'Immich — self-hosted photo library, 200Gi TrueNAS storage' },
+  { date: '2026-04-06', what: 'n8n — workflow automation with PostgreSQL + Redis backend' },
+  { date: '2026-04-06', what: 'Vaultwarden — self-hosted password manager on k3s' },
+  { date: '2026-04-06', what: 'PostgreSQL + Prometheus migrated to nfs-databases (dedicated NFS export, no uid squash)' },
+  { date: '2026-04-06', what: 'TrueNAS node-exporter + smartctl-exporter with systemd + post-init boot script' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
