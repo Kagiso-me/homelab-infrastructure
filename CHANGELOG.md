@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** shorten entrypoint name to websecure-int `4e3033d`
 - **[DEPLOY]** wire internal IngressRoutes into kustomizations `6220128`
 - **[DEPLOY]** add traefik-internal for LAN-only ingress tier `76ea486`
 - **[CONFIG]** increase replicas to 3 to match 3-node cluster `c234666`
