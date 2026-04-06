@@ -5,4 +5,4 @@ resources:
   - helmrelease.yaml
   - ingressroute.yaml
   - secret.yaml
-  - occ-init-job.yaml
+  # occ-init-job.yaml disabled — needs rework to exec into official nextcloud container
