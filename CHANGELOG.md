@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** migrate PostgreSQL and Prometheus to NFS, pin Redis to tywin `01b7072`
 - **[CONFIG]** update monitoring-stack cadvisor port and disable_metrics flag `c6fefac`
 - **[CONFIG]** update cadvisor port to 9338 on Docker host `1f03bf5`
 - **[CONFIG]** disable k3s-incompatible default rules `bedd8a3`
