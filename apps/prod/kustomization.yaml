@@ -5,3 +5,4 @@ resources:
   - ../base/nextcloud
   - ../base/immich
   - ../base/n8n
+  - ../base/vaultwarden

@@ -13,8 +13,9 @@
 set -euo pipefail
 
 NFS_SERVER="10.0.10.80"
-NFS_SHARE="/mnt/archive/backups/varys"
+NFS_SHARE="/mnt/archive/backups"
 MOUNT_POINT="/mnt/backup_varys"
+BACKUP_DIR="${MOUNT_POINT}/varys"
 RETENTION_DAYS=30
 TIMESTAMP=$(date +"%Y-%m-%d_%H%M%S")
 ARCHIVE_NAME="varys_backup_${TIMESTAMP}.tar.gz.gpg"
@@ -90,6 +91,7 @@ else
   mount -t nfs "${NFS_SERVER}:${NFS_SHARE}" "${MOUNT_POINT}" -o rw,noatime,vers=4
 fi
 
+mkdir -p "${BACKUP_DIR}"
 log "Creating encrypted archive: ${ARCHIVE_NAME}"
 
 tar --create \
@@ -110,12 +112,12 @@ tar --create \
     --cipher-algo AES256 \
     --compress-algo none \
     --passphrase-file "${PASSPHRASE_FILE}" \
-    --output "${MOUNT_POINT}/${ARCHIVE_NAME}"
+    --output "${BACKUP_DIR}/${ARCHIVE_NAME}"
 
-ARCHIVE_BYTES=$(stat -c %s "${MOUNT_POINT}/${ARCHIVE_NAME}")
-log "Archive written: ${MOUNT_POINT}/${ARCHIVE_NAME} ($(du -sh "${MOUNT_POINT}/${ARCHIVE_NAME}" | cut -f1))"
+ARCHIVE_BYTES=$(stat -c %s "${BACKUP_DIR}/${ARCHIVE_NAME}")
+log "Archive written: ${BACKUP_DIR}/${ARCHIVE_NAME} ($(du -sh "${BACKUP_DIR}/${ARCHIVE_NAME}" | cut -f1))"
 
-DELETED=$(find "${MOUNT_POINT}" -name "varys_backup_*.tar.gz.gpg" -mtime +${RETENTION_DAYS} -print -delete 2>>"${LOG_FILE}" | wc -l)
+DELETED=$(find "${BACKUP_DIR}" -name "varys_backup_*.tar.gz.gpg" -mtime +${RETENTION_DAYS} -print -delete 2>>"${LOG_FILE}" | wc -l)
 if [[ "${DELETED}" -gt 0 ]]; then
   log "Pruned ${DELETED} archive(s) older than ${RETENTION_DAYS} days"
 fi

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import sys,json,base64; d=json.load\\(sys.stdin\\); [print\\(k, base64.b64decode\\(v\\).decode\\(\\)[:20]\\) for k,v in d.items\\(\\)]\")"
+    ]
+  }
+}
