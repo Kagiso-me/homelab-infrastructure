@@ -8,10 +8,10 @@ spec:
   chart:
     spec:
       chart: vaultwarden
-      version: ">=1.2.0"
+      version: ">=0.35.0"
       sourceRef:
         kind: HelmRepository
-        name: community-charts
+        name: guerzon
         namespace: flux-system
       interval: 24h
   timeout: 10m
@@ -44,23 +44,21 @@ spec:
 
     adminToken:
       existingSecret: ""
+      existingSecretKey: ""
       # value injected via valuesFrom
-
-    # Disable bundled PostgreSQL.
-    postgresql:
-      enabled: false
 
     domain: "https://vault.kagiso.me"
 
-    # Invitations and signups — disable open registration.
-    signupEnabled: false
+    # Disable open registration — admin invites only.
+    signupsAllowed: false
 
-    # Persistence for attachments and icon cache.
-    persistence:
-      enabled: true
-      storageClass: nfs-truenas
-      accessMode: ReadWriteOnce
-      size: 5Gi
+    # Persistence for data and attachments.
+    storage:
+      data:
+        name: vaultwarden-data
+        size: 5Gi
+        class: nfs-truenas
+        accessMode: ReadWriteOnce
 
     ingress:
       enabled: false
