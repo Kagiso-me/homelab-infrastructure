@@ -5,9 +5,9 @@ metadata:
   namespace: monitoring
 spec:
   entryPoints:
-    - websecure
+    - websecure-internal
   routes:
-    - match: Host(`grafana.kagiso.me`)
+    - match: Host(`grafana.local.kagiso.me`)
       kind: Rule
       services:
         - name: kube-prometheus-stack-grafana

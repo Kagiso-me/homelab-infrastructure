@@ -3,4 +3,6 @@ kind: Kustomization
 resources:
   - middlewares.yaml
   - tls-store.yaml
+  - tls-store-internal.yaml
   - wildcard-certificate.yaml
+  - wildcard-certificate-local.yaml

@@ -17,3 +17,5 @@ resources:
   - grafana-dashboard-databases.yaml
   - grafana-dashboard-authentik.yaml
   - grafana-dashboard-cluster-overview.yaml
+  # Internal IngressRoutes
+  - ingressroute-prometheus-internal.yaml

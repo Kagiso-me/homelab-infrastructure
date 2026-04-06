@@ -4,4 +4,5 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - ingressroute.yaml
+  - ingressroute-internal.yaml
   - secret.yaml

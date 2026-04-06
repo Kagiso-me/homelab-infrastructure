@@ -4,3 +4,4 @@ resources:
   - coredns-custom
   - metallb
   - traefik
+  - traefik-internal
