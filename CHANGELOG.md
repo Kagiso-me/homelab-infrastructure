@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** fix docker ps format string causing Ansible Jinja2 template error `e3e1485`
 - **[DEPLOY]** add glance dashboard on port 8800 `f381373`
 - **[DEPLOY]** add nfs-databases StorageClass for database workloads `312fbd8`
 - **[CONFIG]** set fsGroup for NFS mount ownership `456e7a4`
