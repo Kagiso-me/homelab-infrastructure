@@ -48,6 +48,11 @@ spec:
         storageClass: nfs-truenas
         size: 8Gi
 
+      # NFS does not permit chown from within containers. Set fsGroup so the
+      # kernel applies group ownership at mount time — postgres uid/gid is 999.
+      podSecurityContext:
+        fsGroup: 999
+
       # No memory limit — OOM-killing a database is worse than letting it
       # use available RAM. Request ensures the scheduler accounts for it.
       resources:
@@ -57,8 +62,9 @@ spec:
         limits:
           cpu: 500m
 
-    # NFS volumes are provisioned with correct ownership by the nfs-subdir
-    # provisioner. volumePermissions init container not needed.
+    # NFS does not allow chown from within a container — disable the
+    # volumePermissions init container. Instead set podSecurityContext.fsGroup
+    # so the kernel applies group ownership at mount time (no chown needed).
     volumePermissions:
       enabled: false
 
