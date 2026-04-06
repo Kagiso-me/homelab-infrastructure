@@ -100,7 +100,7 @@ spec:
 
           - job_name: cadvisor-docker
             static_configs:
-              - targets: ["10.0.10.20:8080"]
+              - targets: ["10.0.10.20:9338"]
                 labels:
                   instance: docker
 
