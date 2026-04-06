@@ -69,14 +69,17 @@ spec:
         failureThreshold: 40
         timeoutSeconds: 10
 
-      # No memory limit — OOM-killing a database is worse than letting it
-      # use available RAM. Request ensures the scheduler accounts for it.
+      # No memory limit — OOM-killing PostgreSQL is worse than letting it use
+      # available RAM. The chart default applies a 512Mi limit which causes
+      # OOMKills during schema initialisation and heavy query workloads.
+      # Request ensures the scheduler accounts for the baseline footprint.
       resources:
         requests:
-          memory: 512Mi
+          memory: 256Mi
           cpu: 250m
         limits:
           cpu: 500m
+          memory: 2Gi
 
     # NFS does not allow chown from within a container — disable the
     # volumePermissions init container. Instead set podSecurityContext.fsGroup
