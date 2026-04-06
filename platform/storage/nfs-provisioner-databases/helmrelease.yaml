@@ -1,0 +1,41 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nfs-subdir-external-provisioner-databases
+  namespace: storage
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: nfs-subdir-external-provisioner
+      version: "4.0.x"
+      sourceRef:
+        kind: HelmRepository
+        name: nfs-subdir-external-provisioner
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  values:
+    nfs:
+      server: 10.0.10.80
+      path: /mnt/core/k8s_databases
+
+    # Separate provisioner name avoids conflict with the nfs-truenas provisioner.
+    # All database PVCs reference this StorageClass explicitly.
+    storageClass:
+      name: nfs-databases
+      defaultClass: false
+      reclaimPolicy: Retain
+      volumeBindingMode: Immediate
+      archiveOnDelete: true
+      pathPattern: "${.PVC.namespace}-${.PVC.name}-${.PV.name}"
+
+    # Unique provisioner name — required when running two instances of this chart.
+    provisionerName: cluster.local/nfs-subdir-external-provisioner-databases

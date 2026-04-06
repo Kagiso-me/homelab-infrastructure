@@ -45,11 +45,11 @@ spec:
 
       persistence:
         enabled: true
-        storageClass: nfs-truenas
+        storageClass: nfs-databases
         size: 8Gi
 
-      # NFS does not permit chown from within containers. Set fsGroup so the
-      # kernel applies group ownership at mount time — postgres uid/gid is 999.
+      # nfs-databases export has no uid squash — postgres uid 999 is preserved.
+      # fsGroup ensures the data directory group matches the postgres gid.
       podSecurityContext:
         fsGroup: 999
 

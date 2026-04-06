@@ -70,11 +70,9 @@ spec:
         storageSpec:
           volumeClaimTemplate:
             spec:
-              # NFS — Prometheus TSDB survives any single node failure.
-              # WAL writes over gigabit LAN to TrueNAS are acceptable at homelab
-              # scrape volumes. Stale file handle risk is lower than the outage
-              # caused by local-path node failure.
-              storageClassName: nfs-truenas
+              # nfs-databases — no uid squash, Prometheus runs as uid 65534 (nobody).
+              # Survives any single node failure unlike local-path.
+              storageClassName: nfs-databases
               accessModes: ["ReadWriteOnce"]
               resources:
                 requests:
