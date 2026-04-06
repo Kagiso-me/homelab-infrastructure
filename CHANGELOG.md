@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** switch chart source to guerzon HelmRepository `0fc8d9b`
 - **[DEPLOY]** deploy Vaultwarden + roadmap cleanup `d4f0b05`
 - **[CONFIG]** raise memory limit to 2Gi to prevent OOMKill `5f4af3f`
 - **[CONFIG]** extend liveness/startup probes for NFS WAL recovery `44d1fcc`
