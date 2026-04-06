@@ -90,6 +90,28 @@ This split ensures that manifest validation never depends on homelab availabilit
   `cert-manager`, `monitoring`, `storage`, `velero`, `metallb-system`). A cluster-wide `-A`
   check causes the health job to block on unrelated crashing pods (e.g. `system-upgrade-controller`)
   that have nothing to do with the changes being merged.
+- **Each runner must live in its own directory.** The runner agent stores its registration
+  credentials, work directory, and state in the directory it was configured from. Running
+  `config.sh` in an already-registered directory overwrites the existing registration and breaks
+  that runner. See the runbook below for adding additional runners.
+
+## Runner Directory Convention
+
+Each repository that needs a self-hosted runner gets its own directory on varys:
+
+| Directory | Registered to | Labels | systemd service |
+|-----------|--------------|--------|-----------------|
+| `~/actions-runner/` | `Kagiso-me/homelab-infrastructure` | `self-hosted,linux,homelab` | `actions-runner.varys.service` |
+| `~/actions-runner-site/` | `Kagiso-me/Kagiso-me.github.io` | `self-hosted,linux,homelab` | `actions-runner.varys-site.service` |
+
+**Why separate directories:** the runner agent stores its registration token, `.credentials`,
+and `_work/` output in the directory it was configured from. If two runners shared a directory,
+`config.sh` for the second would overwrite the first's credentials and break it. One directory
+per runner is the supported pattern.
+
+**Future node (hodor):** when `hodor` (10.0.10.15, RPi) is provisioned as the dedicated
+observability gateway, the `actions-runner-site` runner will migrate there. The
+`homelab-infrastructure` runner stays on varys since it needs kubectl/Ansible access.
 
 ## Runner Setup
 
