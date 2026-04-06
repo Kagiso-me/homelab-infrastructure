@@ -236,6 +236,7 @@ services:
     volumes:
       - /srv/docker/appdata/sabnzbd:/config
       - /mnt/downloads:/downloads
+      - /srv/docker/downloads:/local-downloads
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://localhost:8080/api?mode=version || exit 1"]
       interval: 30s
@@ -273,6 +274,26 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Glance — Dashboard
+  # Web UI: http://10.0.10.20:8800
+  # ---------------------------------------------------------------------------
+  glance:
+    image: glanceapp/glance
+    container_name: glance
+    restart: unless-stopped
+    networks:
+      - media-net
+    ports:
+      - "8800:8080"
+    volumes:
+      - /srv/docker/appdata/glance:/app/config
     logging:
       driver: "json-file"
       options:
