@@ -73,6 +73,14 @@ spec:
     ingress:
       enabled: false
 
+    # Override dnsConfig to avoid stale search domains from nodes
+    # whose /etc/resolv.conf still has old home network search domains.
+    dnsConfig:
+      searches:
+        - apps.svc.cluster.local
+        - svc.cluster.local
+        - cluster.local
+
     main:
       persistence:
         enabled: true
