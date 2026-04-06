@@ -1,10 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Alerting
-  # alertmanager-config.yaml and alertmanager-secret.yaml removed —
-  # Alertmanager now runs natively on varys (10.0.10.10), not in-cluster.
-  # Config managed by Ansible: ansible/playbooks/services/install-monitoring.yml
+  # Alerting — in-cluster alertmanager with Discord receivers
+  - alertmanager-config.yaml
+  - alertmanager-secret.yaml
   - prometheus-rules-infrastructure.yaml
   - prometheus-rules-apps.yaml
   - prometheus-rules-backups.yaml
