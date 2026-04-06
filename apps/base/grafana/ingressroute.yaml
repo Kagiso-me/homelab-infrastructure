@@ -5,7 +5,7 @@ metadata:
   namespace: monitoring
 spec:
   entryPoints:
-    - websecure-internal
+    - websecure-int
   routes:
     - match: Host(`grafana.local.kagiso.me`)
       kind: Rule

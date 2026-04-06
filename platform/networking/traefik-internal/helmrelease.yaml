@@ -36,18 +36,18 @@ spec:
         metallb.universe.tf/loadBalancerIPs: "10.0.10.111"
 
     # Rename default entrypoints to avoid collision with traefik-external.
-    # IngressRoutes for internal services reference websecure-internal.
+    # IngressRoutes for internal services reference websecure-int.
     ports:
       web:
         port: 80
         expose:
           default: true
         redirectTo:
-          port: websecure-internal
+          port: websecure-int
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
-      websecure-internal:
+      websecure-int:
         port: 443
         expose:
           default: true

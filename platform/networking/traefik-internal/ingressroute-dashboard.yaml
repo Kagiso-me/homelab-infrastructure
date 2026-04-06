@@ -8,7 +8,7 @@ metadata:
   namespace: ingress-internal
 spec:
   entryPoints:
-    - websecure-internal
+    - websecure-int
   routes:
     - match: Host(`traefik.local.kagiso.me`)
       kind: Rule

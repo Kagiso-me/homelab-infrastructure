@@ -5,7 +5,7 @@ metadata:
   namespace: auth
 spec:
   entryPoints:
-    - websecure-internal
+    - websecure-int
   routes:
     - match: Host(`auth.local.kagiso.me`)
       kind: Rule

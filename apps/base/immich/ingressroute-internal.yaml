@@ -5,7 +5,7 @@ metadata:
   namespace: apps
 spec:
   entryPoints:
-    - websecure-internal
+    - websecure-int
   routes:
     - match: Host(`photos.local.kagiso.me`)
       kind: Rule
