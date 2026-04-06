@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "../charts"
+		},
+		{
+			"path": "../kagiso-me.github.io"
 		}
 	],
 	"settings": {}

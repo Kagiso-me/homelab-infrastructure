@@ -85,6 +85,22 @@
         proto: udp
       when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
 
+    - name: Allow Memberlist TCP (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "7946"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
+
+    - name: Allow Memberlist UDP (k3s nodes, LAN only)
+      ufw:
+        rule: allow
+        from_ip: "{{ lan_subnet }}"
+        to_port: "7946"
+        proto: udp
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
+
     # -------------------------------------------------------------------------
     # Ingress — k3s nodes only, LAN only
     # Cloudflare Tunnel (cloudflared) connects from 10.0.10.10 (varys) which is

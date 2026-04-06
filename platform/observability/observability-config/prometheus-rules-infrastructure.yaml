@@ -49,6 +49,48 @@ spec:
           annotations:
             summary: "Disk on {{ $labels.instance }}:{{ $labels.mountpoint }} predicted full within 24h"
             description: "At the current rate, filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} will be full within 24 hours."
+    - name: kubernetes_nodes
+      rules:
+        - alert: NodeNotReady
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} is NotReady"
+            description: "Node {{ $labels.node }} has been NotReady for more than 2 minutes. Pods may be evicted and rescheduled."
+        - alert: NodeDiskPressure
+          expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} has disk pressure"
+            description: "Node {{ $labels.node }} is under disk pressure. Kubelet may evict pods."
+        - alert: NodeMemoryPressure
+          expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} has memory pressure"
+            description: "Node {{ $labels.node }} is under memory pressure. Kubelet may evict pods."
+        - alert: NodePIDPressure
+          expr: kube_node_status_condition{condition="PIDPressure",status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} has PID pressure"
+            description: "Node {{ $labels.node }} is running low on available PIDs."
+        - alert: NodeUnschedulable
+          expr: kube_node_spec_unschedulable == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.node }} is cordoned"
+            description: "Node {{ $labels.node }} has been unschedulable (cordoned) for more than 15 minutes."
     - name: storage
       rules:
         - alert: ZfsPoolDegraded
