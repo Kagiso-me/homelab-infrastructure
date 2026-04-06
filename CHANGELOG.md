@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** add nfs-databases StorageClass for database workloads `312fbd8`
 - **[CONFIG]** set fsGroup for NFS mount ownership `456e7a4`
 - **[CONFIG]** migrate PostgreSQL and Prometheus to NFS, pin Redis to tywin `01b7072`
 - **[CONFIG]** update monitoring-stack cadvisor port and disable_metrics flag `c6fefac`
