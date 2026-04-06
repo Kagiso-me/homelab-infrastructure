@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** disable k3s-incompatible default rules `bedd8a3`
 - **[DEPLOY]** re-enable AlertmanagerConfig and secret for in-cluster alertmanager `b8493b9`
 - **[CONFIG]** simplify inline config to valid null receiver `bb6799e`
 - **[CONFIG]** disable occ-init job (needs rework for official chart) `04aea03`
