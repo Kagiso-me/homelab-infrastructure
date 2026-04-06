@@ -1,0 +1,11 @@
+# Default TLS store for traefik-internal.
+# The TLSStore named "default" in the ingress-internal namespace is automatically
+# used by traefik-internal for all IngressRoutes on the websecure-internal entrypoint.
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: ingress-internal
+spec:
+  defaultCertificate:
+    secretName: wildcard-local-kagiso-me-tls

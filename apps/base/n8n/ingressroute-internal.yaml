@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n-internal
+  namespace: apps
+spec:
+  entryPoints:
+    - websecure-internal
+  routes:
+    - match: Host(`n8n.local.kagiso.me`)
+      kind: Rule
+      services:
+        - name: n8n
+          port: 5678
+  tls: {}

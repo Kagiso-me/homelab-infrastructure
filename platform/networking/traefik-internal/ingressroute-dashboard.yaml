@@ -1,0 +1,18 @@
+# Traefik dashboard — internal access only via traefik-internal.
+# The traefik-internal API service is automatically created by the Traefik chart
+# at port 9000 in the ingress-internal namespace.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard-internal
+  namespace: ingress-internal
+spec:
+  entryPoints:
+    - websecure-internal
+  routes:
+    - match: Host(`traefik.local.kagiso.me`)
+      kind: Rule
+      services:
+        - name: traefik-internal
+          port: 9000
+  tls: {}

@@ -1,0 +1,22 @@
+# Wildcard TLS certificate for *.local.kagiso.me
+# Issued by Let's Encrypt (production) via DNS-01 challenge using the Cloudflare API.
+# Used by traefik-internal as its default certificate — all internal IngressRoutes
+# on the websecure-internal entrypoint serve this cert without browser warnings.
+#
+# DNS resolution for *.local.kagiso.me → 10.0.10.111 is handled by Pi-hole (LAN-only).
+# cert-manager only needs the Cloudflare DNS-01 challenge to complete — the A record
+# does not need to be publicly routable.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-local-kagiso-me
+  namespace: ingress-internal
+spec:
+  secretName: wildcard-local-kagiso-me-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.local.kagiso.me"
+  duration: 2160h    # 90 days (Let's Encrypt max)
+  renewBefore: 360h  # Renew 15 days before expiry
