@@ -79,4 +79,4 @@ jobs:
         run: |
           ansible docker -i ansible/inventory/homelab.yml \
             -m shell \
-            -a "docker ps --format 'table {% raw %}{{.Names}}\t{{.Status}}{% endraw %}' | grep -v NAMES"
+            -a "docker ps --filter status=running"
