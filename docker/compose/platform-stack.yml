@@ -60,27 +60,3 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ---------------------------------------------------------------------------
-  # FreshRSS — Self-hosted RSS feed aggregator
-  # Web UI: http://10.0.10.20:8810
-  # Compatible with Fever/Google Reader API for native RSS apps
-  # ---------------------------------------------------------------------------
-  freshrss:
-    image: lscr.io/linuxserver/freshrss:latest
-    container_name: freshrss
-    restart: unless-stopped
-    networks:
-      - platform-net
-    ports:
-      - "8810:80"
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-Africa/Johannesburg}
-    volumes:
-      - /srv/docker/appdata/freshrss:/config
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
