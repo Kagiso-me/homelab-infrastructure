@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** raise memory limit to 2Gi to prevent OOMKill `5f4af3f`
 - **[CONFIG]** extend liveness/startup probes for NFS WAL recovery `44d1fcc`
 - **[CONFIG]** disable k3s-incompatible PrometheusRule groups properly `8de02bb`
 - **[DEPLOY]** move freshrss to media-stack `deab6b4`
