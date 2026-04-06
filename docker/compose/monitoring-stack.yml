@@ -53,14 +53,15 @@ services:
 
   # ---------------------------------------------------------------------------
   # cAdvisor — Docker container resource and performance metrics
-  # Scraped by k3s Prometheus at 10.0.10.20:8080
+  # Scraped by k3s Prometheus at 10.0.10.20:9338
+  # Port 8080 is occupied by SABnzbd on this host.
   # ---------------------------------------------------------------------------
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-latest}
     container_name: cadvisor
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "9338:8080"
     privileged: true
     devices:
       - /dev/kmsg:/dev/kmsg
@@ -75,7 +76,7 @@ services:
       - "--max_housekeeping_interval=35s"
       - "--event_storage_event_limit=default=0"
       - "--event_storage_age_limit=default=0"
-      - "--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,accelerator,hugetlb,referenced_memory,cpu_topology,resctrl"
+      - "--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
       interval: 30s
