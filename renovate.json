@@ -53,25 +53,15 @@
       "groupName": "cert-manager"
     },
     {
-      "description": "Group all Flux + Helm chart updates into one infra PR",
-      "matchManagers": ["flux", "helm-values", "github-actions"],
-      "groupName": "infra dependencies"
-    },
-    {
-      "description": "Auto-merge patch and digest updates across the board",
-      "matchUpdateTypes": ["patch", "digest"],
+      "description": "Group GitHub Actions updates — safe to auto-merge minor and patch",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
       "automerge": true,
       "automergeType": "pr"
     },
     {
-      "description": "Auto-merge patch updates for stable platform charts",
-      "matchUpdateTypes": ["patch"],
-      "matchPackageNames": [
-        "metallb/metallb",
-        "traefik/traefik",
-        "nfs-subdir-external-provisioner/nfs-subdir-external-provisioner",
-        "vmware-tanzu/velero"
-      ],
+      "description": "Auto-merge patch and digest updates across the board",
+      "matchUpdateTypes": ["patch", "digest"],
       "automerge": true,
       "automergeType": "pr"
     },
