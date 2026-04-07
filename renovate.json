@@ -7,30 +7,31 @@
     ":separatePatchReleases"
   ],
   "timezone": "Africa/Johannesburg",
-  "schedule": ["before 6am on Monday"],
+  "schedule": ["after 6pm every weekday", "every weekend"],
   "labels": ["renovate", "dependencies"],
-  "reviewers": [],
-  "assignees": [],
   "dependencyDashboardTitle": "Renovate Dashboard",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "bump",
+  "rebaseWhen": "auto",
+
   "flux": {
-    "enabled": true,
-    "managerFilePatterns": [
-      "/clusters/.+\.ya?ml$/",
-      "/platform/.+\.ya?ml$/",
-      "/apps/.+\.ya?ml$/"
+    "fileMatch": [
+      "clusters/.+\\.ya?ml$",
+      "platform/.+\\.ya?ml$",
+      "apps/.+\\.ya?ml$"
     ]
   },
   "helm-values": {
-    "managerFilePatterns": [
-      "/platform/.+/helmrelease\.ya?ml$/",
-      "/apps/base/.+/helmrelease\.ya?ml$/"
+    "fileMatch": [
+      "platform/.+/helmrelease\\.ya?ml$",
+      "apps/base/.+/helmrelease\\.ya?ml$"
     ]
   },
   "docker-compose": {
-    "managerFilePatterns": [
-      "/docker/compose/.+\.ya?ml$/"
-    ]
+    "fileMatch": ["docker/compose/.+\\.ya?ml$"]
   },
+
   "packageRules": [
     {
       "description": "Group Flux platform updates — upgrade controller and CRDs together",
@@ -52,8 +53,19 @@
       "groupName": "cert-manager"
     },
     {
-      "description": "Auto-merge patch and minor updates for stable platform charts",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Group all Flux + Helm chart updates into one infra PR",
+      "matchManagers": ["flux", "helm-values", "github-actions"],
+      "groupName": "infra dependencies"
+    },
+    {
+      "description": "Auto-merge patch and digest updates across the board",
+      "matchUpdateTypes": ["patch", "digest"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Auto-merge patch updates for stable platform charts",
+      "matchUpdateTypes": ["patch"],
       "matchPackageNames": [
         "metallb/metallb",
         "traefik/traefik",
@@ -64,16 +76,43 @@
       "automergeType": "pr"
     },
     {
-      "description": "Never auto-merge major versions — always require review",
+      "description": "Do not auto-merge minor updates — require review",
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    },
+    {
+      "description": "Do not auto-merge major updates — breaking changes",
       "matchUpdateTypes": ["major"],
       "automerge": false
     },
     {
-      "description": "Docker compose image digests — weekly, auto-merge patch",
-      "matchFileNames": ["docker/compose/**"],
-      "matchUpdateTypes": ["patch"],
-      "automerge": true,
-      "automergeType": "pr"
+      "description": "Extra caution on Kubernetes-related packages — never auto-merge",
+      "matchPackagePatterns": ["kubernetes", "kube", "k3s"],
+      "automerge": false
+    },
+    {
+      "description": "Group media-stack image updates into one PR",
+      "matchManagers": ["docker-compose"],
+      "matchFileNames": ["docker/compose/media-stack.yml"],
+      "groupName": "media-stack images"
+    },
+    {
+      "description": "Group monitoring-stack image updates into one PR",
+      "matchManagers": ["docker-compose"],
+      "matchFileNames": ["docker/compose/monitoring-stack.yml"],
+      "groupName": "monitoring-stack images"
+    },
+    {
+      "description": "Group proxy-stack image updates into one PR",
+      "matchManagers": ["docker-compose"],
+      "matchFileNames": ["docker/compose/proxy-stack.yml"],
+      "groupName": "proxy-stack images"
+    },
+    {
+      "description": "Group platform-stack image updates into one PR",
+      "matchManagers": ["docker-compose"],
+      "matchFileNames": ["docker/compose/platform-stack.yml"],
+      "groupName": "platform-stack images"
     }
   ]
 }
