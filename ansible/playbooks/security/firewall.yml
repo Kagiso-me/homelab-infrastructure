@@ -5,6 +5,7 @@
   vars:
     lan_subnet: "10.0.10.0/24"
     varys_ip: "10.0.10.10"
+    bran_ip: "10.0.10.9"
 
   tasks:
     - name: Install UFW
@@ -15,13 +16,21 @@
 
     # -------------------------------------------------------------------------
     # SSH
-    # k3s nodes: varys only (10.0.10.10 is the only Ansible control hub).
+    # k3s nodes: varys (control hub) + bran (CI runner).
     # varys: LAN only — accessed from workstations on the LAN.
     # -------------------------------------------------------------------------
-    - name: Allow SSH from varys only (k3s nodes)
+    - name: Allow SSH from varys (k3s nodes)
       ufw:
         rule: allow
         from_ip: "{{ varys_ip }}"
+        to_port: "22"
+        proto: tcp
+      when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
+
+    - name: Allow SSH from bran (k3s nodes — CI runner)
+      ufw:
+        rule: allow
+        from_ip: "{{ bran_ip }}"
         to_port: "22"
         proto: tcp
       when: inventory_hostname in (groups['k3s_primary'] + groups['k3s_servers'])
