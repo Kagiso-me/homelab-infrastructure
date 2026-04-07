@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** migrate all CI runners from varys to bran `9cf344f`
 - **[MAINTENANCE]** update helm release crowdsec to >=0.9.12 (#15) `6c5b333`
 - **[DEPLOY]** add node-exporter to all non-k3s hosts `7c89416`
 - **[MAINTENANCE]** rename hodor → bran (Three-Eyed Raven — sees everything) `9795335`
