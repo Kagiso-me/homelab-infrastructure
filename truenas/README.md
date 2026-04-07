@@ -1,9 +1,24 @@
-# TrueNAS â€” Storage Server
+# ned — Storage Server (TrueNAS)
 
-**Hostname:** `truenas`
+**Hostname:** `ned`
 **IP:** `10.0.10.80`
 **OS:** TrueNAS SCALE (Linux-based)
 **Hardware:** HP MicroServer Gen8
+
+---
+
+## The Character
+
+<div align=”center”>
+
+<!-- Photo placeholder: Eddard “Ned” Stark (Sean Bean) from Game of Thrones -->
+> _📸 Photo coming soon — Ned Stark_
+
+</div>
+
+**Eddard “Ned” Stark** is the Lord of Winterfell and Warden of the North. He is the foundation upon which the entire Stark family rests — honourable, dependable, and immovable. Winterfell stands because Ned holds it. Everything the Starks are and do flows from that foundation.
+
+**Why this machine:** `ned` is the foundation of the homelab. Every persistent volume in the cluster lives on ned's ZFS pool. Every backup — Velero, etcd, varys keys — lands on ned. If ned goes down, data is at risk. Like the character, ned is not glamorous, not in the spotlight, but everything rests on him. The homelab stands because ned holds it.
 
 ---
 

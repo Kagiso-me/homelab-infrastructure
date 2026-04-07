@@ -1,11 +1,24 @@
-# Docker — Media Server
+# bronn — Docker Media Server
 
 **Hostname:** `bronn`
 **IP:** `10.0.10.20`
-
 **Hardware:** Intel NUC i3-7100U — 16 GB RAM, 256 GB NVMe
 **OS:** Ubuntu Server 22.04 LTS
-**Role:** Self-hosted media acquisition and streaming stack running as Docker containers
+
+---
+
+## The Character
+
+<div align="center">
+
+<!-- Photo placeholder: Bronn (Jerome Flynn) from Game of Thrones -->
+> _📸 Photo coming soon — Bronn_
+
+</div>
+
+**Bronn** is a sellsword — a mercenary who doesn't care about honour or titles. He takes on the jobs nobody else wants to do, he does them efficiently, and he asks no questions. Need something acquired? Bronn handles it. Need it delivered? Done. He's not part of the noble houses, he doesn't run the kingdom, but without him a lot of things simply wouldn't get done.
+
+**Why this machine:** `bronn` does the dirty work of the homelab. It acquires content (SABnzbd, Sonarr, Radarr, Lidarr), organises it, and streams it (Plex, Navidrome). No glory, no Kubernetes orchestration — just Docker containers running bare metal, getting the job done. Like the character, bronn operates outside the "proper" system (k3s) and is better for it.
 
 ---
 

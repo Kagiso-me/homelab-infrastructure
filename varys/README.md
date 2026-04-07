@@ -1,9 +1,24 @@
-# varys - Control Hub
+# varys — Control Hub
 
 **Hostname:** `varys`
 **IP:** `10.0.10.10`
 **OS:** Ubuntu Server
 **Hardware:** Intel NUC i3-5010U
+
+---
+
+## The Character
+
+<div align="center">
+
+<!-- Photo placeholder: Lord Varys (Conleth Hill) from Game of Thrones -->
+> _📸 Photo coming soon — Lord Varys_
+
+</div>
+
+**Varys** — *The Spider* — is the Master of Whisperers in the Small Council of King's Landing. He operates an intelligence network that spans the entire known world, gathers information from everywhere, and pulls strings from the shadows. He knows everything happening across all the kingdoms without anyone knowing he's watching.
+
+**Why this machine:** `varys` is the homelab's eyes and ears. It has `kubectl` access to every node, runs Ansible against the entire inventory, holds the age encryption key, fires CI/CD pipelines, and receives all alerts. Like the character, it is the quiet hub through which all control flows — and if you need something done in the homelab, you go through varys.
 
 ---
 

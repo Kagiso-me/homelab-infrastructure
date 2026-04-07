@@ -1,9 +1,24 @@
-# hodor — hodor
+# hodor — Observer / DNS
 
 **Hostname:** `hodor`
-**IP:** `10.0.10.15` (static, reserved via UniFi DHCP)
-**OS:** hodor OS Lite (64-bit, Debian Bookworm)
-**Hardware:** hodor 4
+**IP:** `10.0.10.9` (static, reserved via UniFi DHCP)
+**OS:** Raspberry Pi OS Lite (64-bit, Debian Bookworm)
+**Hardware:** Raspberry Pi
+
+---
+
+## The Character
+
+<div align="center">
+
+<!-- Photo placeholder: Hodor (Kristian Nairn) from Game of Thrones -->
+> _📸 Photo coming soon — Hodor_
+
+</div>
+
+**Hodor** is Bran Stark's gentle giant — a man of few words (in fact, just one) who does exactly one job, does it reliably, and does it without complaint. His entire existence is defined by a single, critical purpose: *hold the door*. He keeps threats out and keeps the household safe, no matter what.
+
+**Why this machine:** `hodor` holds the door for the entire homelab network. It runs Pi-hole (DNS) and Unbound — the two services everything else depends on for network resolution. No DNS means no homelab. It's a small, always-on Raspberry Pi that does one job perfectly and never gets in the way. Simple. Reliable. Unwavering.
 
 ---
 
