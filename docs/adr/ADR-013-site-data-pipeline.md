@@ -94,8 +94,8 @@ The `Kagiso-me.github.io` runner lives in `~/actions-runner-site/` on varys — 
 the `homelab-infrastructure` runner in `~/actions-runner/`. See ADR-007 for the multi-runner
 directory convention.
 
-**Planned migration:** when hodor (10.0.10.9, RPi) is provisioned, the site runner will
-move there. hodor's sole purpose is observability queries — kubectl reads, Prometheus scrapes,
+**Planned migration:** when bran (10.0.10.9, RPi) is provisioned, the site runner will
+move there. bran's sole purpose is observability queries — kubectl reads, Prometheus scrapes,
 service API calls. This separates the observer from the control plane (varys).
 
 ## Consequences

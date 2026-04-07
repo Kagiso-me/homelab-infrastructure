@@ -65,7 +65,7 @@ Self-hosted visual project board. Freeform canvas with notes, tasks, images, lin
 ### 🖥️ PiKVM
 `INFRA` &nbsp;&nbsp; 🟡 Planning
 
-KVM-over-IP using a hodor Zero 2W. Remote keyboard, video, and mouse access for any homelab machine — BIOS access, recovery, OS reinstall — from the browser, even when SSH is down.
+KVM-over-IP using a bran Zero 2W. Remote keyboard, video, and mouse access for any homelab machine — BIOS access, recovery, OS reinstall — from the browser, even when SSH is down.
 
 **Stack:** PiKVM · USB HDMI capture · USB OTG
 

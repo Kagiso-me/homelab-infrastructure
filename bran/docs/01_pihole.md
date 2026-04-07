@@ -1,6 +1,6 @@
 # Pi-hole — Network-Wide DNS & Ad Blocking
 
-**Host:** `hodor` (hodor)
+**Host:** `bran` (bran)
 **IP:** `10.0.10.15` (static, assigned via UniFi)
 **Role:** Primary DNS server for the homelab LAN
 
@@ -8,12 +8,12 @@
 
 ## Why Pi-hole on a Dedicated RPi
 
-Pi-hole is the single most important network service — every device depends on it for DNS. Running it on a dedicated, always-on hodor has clear advantages:
+Pi-hole is the single most important network service — every device depends on it for DNS. Running it on a dedicated, always-on bran has clear advantages:
 
 - **Separation of concerns** — DNS is not co-located with the control hub (varys) or the Kubernetes cluster. A cluster failure or varys maintenance does not affect DNS.
 - **Low power** — the RPi draws ~3W idle. It can run 24/7 without meaningful electricity cost.
 - **No competition for resources** — varys runs Ansible, kubectl, GitHub Actions runners, and other tools. Keeping DNS off varys means a heavy Ansible run or backup job cannot cause DNS latency.
-- **Redundancy foundation** — a second Pi-hole can be added easily (e.g. on varys) as DNS Server 2 in UniFi. hodor is the primary.
+- **Redundancy foundation** — a second Pi-hole can be added easily (e.g. on varys) as DNS Server 2 in UniFi. bran is the primary.
 
 ---
 
@@ -31,12 +31,12 @@ Pi-hole is the single most important network service — every device depends on
 
 ## Installation
 
-### 1. Flash hodor OS
+### 1. Flash bran OS
 
-Use hodor Imager to flash **hodor OS Lite (64-bit, Debian Bookworm)** to a microSD card.
+Use bran Imager to flash **bran OS Lite (64-bit, Debian Bookworm)** to a microSD card.
 
 In the imager's advanced options:
-- Hostname: `hodor`
+- Hostname: `bran`
 - Enable SSH (use key-based auth — paste your public key)
 - Set locale to `Africa/Johannesburg`
 
@@ -46,7 +46,7 @@ Before booting, reserve the IP in UniFi:
 
 ```
 Settings → Networks → [LAN] → DHCP → Client Reservations
-  MAC address: <hodor MAC>
+  MAC address: <bran MAC>
   IP: 10.0.10.15
 ```
 
@@ -152,12 +152,12 @@ pihole -g
 
 ## UniFi DHCP Configuration
 
-Point all LAN devices at hodor for DNS:
+Point all LAN devices at bran for DNS:
 
 ```
 Settings → Networks → [LAN] → DHCP
-  DNS Server 1: 10.0.10.15   (hodor — primary Pi-hole)
-  DNS Server 2: 1.1.1.1      (Cloudflare — fallback if hodor is down)
+  DNS Server 1: 10.0.10.15   (bran — primary Pi-hole)
+  DNS Server 2: 1.1.1.1      (Cloudflare — fallback if bran is down)
 ```
 
 When a second Pi-hole is deployed (e.g. on varys), replace `1.1.1.1` with its IP.

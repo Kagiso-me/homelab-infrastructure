@@ -1,6 +1,6 @@
-# hodor — Observer / DNS
+# bran — Observer / DNS
 
-**Hostname:** `hodor`
+**Hostname:** `bran`
 **IP:** `10.0.10.9` (static, reserved via UniFi DHCP)
 **OS:** Raspberry Pi OS Lite (64-bit, Debian Bookworm)
 **Hardware:** Raspberry Pi
@@ -11,20 +11,20 @@
 
 <div align="center">
 
-<!-- Photo placeholder: Hodor (Kristian Nairn) from Game of Thrones -->
-> _📸 Photo coming soon — Hodor_
+<!-- Photo placeholder: Bran Stark (Isaac Hempstead Wright) from Game of Thrones -->
+> _📸 Photo coming soon — Bran Stark_
 
 </div>
 
-**Hodor** is Bran Stark's gentle giant — a man of few words (in fact, just one) who does exactly one job, does it reliably, and does it without complaint. His entire existence is defined by a single, critical purpose: *hold the door*. He keeps threats out and keeps the household safe, no matter what.
+**Bran Stark** — *The Three-Eyed Raven* — is gifted with greensight: the ability to see across time and across all corners of the world simultaneously. He doesn't act directly or fight battles. Instead, he watches, knows, and sees everything that happens everywhere in the realm. No event escapes him.
 
-**Why this machine:** `hodor` holds the door for the entire homelab network. It runs Pi-hole (DNS) and Unbound — the two services everything else depends on for network resolution. No DNS means no homelab. It's a small, always-on Raspberry Pi that does one job perfectly and never gets in the way. Simple. Reliable. Unwavering.
+**Why this machine:** `bran` sees everything on the homelab network. Every DNS query from every device passes through it — bran knows every hostname resolved, every connection attempted, every device on the network. As the planned observer node, it will also watch the cluster — querying metrics, running the status pipeline, monitoring services. Like the character, bran doesn't do the work itself. It watches, reports, and makes sure everyone else can find what they're looking for.
 
 ---
 
 ## Role
 
-hodor is a **dedicated network appliance** — always-on, low-power, independent of the Kubernetes cluster and the control hub (varys). It runs services that the rest of the homelab depends on, so they must not share fate with anything else.
+bran is a **dedicated network appliance** — always-on, low-power, independent of the Kubernetes cluster and the control hub (varys). It runs services that the rest of the homelab depends on, so they must not share fate with anything else.
 
 | Service | Purpose |
 |---------|---------|
@@ -47,7 +47,7 @@ Pi-hole is the single most critical network service — every LAN device depends
 
 ## DNS Architecture
 
-hodor provides two wildcard DNS entries that cover all homelab services:
+bran provides two wildcard DNS entries that cover all homelab services:
 
 | Wildcard | Resolves To | Covers |
 |----------|-------------|--------|
@@ -62,7 +62,7 @@ All upstream DNS queries are handled recursively by Unbound (no forwarding to Cl
 
 ### Pi-hole (Primary DNS)
 
-Network-wide DNS server and ad blocker. All LAN devices use hodor as DNS Server 1 via UniFi DHCP.
+Network-wide DNS server and ad blocker. All LAN devices use bran as DNS Server 1 via UniFi DHCP.
 
 - Admin UI: `http://10.0.10.15/admin`
 - Blocklists: oisd big, hagezi Pro, hagezi Threat Intelligence Feeds
@@ -82,16 +82,16 @@ See [docs/02_unbound.md](docs/02_unbound.md) for full setup guide.
 
 ### Tailscale Exit Node
 
-hodor acts as the Tailscale exit node for the homelab network, enabling remote access to all LAN services and advertising the `10.0.10.0/24` route.
+bran acts as the Tailscale exit node for the homelab network, enabling remote access to all LAN services and advertising the `10.0.10.0/24` route.
 
 ```bash
-# Enable exit node on hodor (run once after Tailscale install)
+# Enable exit node on bran (run once after Tailscale install)
 sudo tailscale up --advertise-exit-node --advertise-routes=10.0.10.0/24
 ```
 
 ### WOL Proxy
 
-hodor's permanent LAN presence allows it to send Wake-on-LAN magic packets to hosts that can't be reached from WAN directly.
+bran's permanent LAN presence allows it to send Wake-on-LAN magic packets to hosts that can't be reached from WAN directly.
 
 ```bash
 # Wake a host by MAC address
@@ -103,25 +103,25 @@ wakeonlan <MAC_ADDRESS>
 ## Access
 
 ```bash
-# SSH to hodor (from LAN or via Tailscale)
+# SSH to bran (from LAN or via Tailscale)
 ssh kagiso@10.0.10.15
 ```
 
-hodor is an appliance node — SSH for maintenance only, not a general-purpose shell host.
+bran is an appliance node — SSH for maintenance only, not a general-purpose shell host.
 
 ---
 
 ## Directory Structure
 
 ```
-hodor/
+bran/
 ├── README.md               # this file
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── inventory/
-│   │   └── hosts.yml       # hodor host definition
+│   │   └── hosts.yml       # bran host definition
 │   └── playbooks/
-│       └── setup.yml       # hodor bootstrap (Pi-hole, Unbound, Tailscale, WOL)
+│       └── setup.yml       # bran bootstrap (Pi-hole, Unbound, Tailscale, WOL)
 └── docs/
     ├── 01_pihole.md        # Pi-hole setup and configuration
     └── 02_unbound.md       # Unbound recursive resolver setup

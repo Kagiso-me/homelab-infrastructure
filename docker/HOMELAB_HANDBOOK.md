@@ -92,7 +92,7 @@ sequenceDiagram
 Your Laptop
     Ã¢â€â€š
     Ã¢â€“Â¼ SSH
-hodor Ã¢â‚¬â€ 10.0.10.10 (control hub)
+bran Ã¢â‚¬â€ 10.0.10.10 (control hub)
     Ã¢â€â€š
     Ã¢â€“Â¼ SSH
 Docker Host Ã¢â‚¬â€ 10.0.10.20
@@ -240,4 +240,4 @@ This Docker host is intentionally **separate** from the k3s Kubernetes cluster. 
 
 The two systems share TrueNAS as a common storage backend but are otherwise fully independent. A failure in the Kubernetes cluster has no effect on media services, and vice versa.
 
-The hodor at `10.0.10.10` serves as the management plane for both Ã¢â‚¬â€ see [hodor/README.md](../hodor/README.md).
+The bran at `10.0.10.10` serves as the management plane for both Ã¢â‚¬â€ see [bran/README.md](../bran/README.md).

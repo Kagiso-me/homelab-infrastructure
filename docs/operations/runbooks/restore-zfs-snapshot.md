@@ -40,7 +40,7 @@ Three recovery paths are covered here:
 ## Step 1 — SSH to TrueNAS
 
 ```bash
-# From the hodor:
+# From the bran:
 ssh kagiso@10.0.10.10
 ssh kagiso@10.0.10.80
 ```

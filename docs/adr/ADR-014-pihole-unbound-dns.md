@@ -42,11 +42,11 @@ Pi-hole handles split DNS and ad blocking. Upstream queries are handled by Unbou
 
 ## Decision
 
-Deploy **Pi-hole + Unbound** on `hodor` (dedicated hodor, `10.0.10.15`).
+Deploy **Pi-hole + Unbound** on `bran` (dedicated bran, `10.0.10.15`).
 
 - **Pi-hole** handles split DNS (dnsmasq wildcards) and network-wide ad/tracker blocking.
 - **Unbound** handles all recursive resolution upstream of Pi-hole.
-- **hodor** is a dedicated appliance node — independent of the Kubernetes cluster and varys.
+- **bran** is a dedicated appliance node — independent of the Kubernetes cluster and varys.
 
 ---
 
@@ -56,7 +56,7 @@ Deploy **Pi-hole + Unbound** on `hodor` (dedicated hodor, `10.0.10.15`).
 LAN device
   │  (DNS query)
   ▼
-Pi-hole (hodor, 10.0.10.15:53)
+Pi-hole (bran, 10.0.10.15:53)
   │  Split DNS rules checked first:
   │    *.kagiso.me       → 10.0.10.110  (traefik-external)
   │    *.local.kagiso.me → 10.0.10.111  (traefik-internal)
@@ -109,15 +109,15 @@ Aggressive lists (e.g. hagezi Ultimate) are deliberately avoided — they block 
 
 | Failure scenario | Impact |
 |-----------------|--------|
-| hodor (RPi) offline | DNS falls back to `1.1.1.1` (UniFi DNS Server 2). Split DNS and ad blocking lost, internet continues. |
-| varys offline | No DNS impact — hodor is independent. |
-| Kubernetes cluster down | No DNS impact — hodor is independent. |
+| bran (RPi) offline | DNS falls back to `1.1.1.1` (UniFi DNS Server 2). Split DNS and ad blocking lost, internet continues. |
+| varys offline | No DNS impact — bran is independent. |
+| Kubernetes cluster down | No DNS impact — bran is independent. |
 | traefik-external scaled to 0 | `*.kagiso.me` routes unreachable from internet. LAN devices still resolve via Pi-hole but get no response from 10.0.10.110. `*.local.kagiso.me` unaffected. |
 | traefik-internal offline | `*.local.kagiso.me` routes unreachable. External routes unaffected. |
 
 ### Redundancy Roadmap
 
-A second Pi-hole instance will be deployed on varys as DNS Server 2 (UniFi DHCP). This provides full DNS redundancy — hodor offline means varys takes over for all DNS including split DNS and ad blocking.
+A second Pi-hole instance will be deployed on varys as DNS Server 2 (UniFi DHCP). This provides full DNS redundancy — bran offline means varys takes over for all DNS including split DNS and ad blocking.
 
 ---
 
@@ -128,12 +128,12 @@ A second Pi-hole instance will be deployed on varys as DNS Server 2 (UniFi DHCP)
 - New public apps on `*.kagiso.me` require zero DNS changes — wildcard covers them on LAN.
 - DNS queries never leave the home network to a third-party resolver.
 - DNSSEC is validated for all upstream domains by Unbound.
-- hodor must be maintained as an always-on appliance.
+- bran must be maintained as an always-on appliance.
 
 ---
 
 ## References
 
-- [hodor/docs/01_pihole.md](../../hodor/docs/01_pihole.md) — Pi-hole setup guide
-- [hodor/docs/02_unbound.md](../../hodor/docs/02_unbound.md) — Unbound setup guide
+- [bran/docs/01_pihole.md](../../bran/docs/01_pihole.md) — Pi-hole setup guide
+- [bran/docs/02_unbound.md](../../bran/docs/02_unbound.md) — Unbound setup guide
 - [Architecture: Networking](../architecture/networking.md)

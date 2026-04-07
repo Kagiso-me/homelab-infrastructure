@@ -20,7 +20,7 @@ All nodes are on the same Layer-2 network segment.
 | Router | 10.0.10.1 | Default gateway |
 | Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
 | varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, cloudflared) |
-| hodor | 10.0.10.15 | RPi 4 — Primary Pi-hole + Unbound, Tailscale exit node, WOL proxy |
+| bran | 10.0.10.15 | RPi 4 — Primary Pi-hole + Unbound, Tailscale exit node, WOL proxy |
 
 ---
 
@@ -162,13 +162,13 @@ Application pod (Plex, SSH target, etc.)
 
 ## DNS Architecture
 
-All cluster services are accessed via hostnames. DNS is handled by Pi-hole on `hodor` for LAN resolution, backed by Unbound for recursive resolution.
+All cluster services are accessed via hostnames. DNS is handled by Pi-hole on `bran` for LAN resolution, backed by Unbound for recursive resolution.
 
 ### Pi-hole + Unbound — LAN DNS
 
-**Pi-hole runs on hodor at `10.0.10.15`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.15` as DNS Server 1.
+**Pi-hole runs on bran at `10.0.10.15`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.15` as DNS Server 1.
 
-**Unbound** runs on hodor at `127.0.0.1:5335` as Pi-hole's upstream. It is a recursive resolver — it queries root nameservers directly. No third-party DNS provider (Cloudflare, Google) is involved in resolution.
+**Unbound** runs on bran at `127.0.0.1:5335` as Pi-hole's upstream. It is a recursive resolver — it queries root nameservers directly. No third-party DNS provider (Cloudflare, Google) is involved in resolution.
 
 ```
 LAN device
@@ -234,8 +234,8 @@ Admin-only tools (Grafana, Prometheus, Traefik dashboard) have no public DNS rec
 
 | DNS Server | IP | Notes |
 |------------|-----|-------|
-| DNS Server 1 | `10.0.10.15` (hodor) | Primary — Pi-hole + Unbound, split DNS, ad blocking |
-| DNS Server 2 | `1.1.1.1` | Fallback — internet DNS only if hodor is offline |
+| DNS Server 1 | `10.0.10.15` (bran) | Primary — Pi-hole + Unbound, split DNS, ad blocking |
+| DNS Server 2 | `1.1.1.1` | Fallback — internet DNS only if bran is offline |
 
 When a second Pi-hole is deployed (target: varys), DNS Server 2 will be updated to its IP for full split-DNS redundancy.
 
@@ -297,7 +297,7 @@ Applied by `playbooks/security/firewall.yml`:
 
 ```
 Settings → Networks → [LAN] → DHCP
-  DNS Server 1: 10.0.10.15   (hodor — Pi-hole primary)
+  DNS Server 1: 10.0.10.15   (bran — Pi-hole primary)
   DNS Server 2: 1.1.1.1      (Cloudflare — fallback)
 ```
 
@@ -307,6 +307,6 @@ Settings → Networks → [LAN] → DHCP
 
 - [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)
 - [ADR-014: Pi-hole + Unbound DNS Architecture](../adr/ADR-014-pihole-unbound-dns.md)
-- [hodor/docs/01_pihole.md](../../hodor/docs/01_pihole.md)
-- [hodor/docs/02_unbound.md](../../hodor/docs/02_unbound.md)
+- [bran/docs/01_pihole.md](../../bran/docs/01_pihole.md)
+- [bran/docs/02_unbound.md](../../bran/docs/02_unbound.md)
 - [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)

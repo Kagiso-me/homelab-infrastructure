@@ -67,7 +67,7 @@ Because the cloud is great — until it isn't.
                    ┌────────────▼──────────────┐
                    │    Home Network            │
                    │    10.0.10.0/24            │
-                   │    DNS: hodor (Pi-hole)    │
+                   │    DNS: bran (Pi-hole)    │
                    └────────────┬──────────────┘
                                 │
         ┌───────────────────────┼───────────────────────┐
@@ -81,7 +81,7 @@ Because the cloud is great — until it isn't.
         ▲
         │ kubectl / flux / ansible
 ┌───────┴──────────┐        ┌──────────────────┐
-│  varys            │        │  hodor            │
+│  varys            │        │  bran            │
 │  Intel NUC        │        │  Raspberry Pi     │
 │  10.0.10.10       │        │  10.0.10.9        │
 │  Control hub      │        │  Pi-hole / DNS    │
@@ -101,7 +101,7 @@ Because the cloud is great — until it isn't.
 | **varys** | `10.0.10.10` | Control hub — kubectl, Ansible, GitHub runner | Intel NUC i3-5010U |
 | **bronn** | `10.0.10.20` | Docker host — media stack | Intel NUC i3-7100U |
 | **ned** | `10.0.10.80` | NAS — NFS, MinIO S3, Backblaze B2 | HP MicroServer Gen8 |
-| **hodor** | `10.0.10.9` | Observer — Pi-hole DNS, GitHub runner (planned) | Raspberry Pi |
+| **bran** | `10.0.10.9` | Observer — Pi-hole DNS, GitHub runner (planned) | Raspberry Pi |
 | **kube-vip** | `10.0.10.100` | Kubernetes API VIP | — |
 | **Traefik VIP** | `10.0.10.110` | Ingress load balancer | — |
 
@@ -211,7 +211,7 @@ homelab-infrastructure/
 │       └── docker/       # deploy.yml — GitOps for bronn
 │
 ├── varys/                # Control hub — scripts, runner config
-├── hodor/                # hodor RPi — Pi-hole, DNS, observer
+├── bran/                # bran RPi — Pi-hole, DNS, observer
 ├── docker/               # bronn — compose stacks and config
 ├── truenas/              # ned — NFS, MinIO, Backblaze docs
 │

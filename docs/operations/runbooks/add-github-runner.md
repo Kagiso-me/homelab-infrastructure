@@ -3,7 +3,7 @@
 ## When to use this
 
 - Adding a runner for a new repository
-- Migrating an existing runner to a new node (e.g. varys → hodor)
+- Migrating an existing runner to a new node (e.g. varys → bran)
 - Re-registering a runner after it was accidentally deregistered
 
 ## Context
@@ -37,7 +37,7 @@ curl -o actions-runner-linux-x64-<VERSION>.tar.gz -L \
 tar xzf ./actions-runner-linux-x64-<VERSION>.tar.gz
 ```
 
-> Note: varys is x64 (Intel NUC). hodor (RPi) is arm64 — use `actions-runner-linux-arm64` instead.
+> Note: varys is x64 (Intel NUC). bran (RPi) is arm64 — use `actions-runner-linux-arm64` instead.
 
 ### 3. Get a registration token
 
@@ -104,12 +104,12 @@ rm -rf ~/actions-runner-<repo-name>
 
 ---
 
-## Migrating a runner to hodor
+## Migrating a runner to bran
 
-When hodor (10.0.10.9) is ready to take over the site runner:
+When bran (10.0.10.9) is ready to take over the site runner:
 
 1. Remove the runner from varys (steps above)
-2. SSH into hodor and follow steps 1–6 above
+2. SSH into bran and follow steps 1–6 above
 3. Update `fetch-live-data.sh` SSH target if the workflow SSHes into a specific node
 4. Update ADR-007 runner directory table
 

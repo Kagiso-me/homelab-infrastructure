@@ -520,7 +520,7 @@ docker ps | grep -v "Up"  # All containers should be running
 
 ### What This Alert Means
 
-The hodor control hub at `10.0.10.10` is not responding. This host runs kubectl, flux CLI, and serves as the primary operational interface to the cluster. Loss of this host means loss of cluster management access (unless you have an alternative kubectl config).
+The bran control hub at `10.0.10.10` is not responding. This host runs kubectl, flux CLI, and serves as the primary operational interface to the cluster. Loss of this host means loss of cluster management access (unless you have an alternative kubectl config).
 
 ### Diagnostic Steps
 

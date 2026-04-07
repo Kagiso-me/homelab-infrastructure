@@ -109,7 +109,7 @@ and `_work/` output in the directory it was configured from. If two runners shar
 `config.sh` for the second would overwrite the first's credentials and break it. One directory
 per runner is the supported pattern.
 
-**Future node (hodor):** when `hodor` (10.0.10.9, RPi) is provisioned as the dedicated
+**Future node (bran):** when `bran` (10.0.10.9, RPi) is provisioned as the dedicated
 observability gateway, the `actions-runner-site` runner will migrate there. The
 `homelab-infrastructure` runner stays on varys since it needs kubectl/Ansible access.
 
