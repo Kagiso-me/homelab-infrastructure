@@ -89,6 +89,18 @@
         cmd: /home/{{ runner_user }}/.local/bin/ansible-galaxy collection install community.general
       changed_when: false
 
+    - name: Symlink ansible binaries to /usr/local/bin (runner PATH fix)
+      ansible.builtin.file:
+        src: "/home/{{ runner_user }}/.local/bin/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        state: link
+        force: true
+      loop:
+        - ansible
+        - ansible-playbook
+        - ansible-galaxy
+        - ansible-vault
+
     # ── kubectl ───────────────────────────────────────────────────────────────
     - name: Download kubectl {{ kubectl_version }} (arm64)
       ansible.builtin.get_url:
