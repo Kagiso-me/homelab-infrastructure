@@ -23,6 +23,10 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+
     # k3s bundles its own Traefik — this deployment replaces it.
     # Disable k3s bundled Traefik in k3s config before applying this.
     deployment:

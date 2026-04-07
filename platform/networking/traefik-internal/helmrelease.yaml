@@ -57,6 +57,10 @@ spec:
         expose:
           default: false
 
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+
     # No CrowdSec on internal entrypoint — LAN traffic only.
 
     # Expose Prometheus metrics
