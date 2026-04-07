@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** rename hodor → bran (Three-Eyed Raven — sees everything) `9795335`
 - **[MAINTENANCE]** establish GoT naming convention across all nodes and docs `ebf9603`
 - **[DEPLOY]** add *.local.kagiso.me wildcard DNS for internal Traefik `b9410ba`
 - **[MAINTENANCE]** update helm release cert-manager to v1.16.5 (#14) `8ae1ea6`
