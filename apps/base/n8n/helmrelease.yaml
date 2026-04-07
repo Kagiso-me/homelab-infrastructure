@@ -66,7 +66,7 @@ spec:
       mode: queue
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.36
+          image: busybox:1.37
           command:
             - sh
             - -c
@@ -97,7 +97,7 @@ spec:
       # is fully ready on the node.
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.36
+          image: busybox:1.37
           command:
             - sh
             - -c
