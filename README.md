@@ -98,10 +98,10 @@ Because the cloud is great — until it isn't.
 | **tywin** | `10.0.10.11` | k3s control-plane + etcd | Lenovo ThinkCentre M93, i5-4570T, 16GB RAM _(Xeon E3-1230L v3 swap: 2nd May 2026)_ |
 | **tyrion** | `10.0.10.12` | k3s control-plane + etcd | Lenovo ThinkCentre M93, i5-4570T, 16GB RAM _(Xeon E3-1230L v3 swap: 2nd May 2026)_ |
 | **jaime** | `10.0.10.13` | k3s control-plane + etcd | Lenovo ThinkCentre M93, i5-4570T, 16GB RAM _(Xeon E3-1230L v3 swap: 2nd May 2026)_ |
-| **varys** | `10.0.10.10` | Control hub — kubectl, Ansible, GitHub runner | Intel NUC i3-5010U |
+| **varys** | `10.0.10.10` | Control hub — kubectl, Ansible, SOPS/age key | Intel NUC i3-5010U |
 | **bronn** | `10.0.10.20` | Docker host — media stack | Intel NUC i3-7100U |
 | **ned** | `10.0.10.80` | NAS — NFS, MinIO S3, Backblaze B2 | HP MicroServer Gen8 — Xeon E31260L @ 2.40GHz, 16GB ECC RAM, LSI 9207-8i HBA, 1×8TB SAS + 2×4TB SAS + 2×480GB SSD + 1×128GB SSD (OS) |
-| **bran** | `10.0.10.15` | Pi-hole DNS + Unbound, Tailscale exit node | Raspberry Pi |
+| **bran** | `10.0.10.9` | Pi-hole DNS + Unbound, Tailscale exit node, GitHub Actions runners | Raspberry Pi |
 | **kube-vip** | `10.0.10.100` | Kubernetes API VIP | — |
 | **Traefik VIP** | `10.0.10.110` | Ingress load balancer | — |
 
