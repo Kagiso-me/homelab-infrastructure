@@ -33,7 +33,7 @@ services:
   # Default login: admin@example.com / changeme (change immediately)
   # ---------------------------------------------------------------------------
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:${NPM_VERSION:-latest}
+    image: jc21/nginx-proxy-manager:2.14.0
     container_name: nginx-proxy-manager
     restart: unless-stopped
     networks:

@@ -28,7 +28,7 @@ services:
   # Scraped by k3s Prometheus at 10.0.10.20:9100
   # ---------------------------------------------------------------------------
   node-exporter:
-    image: prom/node-exporter:${NODE_EXPORTER_VERSION:-latest}
+    image: prom/node-exporter:v1.11.0
     container_name: node-exporter
     restart: unless-stopped
     network_mode: host
@@ -57,7 +57,7 @@ services:
   # Port 8080 is occupied by SABnzbd on this host.
   # ---------------------------------------------------------------------------
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-latest}
+    image: gcr.io/cadvisor/cadvisor:v0.56.2
     container_name: cadvisor
     restart: unless-stopped
     ports:
@@ -88,7 +88,7 @@ services:
   # Promtail — ships Docker container logs to k3s Loki
   # ---------------------------------------------------------------------------
   promtail:
-    image: grafana/promtail:${PROMTAIL_VERSION:-latest}
+    image: grafana/promtail:3.6.10
     container_name: promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yml
