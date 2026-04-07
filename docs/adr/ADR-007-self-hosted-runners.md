@@ -81,9 +81,9 @@ This split ensures that manifest validation never depends on homelab availabilit
 - 100% of manifests are validated before they reach the cluster
 
 **Negative:**
-- If `varys` is offline, the post-merge health check queues indefinitely rather than failing fast
-- The runner agent systemd service must be configured to start on boot
-- Pre-installed tools (kubectl, flux CLI, kubeconform, kustomize, pluto) must be present and current on varys
+- If `bran` is offline, all CI jobs queue indefinitely rather than failing fast
+- The runner agent systemd service must be configured to start on boot on bran
+- Pre-installed tools (kubectl, flux CLI, ansible) must be present and current on bran
 
 **Learned in practice:**
 - Pod health checks must be scoped to Flux-managed namespaces only (`flux-system`, `ingress`,
@@ -93,25 +93,34 @@ This split ensures that manifest validation never depends on homelab availabilit
 - **Each runner must live in its own directory.** The runner agent stores its registration
   credentials, work directory, and state in the directory it was configured from. Running
   `config.sh` in an already-registered directory overwrites the existing registration and breaks
-  that runner. See the runbook below for adding additional runners.
+  that runner. One directory per runner is the supported pattern.
+- **Runners moved from varys to bran (2026-04-07):** varys held all runners initially, but
+  as the most privileged node (age key, kubeconfig, SSH keys to all nodes) it was the wrong
+  machine to expose to GitHub-facing processes. bran (RPi, low-privilege, always-on) is the
+  correct host. varys retains its role as interactive control hub but has no GitHub-connected
+  processes.
 
 ## Runner Directory Convention
 
-Each repository that needs a self-hosted runner gets its own directory on varys:
+All runners live on `bran` (10.0.10.9, RPi aarch64). Each repository gets its own directory
+with a distinct label so workflows can target specific runners.
 
-| Directory | Registered to | Labels | systemd service |
-|-----------|--------------|--------|-----------------|
-| `~/actions-runner/` | `Kagiso-me/homelab-infrastructure` | `self-hosted,linux,homelab` | `actions-runner.varys.service` |
-| `~/actions-runner-site/` | `Kagiso-me/Kagiso-me.github.io` | `self-hosted,linux,homelab` | `actions-runner.varys-site.service` |
+| Directory | Registered to | Label | systemd service |
+|-----------|--------------|-------|-----------------|
+| `~/actions-runner-site/` | `Kagiso-me/Kagiso-me.github.io` | `bran-site` | `actions-runner.bran-site.service` |
+| `~/actions-runner-k3s/` | `Kagiso-me/homelab-infrastructure` | `bran-k3s` | `actions-runner.bran-k3s.service` |
+| `~/actions-runner-docker/` | `Kagiso-me/homelab-infrastructure` | `bran-docker` | `actions-runner.bran-docker.service` |
 
 **Why separate directories:** the runner agent stores its registration token, `.credentials`,
 and `_work/` output in the directory it was configured from. If two runners shared a directory,
 `config.sh` for the second would overwrite the first's credentials and break it. One directory
 per runner is the supported pattern.
 
-**Future node (bran):** when `bran` (10.0.10.9, RPi) is provisioned as the dedicated
-observability gateway, the `actions-runner-site` runner will migrate there. The
-`homelab-infrastructure` runner stays on varys since it needs kubectl/Ansible access.
+**Why bran and not varys:** varys holds the age private key, full kubeconfig, and SSH keys
+to every node — it is the most privileged machine in the homelab. GitHub Actions runners are
+an execution surface: a compromised workflow or supply-chain attack gets code execution on the
+runner host. Separating runners onto bran means a CI breach lands on the Pi-hole appliance,
+not the control hub with cluster-admin credentials.
 
 ## Runner Setup
 

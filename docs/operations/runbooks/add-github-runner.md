@@ -104,14 +104,20 @@ rm -rf ~/actions-runner-<repo-name>
 
 ---
 
-## Migrating a runner to bran
+## Current runner locations
 
-When bran (10.0.10.9) is ready to take over the site runner:
+All runners live on `bran` (10.0.10.9, aarch64). Provisioned via:
+```bash
+ansible-playbook -i ansible/inventory/homelab.yml \
+  ansible/playbooks/services/provision-bran-runners.yml \
+  -e "token_site=<TOKEN> token_k3s=<TOKEN> token_docker=<TOKEN>"
+```
 
-1. Remove the runner from varys (steps above)
-2. SSH into bran and follow steps 1–6 above
-3. Update `fetch-live-data.sh` SSH target if the workflow SSHes into a specific node
-4. Update ADR-007 runner directory table
+| Runner | Directory | Label | Workflow |
+|--------|-----------|-------|----------|
+| Site data pipeline | `~/actions-runner-site/` | `bran-site` | `fetch-live-data.yml` |
+| k3s health check + flux diff | `~/actions-runner-k3s/` | `bran-k3s` | `validate.yml` |
+| Docker deploy | `~/actions-runner-docker/` | `bran-docker` | `docker-deploy.yml` |
 
 ---
 

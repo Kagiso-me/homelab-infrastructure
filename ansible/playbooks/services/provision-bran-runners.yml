@@ -1,0 +1,235 @@
+---
+# =============================================================================
+# provision-bran-runners.yml
+#
+# Provisions bran (RPi, aarch64) as the homelab GitHub Actions runner node.
+# Installs: ansible, kubectl, flux CLI, and registers three runner instances.
+#
+# Runners registered:
+#   ~/actions-runner-site/    → Kagiso-me.github.io      label: bran-site
+#   ~/actions-runner-k3s/     → homelab-infrastructure   label: bran-k3s
+#   ~/actions-runner-docker/  → homelab-infrastructure   label: bran-docker
+#
+# Prerequisites (manual steps before running):
+#   1. Generate registration tokens from GitHub:
+#      - Site repo:  https://github.com/Kagiso-me/Kagiso-me.github.io/settings/actions/runners/new
+#      - Infra repo: https://github.com/Kagiso-me/homelab-infrastructure/settings/actions/runners/new
+#      (You need two tokens for infra — one for k3s runner, one for docker runner)
+#   2. Copy kubeconfig to bran (step handled by this playbook via delegate_to)
+#   3. Ensure SSH key from varys is authorised on bronn/ned/k3s nodes for Ansible
+#
+# Usage:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/provision-bran-runners.yml \
+#     -e "token_site=<TOKEN> token_k3s=<TOKEN> token_docker=<TOKEN>"
+# =============================================================================
+
+- name: Provision bran as GitHub Actions runner node
+  hosts: observer
+  become: true
+
+  vars:
+    runner_user: kagiso
+    runner_version: "2.333.1"
+    runner_arch: arm64
+    runner_base_url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}"
+    runner_tarball: "actions-runner-linux-{{ runner_arch }}-{{ runner_version }}.tar.gz"
+
+    kubectl_version: "v1.31.0"   # match k3s cluster version
+    flux_version: "v2.8.3"
+
+    runners:
+      - name: site
+        dir: "actions-runner-site"
+        repo_url: "https://github.com/Kagiso-me/Kagiso-me.github.io"
+        token_var: "{{ token_site }}"
+        labels: "self-hosted,linux,homelab,bran-site"
+        runner_name: "bran-site"
+      - name: k3s
+        dir: "actions-runner-k3s"
+        repo_url: "https://github.com/Kagiso-me/homelab-infrastructure"
+        token_var: "{{ token_k3s }}"
+        labels: "self-hosted,linux,homelab,bran-k3s"
+        runner_name: "bran-k3s"
+      - name: docker
+        dir: "actions-runner-docker"
+        repo_url: "https://github.com/Kagiso-me/homelab-infrastructure"
+        token_var: "{{ token_docker }}"
+        labels: "self-hosted,linux,homelab,bran-docker"
+        runner_name: "bran-docker"
+
+  tasks:
+    # ── System packages ──────────────────────────────────────────────────────
+    - name: Install system dependencies
+      ansible.builtin.apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - pipx
+          - curl
+          - git
+          - jq
+          - libicu-dev    # required by GitHub Actions runner
+          - libssl-dev
+        state: present
+        update_cache: true
+
+    - name: Install Ansible via pipx (isolated, no system pip conflicts)
+      become: false
+      community.general.pipx:
+        name: ansible-core
+        state: present
+      environment:
+        PATH: "{{ ansible_env.PATH }}:/home/{{ runner_user }}/.local/bin"
+
+    - name: Install Ansible community.general collection
+      become: false
+      ansible.builtin.command:
+        cmd: /home/{{ runner_user }}/.local/bin/ansible-galaxy collection install community.general
+      changed_when: false
+
+    # ── kubectl ───────────────────────────────────────────────────────────────
+    - name: Download kubectl {{ kubectl_version }} (arm64)
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/arm64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Verify kubectl
+      ansible.builtin.command: kubectl version --client
+      changed_when: false
+
+    # ── flux CLI ──────────────────────────────────────────────────────────────
+    - name: Download flux CLI {{ flux_version }} (arm64)
+      ansible.builtin.get_url:
+        url: "https://github.com/fluxcd/flux2/releases/download/{{ flux_version }}/flux_{{ flux_version | regex_replace('^v', '') }}_linux_arm64.tar.gz"
+        dest: "/tmp/flux-{{ flux_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Extract flux CLI
+      ansible.builtin.unarchive:
+        src: "/tmp/flux-{{ flux_version }}.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        mode: "0755"
+
+    - name: Clean up flux tarball
+      ansible.builtin.file:
+        path: "/tmp/flux-{{ flux_version }}.tar.gz"
+        state: absent
+
+    # ── kubeconfig ────────────────────────────────────────────────────────────
+    - name: Create .kube directory for runner user
+      become: false
+      ansible.builtin.file:
+        path: "/home/{{ runner_user }}/.kube"
+        state: directory
+        mode: "0700"
+
+    - name: Copy kubeconfig from varys to bran
+      ansible.builtin.copy:
+        src: "/home/{{ runner_user }}/.kube/config"
+        dest: "/home/{{ runner_user }}/.kube/config"
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+        mode: "0600"
+
+    # ── SSH key for Ansible + service access ─────────────────────────────────
+    - name: Create .ssh directory
+      become: false
+      ansible.builtin.file:
+        path: "/home/{{ runner_user }}/.ssh"
+        state: directory
+        mode: "0700"
+
+    - name: Copy SSH private key from varys to bran
+      ansible.builtin.copy:
+        src: "/home/{{ runner_user }}/.ssh/id_ed25519"
+        dest: "/home/{{ runner_user }}/.ssh/id_ed25519"
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+        mode: "0600"
+
+    - name: Copy SSH public key from varys to bran
+      ansible.builtin.copy:
+        src: "/home/{{ runner_user }}/.ssh/id_ed25519.pub"
+        dest: "/home/{{ runner_user }}/.ssh/id_ed25519.pub"
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+        mode: "0644"
+
+    # ── GitHub Actions runner agent ───────────────────────────────────────────
+    - name: Download runner tarball
+      become: false
+      ansible.builtin.get_url:
+        url: "{{ runner_base_url }}/{{ runner_tarball }}"
+        dest: "/home/{{ runner_user }}/{{ runner_tarball }}"
+        mode: "0644"
+
+    - name: Create runner directories and extract agent
+      become: false
+      ansible.builtin.file:
+        path: "/home/{{ runner_user }}/{{ item.dir }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ runners }}"
+
+    - name: Extract runner agent into each directory
+      become: false
+      ansible.builtin.unarchive:
+        src: "/home/{{ runner_user }}/{{ runner_tarball }}"
+        dest: "/home/{{ runner_user }}/{{ item.dir }}"
+        remote_src: true
+      loop: "{{ runners }}"
+
+    - name: Clean up runner tarball
+      become: false
+      ansible.builtin.file:
+        path: "/home/{{ runner_user }}/{{ runner_tarball }}"
+        state: absent
+
+    # ── Register each runner ──────────────────────────────────────────────────
+    - name: Register runner with GitHub
+      become: false
+      ansible.builtin.command:
+        cmd: >
+          ./config.sh
+          --url {{ item.repo_url }}
+          --token {{ item.token_var }}
+          --name {{ item.runner_name }}
+          --labels {{ item.labels }}
+          --unattended
+          --replace
+        chdir: "/home/{{ runner_user }}/{{ item.dir }}"
+      loop: "{{ runners }}"
+      no_log: true   # hide tokens from output
+
+    # ── Install as systemd services ───────────────────────────────────────────
+    - name: Install runner systemd services
+      ansible.builtin.command:
+        cmd: "./svc.sh install {{ runner_user }}"
+        chdir: "/home/{{ runner_user }}/{{ item.dir }}"
+      loop: "{{ runners }}"
+
+    - name: Start runner services
+      ansible.builtin.command:
+        cmd: "./svc.sh start"
+        chdir: "/home/{{ runner_user }}/{{ item.dir }}"
+      loop: "{{ runners }}"
+
+    # ── Verify ────────────────────────────────────────────────────────────────
+    - name: Check runner service status
+      ansible.builtin.command:
+        cmd: "./svc.sh status"
+        chdir: "/home/{{ runner_user }}/{{ item.dir }}"
+      loop: "{{ runners }}"
+      changed_when: false
+      register: runner_status
+
+    - name: Show runner status
+      ansible.builtin.debug:
+        msg: "{{ item.stdout_lines }}"
+      loop: "{{ runner_status.results }}"

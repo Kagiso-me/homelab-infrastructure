@@ -229,7 +229,7 @@ jobs:
   # Posts a collapsible summary as a PR comment so you see exactly what will change.
   cluster-diff:
     name: Cluster diff
-    runs-on: [self-hosted, linux, homelab]
+    runs-on: [self-hosted, linux, homelab, bran-k3s]
     needs: validate
     if: github.event_name == 'pull_request'
 
@@ -307,7 +307,7 @@ jobs:
   # then verifies Traefik is responding. Fails loudly if anything is wrong.
   health-check:
     name: Production health check
-    runs-on: [self-hosted, linux, homelab]
+    runs-on: [self-hosted, linux, homelab, bran-k3s]
     if: github.event_name == 'push'
 
     steps:

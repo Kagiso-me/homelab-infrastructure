@@ -62,7 +62,7 @@ jobs:
 
   deploy:
     name: deploy-docker-host
-    runs-on: [self-hosted, linux, homelab]
+    runs-on: [self-hosted, linux, homelab, bran-docker]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
