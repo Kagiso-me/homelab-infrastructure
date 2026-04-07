@@ -14,20 +14,22 @@
   "dependencyDashboardTitle": "Renovate Dashboard",
   "flux": {
     "enabled": true,
-    "fileMatch": [
-      "clusters/.+\\.ya?ml$",
-      "platform/.+\\.ya?ml$",
-      "apps/.+\\.ya?ml$"
+    "managerFilePatterns": [
+      "/clusters/.+\.ya?ml$/",
+      "/platform/.+\.ya?ml$/",
+      "/apps/.+\.ya?ml$/"
     ]
   },
   "helm-values": {
-    "fileMatch": [
-      "platform/.+/helmrelease\\.ya?ml$",
-      "apps/base/.+/helmrelease\\.ya?ml$"
+    "managerFilePatterns": [
+      "/platform/.+/helmrelease\.ya?ml$/",
+      "/apps/base/.+/helmrelease\.ya?ml$/"
     ]
   },
   "docker-compose": {
-    "fileMatch": ["docker/compose/.+\\.ya?ml$"]
+    "managerFilePatterns": [
+      "/docker/compose/.+\.ya?ml$/"
+    ]
   },
   "packageRules": [
     {
