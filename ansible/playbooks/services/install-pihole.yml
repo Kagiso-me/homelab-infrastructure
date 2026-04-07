@@ -37,6 +37,7 @@
     pihole_ipv4_address: "10.0.10.10/24"
     pihole_rev_server_target: "10.0.10.1"
     traefik_ip: "10.0.10.110"
+    traefik_internal_ip: "10.0.10.111"
     kagiso_domain: "kagiso.me"
 
   vars_prompt:
@@ -135,12 +136,12 @@
       copy:
         dest: /etc/dnsmasq.d/02-kagiso-local.conf
         content: |
-          # Wildcard DNS â€” all *.kagiso.me queries resolve to Traefik on LAN.
-          # This enables valid TLS certs (DNS-01 wildcard) to work locally
-          # without making services publicly reachable.
-          # Services are only publicly accessible if explicitly configured
-          # in the Cloudflare Tunnel (cloudflared) ingress rules.
+          # Wildcard DNS — all *.kagiso.me queries resolve to external Traefik on LAN.
+          # More-specific local.kagiso.me entry below takes precedence for internal routes.
           address=/.{{ kagiso_domain }}/{{ traefik_ip }}
+          # Wildcard DNS — *.local.kagiso.me resolves to internal Traefik (LAN-only ingress).
+          # Covers: vault, cloud, grafana, prometheus, traefik, n8n, photos, auth, etc.
+          address=/.local.{{ kagiso_domain }}/{{ traefik_internal_ip }}
         mode: '0644'
 
     # Pi-hole v6 does not read /etc/dnsmasq.d/ by default â€” misc.etc_dnsmasq_d
