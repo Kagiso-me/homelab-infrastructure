@@ -1,4 +1,3 @@
-
 # Architecture — Networking
 
 ## Network Design Reference
@@ -18,10 +17,10 @@ All nodes are on the same Layer-2 network segment.
 | tyrion | 10.0.10.12 | Kubernetes server node |
 | jaime | 10.0.10.13 | Kubernetes server node |
 | TrueNAS | 10.0.10.80 | NFS storage |
-| Router / DNS | 10.0.10.1 | Default gateway, wildcard DNS |
+| Router | 10.0.10.1 | Default gateway |
 | Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
-| varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, Pi-hole, Grafana, Alertmanager, cloudflared) |
-| bran | n/a | RPi 3B+ — secondary Pi-hole, Tailscale exit node, WOL proxy (legacy / non-primary) |
+| varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, cloudflared) |
+| hodor | 10.0.10.15 | RPi 4 — Primary Pi-hole + Unbound, Tailscale exit node, WOL proxy |
 
 ---
 
@@ -35,12 +34,63 @@ This range is reserved exclusively for Kubernetes services. No other devices sho
 
 | IP | Assignment |
 |----|-----------|
-| 10.0.10.110 | Traefik ingress (primary) |
-| 10.0.10.111–115 | Reserved for additional LoadBalancer services |
+| 10.0.10.110 | `traefik-external` — public-facing ingress |
+| 10.0.10.111 | `traefik-internal` — LAN-only ingress |
+| 10.0.10.112–115 | Reserved for additional LoadBalancer services |
 
 MetalLB operates in **Layer-2 mode**. It responds to ARP requests for the allocated IPs, advertising the IP as belonging to the node running the MetalLB speaker. All traffic for the IP arrives at that node and is then forwarded to the appropriate service by kube-proxy.
 
 **Layer-2 limitation:** Only one node handles traffic for a given IP at a time. If that node fails, MetalLB will advertise the IP from a different node, but there is a brief traffic interruption. This is acceptable for a homelab platform.
+
+---
+
+## Ingress Architecture — Two Tiers
+
+The platform uses two independent Traefik deployments, each with their own MetalLB IP, entrypoint, and TLS certificate.
+
+### traefik-external (`10.0.10.110`)
+
+- **Domain:** `*.kagiso.me`
+- **Cert:** Let's Encrypt wildcard via Cloudflare DNS-01
+- **Entrypoint:** `websecure` (port 443)
+- **Protection:** CrowdSec ForwardAuth middleware on all routes
+- **Reachable from:** Internet (via Cloudflare Tunnel) and LAN
+- **Apps:** All user-facing apps (Nextcloud, Vaultwarden, Immich, n8n, Authentik)
+- **Admin path blocking:** `/admin` (Vaultwarden) and `/if/admin/` (Authentik) return 403 from this entrypoint
+
+### traefik-internal (`10.0.10.111`)
+
+- **Domain:** `*.local.kagiso.me`
+- **Cert:** Let's Encrypt wildcard for `*.local.kagiso.me` via Cloudflare DNS-01
+- **Entrypoint:** `websecure-int` (port 443)
+- **Protection:** None — LAN-only, private IP, unreachable from internet
+- **Reachable from:** LAN only (Pi-hole resolves `*.local.kagiso.me` to `10.0.10.111`)
+- **Apps:** All user-facing apps (internal routes) + admin-only tools
+
+### App Exposure Model
+
+| App | External (`*.kagiso.me`) | Internal (`*.local.kagiso.me`) |
+|-----|--------------------------|-------------------------------|
+| Vaultwarden | `vault.kagiso.me` (admin blocked) | `vault.local.kagiso.me` (full access) |
+| Nextcloud | `cloud.kagiso.me` | `cloud.local.kagiso.me` |
+| Immich | `photos.kagiso.me` | `photos.local.kagiso.me` |
+| n8n | `n8n.kagiso.me` | `n8n.local.kagiso.me` |
+| Authentik | `auth.kagiso.me` (admin blocked) | `auth.local.kagiso.me` (full access) |
+| Grafana | — | `grafana.local.kagiso.me` |
+| Prometheus | — | `prometheus.local.kagiso.me` |
+| Traefik dashboard | — | `traefik.local.kagiso.me` |
+
+### Maintenance Isolation
+
+Scaling `traefik-external` to 0 makes all public services unreachable from the internet while keeping all `*.local.kagiso.me` routes fully accessible on the LAN. This is the standard maintenance posture.
+
+```bash
+# Take external ingress offline
+kubectl scale deployment -n ingress traefik --replicas=0
+
+# Restore
+kubectl scale deployment -n ingress traefik --replicas=3
+```
 
 ---
 
@@ -58,7 +108,7 @@ Cloudflare Edge (public IP — TLS terminated here)
 cloudflared daemon (running on varys at 10.0.10.10)
   │
   ▼
-Traefik (10.0.10.110 — internal routing + host matching)
+traefik-external (10.0.10.110 — CrowdSec check + host matching)
   │
   ▼
 Application Service (ClusterIP)
@@ -67,14 +117,28 @@ Application Service (ClusterIP)
 Application pod
 ```
 
-**Key properties of this model:**
-
+**Key properties:**
 - No inbound ports 80/443 required on the router/firewall for public web traffic.
 - TLS between browser and Cloudflare Edge is managed automatically by Cloudflare.
 - Traffic between Cloudflare Edge and cloudflared is encrypted via the tunnel.
-- Traefik still handles internal routing and host-based dispatch to services.
+- CrowdSec rate-limiting and IP reputation checking on every external request.
 
-### Traffic Flow — Tailscale (Plex / Remote Admin)
+### Traffic Flow — LAN (Internal Access)
+
+```
+LAN device
+  │  (DNS: *.local.kagiso.me → 10.0.10.111 via Pi-hole)
+  ▼
+traefik-internal (10.0.10.111 — host matching, no CrowdSec)
+  │
+  ▼
+Application Service (ClusterIP)
+  │
+  ▼
+Application pod
+```
+
+### Traffic Flow — Tailscale (Remote Admin / Plex)
 
 Plex and media streaming are accessed remotely via Tailscale. Cloudflare's ToS prohibits proxying video streaming. SSH and kubectl access from remote locations also use Tailscale.
 
@@ -88,7 +152,7 @@ Tailscale / Headscale coordination server
 WireGuard-encrypted peer-to-peer tunnel to home network node
   │
   ▼
-Plex service (direct) — or Traefik (10.0.10.110) for other apps
+Plex service (direct) — or traefik-external (10.0.10.110) for other apps
   │
   ▼
 Application pod (Plex, SSH target, etc.)
@@ -98,134 +162,104 @@ Application pod (Plex, SSH target, etc.)
 
 ## DNS Architecture
 
-All cluster services are accessed via hostnames under `kagiso.me`. DNS is split across two layers: Pi-hole for LAN resolution and Cloudflare for public resolution.
+All cluster services are accessed via hostnames. DNS is handled by Pi-hole on `hodor` for LAN resolution, backed by Unbound for recursive resolution.
 
-### Pi-hole — LAN DNS Server
+### Pi-hole + Unbound — LAN DNS
 
-**Pi-hole runs on varys at `10.0.10.10`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.10` as DNS Server 1 to all DHCP clients.
+**Pi-hole runs on hodor at `10.0.10.15`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.15` as DNS Server 1.
 
-Pi-hole provides:
-
-- **Wildcard DNS:** `*.kagiso.me → 10.0.10.110` (Traefik) — configured as a dnsmasq `address` directive, so every `*.kagiso.me` hostname resolves to Traefik on the LAN without per-service DNS entries.
-- **Ad blocking:** Network-wide DNS-based ad blocking for all LAN clients.
-- **Split DNS:** Internal services only need a Pi-hole entry — they are invisible from the public internet regardless of whether a TLS certificate exists for them.
-- **Upstream DNS:** All other queries are forwarded to Cloudflare `1.1.1.1` / `1.0.0.1` with DNSSEC validation.
+**Unbound** runs on hodor at `127.0.0.1:5335` as Pi-hole's upstream. It is a recursive resolver — it queries root nameservers directly. No third-party DNS provider (Cloudflare, Google) is involved in resolution.
 
 ```
-# Pi-hole wildcard (dnsmasq address directive — auto-configured by Ansible playbook)
-address=/kagiso.me/10.0.10.110
-
-# Upstream resolvers (with DNSSEC)
-1.1.1.1
-1.0.0.1
+LAN device
+  │
+  ▼
+Pi-hole (10.0.10.15:53)
+  │  Split DNS rules (dnsmasq, longest match first):
+  │    *.local.kagiso.me  → 10.0.10.111  (traefik-internal)
+  │    *.kagiso.me        → 10.0.10.110  (traefik-external)
+  │  Ad/tracker domains   → blocked (NXDOMAIN)
+  │  All other queries:
+  ▼
+Unbound (127.0.0.1:5335)
+  │  Recursive resolution — no third party
+  ▼
+Root nameservers → TLD nameservers → Authoritative nameservers
 ```
+
+**Pi-hole dnsmasq config (`/etc/dnsmasq.d/02-kagiso-local.conf`):**
+```conf
+# Wildcard — *.local.kagiso.me resolves to internal Traefik (more specific, matched first)
+address=/.local.kagiso.me/10.0.10.111
+
+# Wildcard — *.kagiso.me resolves to external Traefik
+address=/.kagiso.me/10.0.10.110
+```
+
+**Blocklists (balanced tier):** oisd big, hagezi Pro, hagezi Threat Intelligence Feeds, Steven Black.
 
 ### Cloudflare DNS — Public Access
 
-Public services additionally have proxied CNAME records in Cloudflare DNS pointing to the Cloudflare Tunnel:
+Public services have proxied CNAME records in Cloudflare DNS pointing to the Cloudflare Tunnel. External clients resolve to Cloudflare's anycast IPs — the home network IP is never exposed.
 
 ```
-# Public services — DNS records are proxied through Cloudflare
-# These do NOT point directly to 10.0.10.110
-grafana.kagiso.me    CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
-nextcloud.kagiso.me  CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
-immich.kagiso.me     CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
+# Public services — DNS records proxied through Cloudflare
+vault.kagiso.me   CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
+cloud.kagiso.me   CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
+auth.kagiso.me    CNAME  <tunnel-id>.cfargotunnel.com  (proxied)
 ```
-
-External clients resolve to Cloudflare's anycast IPs — the home network IP is never exposed. Traffic is forwarded to the homelab via the Cloudflare Tunnel.
 
 ### Split DNS Security Model
 
 > **The TLS certificate does not expose a service. DNS and routing do.**
 
-A service with a valid `*.kagiso.me` certificate is only reachable from the internet if **both** of the following are true:
-
+A service is reachable from the internet only if **both** are true:
 1. A public Cloudflare DNS record (proxied CNAME to the tunnel) exists for it.
 2. A matching hostname ingress rule exists in the `cloudflared` config.
 
-An internal-only service that has a `*.kagiso.me` cert but no Cloudflare DNS record and no tunnel rule is unreachable from WAN. From the LAN, Pi-hole's wildcard resolves it to Traefik; from the internet, the hostname does not resolve at all.
+Admin-only tools (Grafana, Prometheus, Traefik dashboard) have no public DNS record and no tunnel rule — they are unreachable from WAN regardless of their TLS cert.
 
 ### Adding a New Internal-Only Service
 
-1. Create an `IngressRoute` in k3s with the desired `Host(*.kagiso.me)` rule.
-2. That is all — Pi-hole's wildcard `*.kagiso.me → 10.0.10.110` handles DNS automatically on the LAN. No Pi-hole changes needed.
-
-The service is reachable on the LAN. It is not reachable from the WAN.
+1. Create an IngressRoute pointing to `websecure-int` with `Host(*.local.kagiso.me)`.
+2. That is all — Pi-hole's wildcard `*.local.kagiso.me → 10.0.10.111` handles DNS automatically. No Pi-hole changes needed.
 
 ### Adding a New Public Service
 
-1. Create an `IngressRoute` in k3s with the desired hostname.
-2. Add a hostname ingress rule to `/etc/cloudflared/config.yml` on varys and restart `cloudflared`.
-3. Add a proxied CNAME record in Cloudflare DNS pointing to the tunnel (`cloudflared tunnel route dns homelab <hostname>` handles this automatically).
+1. Create an IngressRoute pointing to `websecure` with `Host(*.kagiso.me)`.
+2. Add an ingress rule to `/etc/cloudflared/config.yml` on varys and restart cloudflared.
+3. Add a proxied CNAME in Cloudflare DNS (`cloudflared tunnel route dns homelab <hostname>`).
+
+### DNS Redundancy
+
+| DNS Server | IP | Notes |
+|------------|-----|-------|
+| DNS Server 1 | `10.0.10.15` (hodor) | Primary — Pi-hole + Unbound, split DNS, ad blocking |
+| DNS Server 2 | `1.1.1.1` | Fallback — internet DNS only if hodor is offline |
+
+When a second Pi-hole is deployed (target: varys), DNS Server 2 will be updated to its IP for full split-DNS redundancy.
 
 ---
 
 ## TLS Architecture
 
-TLS is handled by cert-manager for all cluster services. cert-manager issues a wildcard `*.kagiso.me` certificate via Let's Encrypt DNS-01 challenge using the Cloudflare API.
+TLS is handled by cert-manager for all cluster services.
 
 **ClusterIssuers:**
 
 | Issuer | Type | Use case |
 |--------|------|---------|
-| `letsencrypt-prod` | Let's Encrypt (ACME, DNS-01) | Production wildcard `*.kagiso.me` certificate |
-| `letsencrypt-staging` | Let's Encrypt Staging (ACME, DNS-01) | Testing certificate issuance without rate-limiting |
+| `letsencrypt-prod` | Let's Encrypt (ACME, DNS-01) | Production wildcards — `*.kagiso.me` and `*.local.kagiso.me` |
 | `internal-ca` | Self-signed internal CA | Internal cluster services with no external exposure |
 
-Traefik is configured with a default `TLSStore` that uses the wildcard certificate for all HTTPS ingress routes automatically — no per-service certificate annotations required.
+**Certificates:**
 
-**Certificate flow — all cluster services:**
+| Certificate | Namespace | Serves |
+|-------------|-----------|--------|
+| `wildcard-kagiso-me-tls` | `ingress` | All `*.kagiso.me` routes via `traefik-external` TLSStore |
+| `wildcard-local-kagiso-me-tls` | `ingress-internal` | All `*.local.kagiso.me` routes via `traefik-internal` TLSStore |
 
-```
-cert-manager requests *.kagiso.me cert from Let's Encrypt
-  │
-  ▼
-Let's Encrypt DNS-01 challenge via Cloudflare API (TXT record created/deleted automatically)
-  │
-  ▼
-Wildcard certificate stored as a Kubernetes Secret in the cert-manager namespace
-  │
-  ▼
-Traefik TLSStore references the wildcard cert — served for all *.kagiso.me IngressRoutes
-```
-
-**Certificate flow — public services (Cloudflare Tunnel):**
-
-```
-Browser connects to Cloudflare Edge
-  │
-  ▼
-Cloudflare terminates its own TLS (managed certificate, separate from cert-manager)
-  │
-  ▼
-Encrypted tunnel to cloudflared → Traefik (serves wildcard *.kagiso.me cert internally)
-```
-
-> **Note:** Plex and remote admin access use Tailscale. Cloudflare's ToS prohibits video streaming proxy through the tunnel.
-
----
-
-## External Access Architecture
-
-Three access paths serve different use cases:
-
-| Path | Used For | TLS Source | Notes |
-|------|----------|-----------|-------|
-| Cloudflare Tunnel | All public web services (Grafana, Sonarr, Nextcloud, etc.) | Cloudflare (automatic) | No open inbound ports required |
-| Tailscale / Headscale | Plex/media streaming, remote SSH, kubectl | Tailscale (own infrastructure) | Cloudflare ToS prohibits video proxy |
-| Direct LAN | All internal traffic | Internal CA (`internal-ca`) | Bypasses Cloudflare entirely |
-
-### Cloudflare Tunnel — Web Services
-
-Services exposed through Cloudflare Tunnel include: Grafana, Sonarr, Radarr, Nextcloud, Immich UI, and other HTTP-based applications. The tunnel is an outbound connection from `cloudflared` (running on varys at `10.0.10.10`), so no inbound firewall rules are needed for web traffic.
-
-### Tailscale / Headscale — Media Streaming and Remote Admin
-
-Plex and any direct media access use Tailscale. Once connected, the client reaches homelab nodes via encrypted peer-to-peer tunnels and can access services at their internal IPs or via Tailscale MagicDNS. Remote SSH to homelab nodes and `kubectl` access also go through Tailscale. Headscale (a self-hosted Tailscale coordination server) runs on varys alongside Pi-hole and cloudflared.
-
-### Direct LAN — Internal Traffic
-
-All traffic from devices on the local network goes directly to `10.0.10.110` (Traefik) via MetalLB, bypassing Cloudflare entirely. Internal DNS resolves `*.kagiso.me` to `10.0.10.110`.
+Both certificates are issued via Cloudflare DNS-01 — no public HTTP access is required for issuance. Both auto-renew 15 days before expiry.
 
 ---
 
@@ -261,18 +295,18 @@ Applied by `playbooks/security/firewall.yml`:
 
 ### USG DHCP Configuration
 
-The UniFi Security Gateway DHCP server is configured to hand out `10.0.10.10` (varys / Pi-hole) as the DNS server for all LAN clients:
-
 ```
-UniFi Controller → Networks → [LAN network] → DHCP → DNS Server 1: 10.0.10.10
+Settings → Networks → [LAN] → DHCP
+  DNS Server 1: 10.0.10.15   (hodor — Pi-hole primary)
+  DNS Server 2: 1.1.1.1      (Cloudflare — fallback)
 ```
-
-This ensures all devices on the LAN use Pi-hole for DNS resolution, receiving both ad blocking and the `*.kagiso.me` wildcard split DNS automatically.
 
 ---
 
-## Related Guides
+## Related
 
-- [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)
 - [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)
-
+- [ADR-014: Pi-hole + Unbound DNS Architecture](../adr/ADR-014-pihole-unbound-dns.md)
+- [raspberry-pi/docs/01_pihole.md](../../raspberry-pi/docs/01_pihole.md)
+- [raspberry-pi/docs/02_unbound.md](../../raspberry-pi/docs/02_unbound.md)
+- [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)

@@ -1,48 +1,82 @@
-# Raspberry Pi â€” Dedicated Appliance (bran)
+# Raspberry Pi — hodor
 
-**Hostname:** `bran`
-**IP:** `10.0.10.10` (transitioning â€” will be reassigned a new static IP once varys takes over as control hub)
+**Hostname:** `hodor`
+**IP:** `10.0.10.15` (static, reserved via UniFi DHCP)
 **OS:** Raspberry Pi OS Lite (64-bit, Debian Bookworm)
-**Hardware:** Raspberry Pi 3B+
+**Hardware:** Raspberry Pi 4
 
 ---
 
 ## Role
 
-Bran is a **dedicated network appliance** â€” not a management or control node. It handles three persistent services that benefit from being on a low-power, always-on device.
+hodor is a **dedicated network appliance** — always-on, low-power, independent of the Kubernetes cluster and the control hub (varys). It runs services that the rest of the homelab depends on, so they must not share fate with anything else.
 
 | Service | Purpose |
 |---------|---------|
-| **Pi-hole** | Secondary DNS server â€” redundant ad blocking and LAN DNS resolution |
-| **Tailscale exit node** | WireGuard-based remote access and exit node for the homelab network |
-| **WOL proxy** | Wake-on-LAN proxy for nodes that don't support remote wake-up from WAN |
-
-The **control hub role** (kubectl, flux, Ansible, GitHub runner, Grafana, Alertmanager, cloudflared) has moved to **varys** â€” see [../README.md](../README.md).
+| **Pi-hole** | Primary DNS server — network-wide ad blocking and split DNS for `*.kagiso.me` and `*.local.kagiso.me` |
+| **Unbound** | Recursive DNS resolver — upstream for Pi-hole, fully self-contained (no third-party DNS) |
+| **Tailscale exit node** | WireGuard-based remote access and LAN route advertisement |
+| **WOL proxy** | Wake-on-LAN proxy for nodes that can't be woken remotely |
 
 ---
 
-## Services Running on bran
+## Why a Dedicated Node for DNS
 
-### Pi-hole (Secondary DNS)
+Pi-hole is the single most critical network service — every LAN device depends on it for DNS resolution. Keeping it on a dedicated RPi ensures:
 
-The primary Pi-hole runs on varys (`10.0.10.10`). Bran runs a secondary Pi-hole instance as a fallback DNS server, handed out as DNS Server 2 by the DHCP server.
+- A Kubernetes failure, varys maintenance, or heavy Ansible run does not affect DNS.
+- The RPi draws ~3–5W idle — always-on cost is negligible.
+- A second Pi-hole (e.g. on varys) can be added as DNS Server 2 for redundancy without changing the primary.
 
-```
-UniFi Controller â†’ Networks â†’ [LAN] â†’ DHCP â†’ DNS Server 2: <bran-ip>
-```
+---
+
+## DNS Architecture
+
+hodor provides two wildcard DNS entries that cover all homelab services:
+
+| Wildcard | Resolves To | Covers |
+|----------|-------------|--------|
+| `*.kagiso.me` | `10.0.10.110` | External Traefik — public-facing apps |
+| `*.local.kagiso.me` | `10.0.10.111` | Internal Traefik — LAN-only apps and admin tools |
+
+All upstream DNS queries are handled recursively by Unbound (no forwarding to Cloudflare/Google). DNSSEC is validated at the Unbound layer.
+
+---
+
+## Services
+
+### Pi-hole (Primary DNS)
+
+Network-wide DNS server and ad blocker. All LAN devices use hodor as DNS Server 1 via UniFi DHCP.
+
+- Admin UI: `http://10.0.10.15/admin`
+- Blocklists: oisd big, hagezi Pro, hagezi Threat Intelligence Feeds
+- Upstream: Unbound at `127.0.0.1#5335`
+
+See [docs/01_pihole.md](docs/01_pihole.md) for full setup and configuration guide.
+
+### Unbound (Recursive Resolver)
+
+Recursive DNS resolver that handles all upstream queries for Pi-hole. Queries root nameservers directly — no third-party DNS provider involved.
+
+- Listens on: `127.0.0.1:5335`
+- DNSSEC validation enabled
+- QNAME minimisation enabled (privacy)
+
+See [docs/02_unbound.md](docs/02_unbound.md) for full setup guide.
 
 ### Tailscale Exit Node
 
-Bran acts as the Tailscale exit node for the homelab network, enabling remote access to all LAN services without requiring an open inbound port on the router.
+hodor acts as the Tailscale exit node for the homelab network, enabling remote access to all LAN services and advertising the `10.0.10.0/24` route.
 
 ```bash
-# Enable exit node on bran (run once after Tailscale install)
+# Enable exit node on hodor (run once after Tailscale install)
 sudo tailscale up --advertise-exit-node --advertise-routes=10.0.10.0/24
 ```
 
 ### WOL Proxy
 
-Bran's LAN presence allows it to send Wake-on-LAN magic packets to hosts that can't be reached from WAN directly.
+hodor's permanent LAN presence allows it to send Wake-on-LAN magic packets to hosts that can't be reached from WAN directly.
 
 ```bash
 # Wake a host by MAC address
@@ -54,11 +88,11 @@ wakeonlan <MAC_ADDRESS>
 ## Access
 
 ```bash
-# SSH to bran (from LAN or via Tailscale)
-ssh kagiso@<bran-ip>
+# SSH to hodor (from LAN or via Tailscale)
+ssh kagiso@10.0.10.15
 ```
 
-Bran is not a jump host. Access it directly for appliance management only.
+hodor is an appliance node — SSH for maintenance only, not a general-purpose shell host.
 
 ---
 
@@ -66,13 +100,21 @@ Bran is not a jump host. Access it directly for appliance management only.
 
 ```
 raspberry-pi/
-â”œâ”€â”€ README.md               # this file
-â”œâ”€â”€ ansible/
-â”‚   â”œâ”€â”€ ansible.cfg
-â”‚   â”œâ”€â”€ inventory/
-â”‚   â”‚   â””â”€â”€ hosts.yml       # bran host definition
-â”‚   â””â”€â”€ playbooks/
-â”‚       â””â”€â”€ setup.yml       # bran bootstrap (Pi-hole, Tailscale, WOL)
-â””â”€â”€ docs/
-    â””â”€â”€ setup.md            # setup walkthrough
+├── README.md               # this file
+├── ansible/
+│   ├── ansible.cfg
+│   ├── inventory/
+│   │   └── hosts.yml       # hodor host definition
+│   └── playbooks/
+│       └── setup.yml       # hodor bootstrap (Pi-hole, Unbound, Tailscale, WOL)
+└── docs/
+    ├── 01_pihole.md        # Pi-hole setup and configuration
+    └── 02_unbound.md       # Unbound recursive resolver setup
 ```
+
+---
+
+## Related
+
+- [ADR-014: Pi-hole + Unbound DNS Architecture](../docs/adr/ADR-014-pihole-unbound-dns.md)
+- [Architecture: Networking](../docs/architecture/networking.md)
