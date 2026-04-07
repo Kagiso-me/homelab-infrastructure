@@ -95,9 +95,9 @@ Because the cloud is great — until it isn't.
 
 | Hostname | IP | Role | Hardware |
 |----------|----|------|----------|
-| **tywin** | `10.0.10.11` | k3s control-plane | Raspberry Pi 4 |
-| **tyrion** | `10.0.10.12` | k3s worker | Raspberry Pi 4 |
-| **jaime** | `10.0.10.13` | k3s worker | Raspberry Pi 4 |
+| **tywin** | `10.0.10.11` | k3s control-plane + etcd | Raspberry Pi 4 |
+| **tyrion** | `10.0.10.12` | k3s control-plane + etcd | Raspberry Pi 4 |
+| **jaime** | `10.0.10.13` | k3s control-plane + etcd | Raspberry Pi 4 |
 | **varys** | `10.0.10.10` | Control hub — kubectl, Ansible, GitHub runner | Intel NUC i3-5010U |
 | **bronn** | `10.0.10.20` | Docker host — media stack | Intel NUC i3-7100U |
 | **ned** | `10.0.10.80` | NAS — NFS, MinIO S3, Backblaze B2 | HP MicroServer Gen8 |
@@ -117,7 +117,7 @@ git push branch → open PR → CI validates + flux diff → merge → Flux reco
 
 | Layer | Technology | Detail |
 |-------|-----------|--------|
-| Orchestration | k3s v1.31 | Lightweight Kubernetes, embedded etcd |
+| Orchestration | k3s v1.31 | Lightweight Kubernetes, embedded etcd — 3-node HA control-plane |
 | GitOps | FluxCD v2 | Kustomization + HelmRelease controllers |
 | Ingress | Traefik v3 | HTTP/HTTPS routing — VIP `10.0.10.110` |
 | Load Balancer | MetalLB | Bare-metal ARP mode — pool `10.0.10.110–10.0.10.115` |
