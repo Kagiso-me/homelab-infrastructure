@@ -173,6 +173,14 @@
         group: "{{ runner_user }}"
         mode: "0644"
 
+    - name: Copy vault password file from varys to bran
+      ansible.builtin.copy:
+        src: "/home/{{ runner_user }}/.vault_pass"
+        dest: "/home/{{ runner_user }}/.vault_pass"
+        owner: "{{ runner_user }}"
+        group: "{{ runner_user }}"
+        mode: "0600"
+
     # ── GitHub Actions runner agent ───────────────────────────────────────────
     - name: Download runner tarball
       become: false
