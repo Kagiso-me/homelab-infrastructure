@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** add *.local.kagiso.me wildcard DNS for internal Traefik `b9410ba`
 - **[MAINTENANCE]** update helm release cert-manager to v1.16.5 (#14) `8ae1ea6`
 - **[CONFIG]** resolve automerge rule conflicts and simplify packageRules `0c6a182`
 - **[DEPLOY]** pin image tags and configure Renovate for compose files `dde2b50`
