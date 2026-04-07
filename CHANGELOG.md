@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** pin image tags and configure Renovate for compose files `dde2b50`
 - **[MAINTENANCE]** migrate Renovate config (#11) `2ed9e73`
 - **[DEPLOY]** block admin paths on external ingress for Vaultwarden and Authentik `2a9b467`
 - **[CONFIG]** shorten entrypoint name to websecure-int `4e3033d`
