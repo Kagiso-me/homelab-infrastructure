@@ -7,6 +7,16 @@ spec:
   entryPoints:
     - websecure
   routes:
+    # Block /admin from the public internet — accessible only via internal ingress.
+    - match: Host(`vault.kagiso.me`) && PathPrefix(`/admin`)
+      kind: Rule
+      middlewares:
+        - name: block-admin
+          namespace: ingress
+      services:
+        - name: vaultwarden
+          port: 80
+    # Allow all other paths publicly.
     - match: Host(`vault.kagiso.me`)
       kind: Rule
       services:

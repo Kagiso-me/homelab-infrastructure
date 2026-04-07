@@ -40,6 +40,20 @@ spec:
 # downtime does not block traffic. Reference from IngressRoute (cross-namespace):
 #   middlewares:
 #     - name: ingress-crowdsec-bouncer@kubernetescrd
+---
+# Block admin paths from the external entrypoint — return 403 Forbidden.
+# Applied on external IngressRoutes for Vaultwarden (/admin) and Authentik (/if/admin/, /api/v3/admin/).
+# The same apps expose these paths unrestricted on the internal entrypoint (websecure-int).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: block-admin
+  namespace: ingress
+spec:
+  ipAllowList:
+    sourceRange:
+      - "127.0.0.1/32"   # effectively blocks all — no real traffic comes from localhost
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
