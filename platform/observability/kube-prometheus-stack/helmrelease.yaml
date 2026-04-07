@@ -99,31 +99,38 @@ spec:
                   instance: varys
                   role: control-hub
 
-          - job_name: node-docker
+          - job_name: node-bronn
             static_configs:
               - targets: ["10.0.10.20:9100"]
                 labels:
-                  instance: docker
+                  instance: bronn
                   role: docker-host
 
-          - job_name: cadvisor-docker
+          - job_name: cadvisor-bronn
             static_configs:
               - targets: ["10.0.10.20:9338"]
                 labels:
-                  instance: docker
+                  instance: bronn
 
-          - job_name: node-truenas
+          - job_name: node-ned
             static_configs:
               - targets: ["10.0.10.80:9100"]
                 labels:
-                  instance: truenas
+                  instance: ned
                   role: storage
 
-          - job_name: smartctl-truenas
+          - job_name: smartctl-ned
             static_configs:
               - targets: ["10.0.10.80:9633"]
                 labels:
-                  instance: truenas
+                  instance: ned
+
+          - job_name: node-bran
+            static_configs:
+              - targets: ["10.0.10.9:9100"]
+                labels:
+                  instance: bran
+                  role: observer
 
     # ----- Alertmanager -----
     alertmanager:

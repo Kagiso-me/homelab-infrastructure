@@ -1,0 +1,144 @@
+---
+# =============================================================================
+# install-node-exporter.yml
+#
+# Installs Prometheus node-exporter as a systemd service on all non-k3s hosts.
+# k3s nodes already run node-exporter via the kube-prometheus-stack DaemonSet.
+#
+# Target hosts: varys, bronn, ned, bran
+#
+# Usage:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-node-exporter.yml
+#
+#   # Single host:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-node-exporter.yml --limit varys
+# =============================================================================
+
+- name: Install Prometheus node-exporter
+  hosts: control_hub:docker:storage:observer
+  become: true
+
+  vars:
+    node_exporter_version: "1.8.2"
+    node_exporter_user: node_exporter
+    node_exporter_port: 9100
+    # Architecture map — RPi is arm64, NUCs are amd64
+    arch_map:
+      x86_64: amd64
+      aarch64: arm64
+    node_exporter_arch: "{{ arch_map[ansible_architecture] | default('amd64') }}"
+    node_exporter_download_url: >-
+      https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}.tar.gz
+
+  tasks:
+    - name: Create node_exporter system user
+      ansible.builtin.user:
+        name: "{{ node_exporter_user }}"
+        system: true
+        shell: /sbin/nologin
+        create_home: false
+
+    - name: Check if node_exporter is already installed at correct version
+      ansible.builtin.command: /usr/local/bin/node_exporter --version
+      register: ne_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Download and install node_exporter
+      when: >
+        ne_version_check.rc != 0 or
+        node_exporter_version not in ne_version_check.stderr
+      block:
+        - name: Download node_exporter tarball
+          ansible.builtin.get_url:
+            url: "{{ node_exporter_download_url }}"
+            dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+            mode: "0644"
+
+        - name: Extract node_exporter
+          ansible.builtin.unarchive:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+            dest: /tmp
+            remote_src: true
+
+        - name: Install node_exporter binary
+          ansible.builtin.copy:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}/node_exporter"
+            dest: /usr/local/bin/node_exporter
+            owner: root
+            group: root
+            mode: "0755"
+            remote_src: true
+
+        - name: Clean up temp files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+            - "/tmp/node_exporter-{{ node_exporter_version }}.linux-{{ node_exporter_arch }}"
+
+    - name: Create textfile collector directory
+      ansible.builtin.file:
+        path: /var/lib/node_exporter/textfile_collector
+        state: directory
+        owner: "{{ node_exporter_user }}"
+        group: "{{ node_exporter_user }}"
+        mode: "0755"
+
+    - name: Install node_exporter systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/node_exporter.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Prometheus Node Exporter
+          Documentation=https://github.com/prometheus/node_exporter
+          After=network-online.target
+
+          [Service]
+          User={{ node_exporter_user }}
+          ExecStart=/usr/local/bin/node_exporter \
+            --collector.textfile.directory=/var/lib/node_exporter/textfile_collector \
+            --web.listen-address=:{{ node_exporter_port }}
+          Restart=on-failure
+          RestartSec=5s
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart node_exporter
+
+    - name: Open port {{ node_exporter_port }} in UFW (if active)
+      community.general.ufw:
+        rule: allow
+        port: "{{ node_exporter_port }}"
+        proto: tcp
+        src: 10.0.10.0/24
+        comment: "Prometheus node-exporter — LAN only"
+      failed_when: false  # UFW may not be installed on all hosts
+
+    - name: Enable and start node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Verify node_exporter is responding
+      ansible.builtin.uri:
+        url: "http://localhost:{{ node_exporter_port }}/metrics"
+        return_content: false
+        status_code: 200
+      retries: 3
+      delay: 3
+
+  handlers:
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
+        daemon_reload: true

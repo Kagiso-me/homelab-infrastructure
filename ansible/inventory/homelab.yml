@@ -5,22 +5,29 @@ all:
         varys:
           ansible_host: 10.0.10.10
 
-    k3s_primary:
+    k3s_nodes:
       hosts:
         tywin:
           ansible_host: 10.0.10.11
-
-    k3s_servers:
-      hosts:
-        jaime:
-          ansible_host: 10.0.10.12
         tyrion:
+          ansible_host: 10.0.10.12
+        jaime:
           ansible_host: 10.0.10.13
 
     docker:
       hosts:
-        docked:
+        bronn:
           ansible_host: 10.0.10.20
+
+    storage:
+      hosts:
+        ned:
+          ansible_host: 10.0.10.80
+
+    observer:
+      hosts:
+        bran:
+          ansible_host: 10.0.10.9
 
   vars:
     ansible_user: kagiso
