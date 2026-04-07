@@ -1,6 +1,6 @@
 # Docker — Media Server
 
-**Hostname:** `docked`
+**Hostname:** `bronn`
 **IP:** `10.0.10.20`
 
 **Hardware:** Intel NUC i3-7100U — 16 GB RAM, 256 GB NVMe
@@ -63,7 +63,7 @@ ssh -J kagiso@10.0.10.10 kagiso@10.0.10.20
 
 ## GitOps Model
 
-Docker compose files live in `docker/compose/` in this repo. A push to `main` that touches `docker/compose/**` or `docker/config/**` triggers the `docker-deploy` GitHub Actions workflow, which runs an Ansible playbook to sync and reconcile the stacks on docked.
+Docker compose files live in `docker/compose/` in this repo. A push to `main` that touches `docker/compose/**` or `docker/config/**` triggers the `docker-deploy` GitHub Actions workflow, which runs an Ansible playbook to sync and reconcile the stacks on bronn.
 
 ```bash
 # Manual deploy (from varys or your laptop)
@@ -86,7 +86,7 @@ Secrets (`.env` file with API keys, Plex claim token, etc.) stay on the host at 
 Media files live on TrueNAS via NFS:
 
 ```bash
-# /etc/fstab entry on docked
+# /etc/fstab entry on bronn
 10.0.10.80:/mnt/tera/media /mnt/media nfs defaults,_netdev 0 0
 ```
 

@@ -127,7 +127,7 @@ A Docker container on the media server (10.0.10.20) has exited and is not being 
 
 ### Diagnostic Steps
 
-1. SSH to the Docker host and identify the stopped container:
+1. SSH to bronn and identify the stopped container:
    ```bash
    ssh kagiso@10.0.10.20
    docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep -v "Up"
@@ -520,7 +520,7 @@ docker ps | grep -v "Up"  # All containers should be running
 
 ### What This Alert Means
 
-The Raspberry Pi control hub at `10.0.10.10` is not responding. This host runs kubectl, flux CLI, and serves as the primary operational interface to the cluster. Loss of this host means loss of cluster management access (unless you have an alternative kubectl config).
+The hodor control hub at `10.0.10.10` is not responding. This host runs kubectl, flux CLI, and serves as the primary operational interface to the cluster. Loss of this host means loss of cluster management access (unless you have an alternative kubectl config).
 
 ### Diagnostic Steps
 

@@ -13,7 +13,7 @@
 
 ## What This Alert Means
 
-TrueNAS replicates pool data to Backblaze B2 as the last line of defense against local hardware failure. This runbook covers downloading that data from B2 using rclone on the Raspberry Pi (10.0.10.10), which serves as the recovery workstation when TrueNAS is unavailable.
+TrueNAS replicates pool data to Backblaze B2 as the last line of defense against local hardware failure. This runbook covers downloading that data from B2 using rclone on the hodor (10.0.10.10), which serves as the recovery workstation when TrueNAS is unavailable.
 
 B2 is a cold restore path — use it only when:
 - Local ZFS snapshots are inaccessible (TrueNAS hardware dead)
@@ -22,7 +22,7 @@ B2 is a cold restore path — use it only when:
 
 **Prerequisites before starting:**
 - Replacement TrueNAS instance is online (see [restore-truenas-storage](./restore-truenas-storage.md))
-- rclone is installed on the Raspberry Pi (`rclone version`)
+- rclone is installed on the hodor (`rclone version`)
 - B2 Application Key ID and Application Key are available from password manager / offline backup
 - B2 bucket name: confirm in Backblaze console (default: named after hostname, e.g., `homelab-truenas`)
 
@@ -32,7 +32,7 @@ B2 is a cold restore path — use it only when:
 
 | Item | Value |
 |------|-------|
-| Recovery workstation | Raspberry Pi — 10.0.10.10 |
+| Recovery workstation | hodor — 10.0.10.10 |
 | B2 bucket | `homelab-truenas` (verify in B2 console) |
 | rclone remote name | `b2` (configured per steps below) |
 | TrueNAS replacement target | 10.0.10.80 |
@@ -40,7 +40,7 @@ B2 is a cold restore path — use it only when:
 
 ---
 
-## Step 1 — SSH to the Raspberry Pi
+## Step 1 — SSH to the hodor
 
 ```bash
 ssh kagiso@10.0.10.10

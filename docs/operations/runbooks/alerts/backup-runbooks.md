@@ -250,7 +250,7 @@ The Docker media server backup script on `10.0.10.20` has never reported a succe
 
 ### Diagnostic Steps
 
-1. SSH to the Docker host via the RPi control hub:
+1. SSH to bronn via the RPi control hub:
    ```bash
    ssh kagiso@10.0.10.20
    ```

@@ -1,7 +1,7 @@
 # PiKVM — KVM-over-IP
 
 > **Status:** Planning
-> **Host:** Raspberry Pi Zero 2W (dedicated)
+> **Host:** hodor Zero 2W (dedicated)
 > **Stack:** PiKVM · USB HDMI capture · USB OTG
 
 ---
@@ -29,7 +29,7 @@ This is a hardware alternative to JetKVM. A Pi Zero 2W with a cheap USB HDMI cap
 
 | Part | Notes |
 |---|---|
-| Raspberry Pi Zero 2W | USB OTG native — no extra USB hub needed |
+| hodor Zero 2W | USB OTG native — no extra USB hub needed |
 | USB-A to USB-C OTG cable | Connects Pi to target machine's USB port |
 | HDMI to USB capture card | ~$15, any UVC-compatible device works |
 | HDMI cable | Pi to target machine |
@@ -116,12 +116,12 @@ GPIO → optocoupler circuit wired to target machine's power/reset header. Enabl
 - [ ] Connect to first target machine (likely tywin or jaime)
 - [ ] Validate video stream + keyboard/mouse in browser
 - [ ] Add to NPM reverse proxy at `pikvm.kagiso.me`
-- [ ] Document which machine it's connected to in `raspberry-pi/README.md`
+- [ ] Document which machine it's connected to in `hodor/README.md`
 
 ---
 
 ## Related
 
-- [Raspberry Pi setup](../../raspberry-pi/README.md)
+- [hodor setup](../../hodor/README.md)
 - [Networking architecture](../../docs/architecture/networking.md)
 - [ROADMAP.md](../../ROADMAP.md)

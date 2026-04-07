@@ -1,6 +1,6 @@
 # Pi-hole — Network-Wide DNS & Ad Blocking
 
-**Host:** `hodor` (Raspberry Pi)
+**Host:** `hodor` (hodor)
 **IP:** `10.0.10.15` (static, assigned via UniFi)
 **Role:** Primary DNS server for the homelab LAN
 
@@ -8,7 +8,7 @@
 
 ## Why Pi-hole on a Dedicated RPi
 
-Pi-hole is the single most important network service — every device depends on it for DNS. Running it on a dedicated, always-on Raspberry Pi has clear advantages:
+Pi-hole is the single most important network service — every device depends on it for DNS. Running it on a dedicated, always-on hodor has clear advantages:
 
 - **Separation of concerns** — DNS is not co-located with the control hub (varys) or the Kubernetes cluster. A cluster failure or varys maintenance does not affect DNS.
 - **Low power** — the RPi draws ~3W idle. It can run 24/7 without meaningful electricity cost.
@@ -31,9 +31,9 @@ Pi-hole is the single most important network service — every device depends on
 
 ## Installation
 
-### 1. Flash Raspberry Pi OS
+### 1. Flash hodor OS
 
-Use Raspberry Pi Imager to flash **Raspberry Pi OS Lite (64-bit, Debian Bookworm)** to a microSD card.
+Use hodor Imager to flash **hodor OS Lite (64-bit, Debian Bookworm)** to a microSD card.
 
 In the imager's advanced options:
 - Hostname: `hodor`

@@ -40,7 +40,7 @@ etcd snapshots are taken every 6 hours via a cron job on tywin and written to Tr
 All commands below run on tywin unless otherwise noted.
 
 ```bash
-# From the Raspberry Pi (10.0.10.10):
+# From the hodor (10.0.10.10):
 ssh kagiso@10.0.10.11
 ```
 

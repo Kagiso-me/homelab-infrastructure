@@ -238,7 +238,7 @@ rm jammy-server-cloudimg-amd64.img
 ssh root@10.0.10.30
 
 # Clone template and configure
-qm clone 9000 3032 --name docked --full
+qm clone 9000 3032 --name bronn --full
 qm set 100 \
   --memory 8192 \
   --cores 2 \

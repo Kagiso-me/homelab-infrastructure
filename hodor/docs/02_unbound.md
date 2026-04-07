@@ -1,6 +1,6 @@
 # Unbound — Recursive DNS Resolver
 
-**Host:** `hodor` (Raspberry Pi)
+**Host:** `hodor` (hodor)
 **Listens on:** `127.0.0.1:5335`
 **Role:** Upstream recursive resolver for Pi-hole
 

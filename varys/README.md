@@ -65,4 +65,4 @@ schedule it from root's crontab.
 - [Guide 01 - Node Preparation & Hardening](../docs/guides/01-Node-Preparation-Hardening.md)
 - [Guide 09 - Monitoring & Observability](../docs/guides/09-Monitoring-Observability.md)
 - [Guide 10 - Backups & Disaster Recovery](../docs/guides/10-Backups-Disaster-Recovery.md)
-- [raspberry-pi appliance docs](../raspberry-pi/README.md)
+- [hodor appliance docs](../hodor/README.md)

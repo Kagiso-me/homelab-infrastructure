@@ -342,7 +342,7 @@ You are Beesly, a personal AI assistant.
 
 Infrastructure you can query:
 - k3s Kubernetes cluster: tywin (10.0.10.11, control plane), jaime (10.0.10.12), tyrion (10.0.10.13)
-- Docker host: docked (10.0.10.20) — runs Plex, Sonarr, Radarr, Lidarr, SABnzbd, Overseerr, Navidrome
+- Docker host: bronn (10.0.10.20) — runs Plex, Sonarr, Radarr, Lidarr, SABnzbd, Overseerr, Navidrome
 - TrueNAS NAS: 10.0.10.80 — pools: core (SSD mirror, k8s PVCs), archive (HDD mirror, backups), tera (8TB single, media)
 - Prometheus + Grafana: kube-prometheus-stack on k3s
 - Gatus uptime: status.kagiso.me

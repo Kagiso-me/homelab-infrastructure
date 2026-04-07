@@ -307,6 +307,6 @@ Settings → Networks → [LAN] → DHCP
 
 - [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)
 - [ADR-014: Pi-hole + Unbound DNS Architecture](../adr/ADR-014-pihole-unbound-dns.md)
-- [raspberry-pi/docs/01_pihole.md](../../raspberry-pi/docs/01_pihole.md)
-- [raspberry-pi/docs/02_unbound.md](../../raspberry-pi/docs/02_unbound.md)
+- [hodor/docs/01_pihole.md](../../hodor/docs/01_pihole.md)
+- [hodor/docs/02_unbound.md](../../hodor/docs/02_unbound.md)
 - [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)

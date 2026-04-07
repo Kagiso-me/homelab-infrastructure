@@ -42,7 +42,7 @@ Pi-hole handles split DNS and ad blocking. Upstream queries are handled by Unbou
 
 ## Decision
 
-Deploy **Pi-hole + Unbound** on `hodor` (dedicated Raspberry Pi, `10.0.10.15`).
+Deploy **Pi-hole + Unbound** on `hodor` (dedicated hodor, `10.0.10.15`).
 
 - **Pi-hole** handles split DNS (dnsmasq wildcards) and network-wide ad/tracker blocking.
 - **Unbound** handles all recursive resolution upstream of Pi-hole.
@@ -134,6 +134,6 @@ A second Pi-hole instance will be deployed on varys as DNS Server 2 (UniFi DHCP)
 
 ## References
 
-- [raspberry-pi/docs/01_pihole.md](../../raspberry-pi/docs/01_pihole.md) — Pi-hole setup guide
-- [raspberry-pi/docs/02_unbound.md](../../raspberry-pi/docs/02_unbound.md) — Unbound setup guide
+- [hodor/docs/01_pihole.md](../../hodor/docs/01_pihole.md) — Pi-hole setup guide
+- [hodor/docs/02_unbound.md](../../hodor/docs/02_unbound.md) — Unbound setup guide
 - [Architecture: Networking](../architecture/networking.md)

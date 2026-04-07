@@ -1,9 +1,9 @@
-# Raspberry Pi — hodor
+# hodor — hodor
 
 **Hostname:** `hodor`
 **IP:** `10.0.10.15` (static, reserved via UniFi DHCP)
-**OS:** Raspberry Pi OS Lite (64-bit, Debian Bookworm)
-**Hardware:** Raspberry Pi 4
+**OS:** hodor OS Lite (64-bit, Debian Bookworm)
+**Hardware:** hodor 4
 
 ---
 
@@ -99,7 +99,7 @@ hodor is an appliance node — SSH for maintenance only, not a general-purpose s
 ## Directory Structure
 
 ```
-raspberry-pi/
+hodor/
 ├── README.md               # this file
 ├── ansible/
 │   ├── ansible.cfg
