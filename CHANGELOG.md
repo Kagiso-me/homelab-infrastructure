@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** update helm release crowdsec to >=0.9.12 (#15) `6c5b333`
 - **[DEPLOY]** add node-exporter to all non-k3s hosts `7c89416`
 - **[MAINTENANCE]** rename hodor → bran (Three-Eyed Raven — sees everything) `9795335`
 - **[MAINTENANCE]** establish GoT naming convention across all nodes and docs `ebf9603`
