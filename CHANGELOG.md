@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** update helm release cert-manager to v1.16.5 (#14) `8ae1ea6`
 - **[CONFIG]** resolve automerge rule conflicts and simplify packageRules `0c6a182`
 - **[DEPLOY]** pin image tags and configure Renovate for compose files `dde2b50`
 - **[MAINTENANCE]** migrate Renovate config (#11) `2ed9e73`
