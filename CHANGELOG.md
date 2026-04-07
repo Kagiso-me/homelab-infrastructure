@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[DEPLOY]** add node-exporter to all non-k3s hosts `7c89416`
 - **[MAINTENANCE]** rename hodor → bran (Three-Eyed Raven — sees everything) `9795335`
 - **[MAINTENANCE]** establish GoT naming convention across all nodes and docs `ebf9603`
 - **[DEPLOY]** add *.local.kagiso.me wildcard DNS for internal Traefik `b9410ba`
