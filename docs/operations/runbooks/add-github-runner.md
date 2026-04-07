@@ -106,7 +106,7 @@ rm -rf ~/actions-runner-<repo-name>
 
 ## Migrating a runner to hodor
 
-When hodor (10.0.10.15) is ready to take over the site runner:
+When hodor (10.0.10.9) is ready to take over the site runner:
 
 1. Remove the runner from varys (steps above)
 2. SSH into hodor and follow steps 1–6 above
