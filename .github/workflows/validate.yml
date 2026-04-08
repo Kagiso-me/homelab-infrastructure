@@ -25,11 +25,8 @@ name: Validate & Health Check
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/**"
-      - "platform/**"
-      - "clusters/**"
-      - "ansible/**"
+    # No paths filter — workflow must always run so the required status check
+    # is always reported. Non-infra PRs exit early via the 'changed-files' step.
   push:
     branches: [main]
     paths:
@@ -50,7 +47,20 @@ jobs:
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
+      - name: Check for infra file changes
+        id: changed
+        run: |
+          git fetch origin main --depth=1
+          CHANGED=$(git diff --name-only origin/main...HEAD | grep -E '^(apps|platform|clusters|ansible)/' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No infra files changed — skipping validation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install kubeconform
+        if: steps.changed.outputs.skip != 'true'
         run: |
           curl -sSL \
             "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz" \
@@ -58,12 +68,14 @@ jobs:
           chmod +x /usr/local/bin/kubeconform
 
       - name: Install kustomize
+        if: steps.changed.outputs.skip != 'true'
         run: |
           curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz" \
             | tar -xz -C /usr/local/bin kustomize
           chmod +x /usr/local/bin/kustomize
 
       - name: Install pluto
+        if: steps.changed.outputs.skip != 'true'
         run: |
           PLUTO_VERSION=$(curl -s https://api.github.com/repos/FairwindsOps/pluto/releases/latest \
             | grep '"tag_name"' | cut -d'"' -f4)
@@ -73,6 +85,7 @@ jobs:
           chmod +x /usr/local/bin/pluto
 
       - name: Validate with kubeconform
+        if: steps.changed.outputs.skip != 'true'
         run: |
           find platform/ apps/ clusters/ \
             -type f \( -name "*.yaml" -o -name "*.yml" \) \
@@ -85,6 +98,7 @@ jobs:
               -summary
 
       - name: Kustomize build — all Flux entrypoints
+        if: steps.changed.outputs.skip != 'true'
         run: |
           KUSTOMIZE_PATHS=(
             "clusters/prod/flux-system"
@@ -114,6 +128,7 @@ jobs:
           done
 
       - name: Verify HelmRelease chart versions exist in repositories
+        if: steps.changed.outputs.skip != 'true'
         run: |
           python3 << 'EOF'
           import sys, glob, yaml, urllib.request
@@ -195,6 +210,7 @@ jobs:
           EOF
 
       - name: Check kustomize paths match Flux kustomizations
+        if: steps.changed.outputs.skip != 'true'
         run: |
           # Paths registered in Flux kustomization objects
           GIT_PATHS=$(grep -h '^\s*path:\s\+\.' clusters/prod/infrastructure.yaml clusters/prod/apps.yaml \
@@ -235,6 +251,7 @@ jobs:
           echo "All Flux kustomization paths are covered."
 
       - name: Check for deprecated Kubernetes APIs
+        if: steps.changed.outputs.skip != 'true'
         run: |
           KUSTOMIZE_PATHS=(
             "clusters/prod/flux-system"
