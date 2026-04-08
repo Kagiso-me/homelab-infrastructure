@@ -58,19 +58,28 @@ ssh -J kagiso@10.0.10.10 kagiso@10.0.10.20
 ## Storage Layout
 
 ```
-/mnt/media/              ← media library (NFS from TrueNAS)
+/mnt/media/              ← media library (NFS from TrueNAS — 10.0.10.80)
 ├── movies/
 ├── tv/
-├── music/
-└── downloads/
+└── music/
+
+/mnt/downloads/          ← completed downloads (NFS from TrueNAS)
+└── complete/
+
+/mnt/archive/            ← backup destination (NFS: 10.0.10.80:/mnt/archive/backups)
 
 /srv/docker/             ← container config and persistent data
-├── stacks/              ← compose files (synced from Git by Ansible)
+├── compose/             ← compose files (synced from Git)
 │   ├── media-stack.yml
 │   ├── proxy-stack.yml
-│   └── monitoring-stack.yml
-└── data/                ← app data volumes (plex, sonarr, etc.)
+│   ├── platform-stack.yml
+│   └── monitoring-exporters.yml
+├── downloads/
+│   └── incomplete/      ← in-progress downloads (local NVMe, fast writes)
+└── appdata/             ← per-service config volumes (plex, sonarr, etc.)
 ```
+
+> **NFS mount note:** Despite `_netdev` in fstab, mounts do not always auto-apply on boot. After a reboot, run `sudo mount -a` if `/mnt/media` or `/mnt/downloads` appear empty.
 
 ---
 
@@ -90,20 +99,24 @@ ansible-playbook -i inventory/homelab.yml \
   -e target_stack=media-stack
 ```
 
-Secrets (`.env` file with API keys, Plex claim token, etc.) stay on the host at `/srv/docker/.env` and are never committed to Git.
+Secrets (`.env` file with API keys, Plex claim token, etc.) stay on the host at `/srv/docker/compose/.env` and are never committed to Git.
 
 ---
 
 ## Relationship to TrueNAS
 
-Media files live on TrueNAS via NFS:
+Media files and downloads live on TrueNAS via NFS:
 
 ```bash
-# /etc/fstab entry on bronn
-10.0.10.80:/mnt/tera/media /mnt/media nfs defaults,_netdev 0 0
+# /etc/fstab entries on bronn
+10.0.10.80:/mnt/tera/media      /mnt/media      nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
+10.0.10.80:/mnt/tera/downloads  /mnt/downloads  nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
+10.0.10.80:/mnt/archive/backups /mnt/archive    nfs _netdev,hard,noatime,rsize=131072,wsize=131072,timeo=14,tcp 0 0
 ```
 
-TrueNAS snapshots protect the media library. Container config data is backed up separately.
+> **Note:** These mounts do not always auto-apply on boot. Run `sudo mount -a` after a reboot if they are not active.
+
+TrueNAS snapshots protect the media library. Container config data is backed up separately via Restic.
 
 ---
 
@@ -120,12 +133,15 @@ The media stack runs on Docker rather than Kubernetes for these reasons:
 ## Directory Structure
 
 ```
-docker/
+bronn/
 ├── README.md               # this file
 ├── compose/                # docker-compose.yml files per stack
 │   ├── media-stack.yml
 │   ├── proxy-stack.yml
-│   └── monitoring-stack.yml
+│   ├── platform-stack.yml
+│   └── monitoring-exporters.yml
+├── config/
+│   └── promtail/           # promtail config (log shipping to k3s Loki)
 └── docs/
     ├── 00_plan.md
     ├── 01_host_installation_and_hardening.md

@@ -148,16 +148,16 @@ graph TD
     User["User / Browser"] --> Router["Home Router\n10.0.10.1"]
     Router --> NPM["Nginx Proxy Manager\n10.0.10.20:80/443\nTLS Termination + Routing"]
     NPM --> MediaStack["Media Stack\nPlex - Sonarr - Radarr\nProwlarr - SABnzbd - Overseerr"]
-    NPM --> MonStack["Monitoring Stack\nGrafana - Prometheus - Loki"]
-    MediaStack --> DockerHost["Docker Host\n10.0.10.20\nUbuntu Server"]
-    MonStack --> DockerHost
-    DockerHost -->|NFS| TrueNAS["TrueNAS\n/mnt/tera\n/mnt/tera"]
+    MediaStack --> DockerHost["bronn — Docker Host\n10.0.10.20\nUbuntu Server"]
+    DockerHost -->|NFS| TrueNAS["TrueNAS\n10.0.10.80"]
+    DockerHost -->|metrics + logs| K3S["k3s Cluster\nPrometheus + Loki + Grafana"]
 
     style User fill:#2d3748,color:#fff
     style Router fill:#4a5568,color:#fff
     style NPM fill:#2b6cb0,color:#fff
     style DockerHost fill:#276749,color:#fff
     style TrueNAS fill:#744210,color:#fff
+    style K3S fill:#553c9a,color:#fff
 ```
 
 Each layer has a distinct responsibility:
@@ -166,9 +166,9 @@ Each layer has a distinct responsibility:
 |-------|----------------|
 | Network | routing, firewall, DHCP |
 | Reverse Proxy | TLS termination, hostname routing, port management |
-| Docker Host | container orchestration, application lifecycle |
-| Media Stack | automated media acquisition and streaming |
-| Monitoring Stack | metrics, logs, dashboards, alerting |
+| Docker Host (bronn) | container orchestration, media acquisition and streaming |
+| Media Stack | Plex, Sonarr, Radarr, SABnzbd, Overseerr, Navidrome, etc. |
+| Monitoring exporters | node-exporter, cAdvisor, Promtail — scraped by k3s Prometheus/Loki |
 | TrueNAS | persistent storage, ZFS snapshots, NFS exports |
 
 ---
@@ -208,7 +208,9 @@ One of the most important improvements in this rebuild is a predictable, documen
 ```
 /srv/
 ├── docker/
-│   ├── stacks/          ← Docker Compose files (version-controlled)
+│   ├── compose/         ← Docker Compose files (synced from Git)
+│   ├── downloads/
+│   │   └── incomplete/  ← In-progress SABnzbd downloads (local NVMe)
 │   └── appdata/         ← Container configuration and databases
 │       ├── plex/
 │       ├── sonarr/
@@ -219,24 +221,27 @@ One of the most important improvements in this rebuild is a predictable, documen
 │       ├── overseerr/
 │       ├── sabnzbd/
 │       ├── navidrome/
-│       ├── node-exporter/
+│       ├── freshrss/
+│       ├── glance/
+│       ├── uptime-kuma/
+│       ├── promtail/
 │       └── npm/
 └── scripts/             ← Automation and maintenance scripts
 
 /mnt/
-├── archive/         (NFS from TrueNAS — backup destination)
-│   ├── media/           ← TrueNAS NFS: organized media library
-│   └── downloads/       ← TrueNAS NFS: completed downloads
+├── media/               ← TrueNAS NFS: organized media library (movies, tv, music)
+├── downloads/           ← TrueNAS NFS: completed downloads
+└── archive/             ← TrueNAS NFS: 10.0.10.80:/mnt/archive/backups
 ```
 
 This layout separates three distinct concerns:
 
 | Directory | Purpose | Backed up? |
 |-----------|---------|------------|
-| `/srv/docker/stacks` | Compose files (in Git) | Git is the backup |
+| `/srv/docker/compose` | Compose files (in Git) | Git is the backup |
 | `/srv/docker/appdata` | Container config + databases | Yes — Restic |
-| `/mnt/tera` | Organized media library | ZFS snapshots |
-| `/mnt/tera` | Completed downloads staging | ZFS snapshots |
+| `/mnt/media` | Organized media library (NFS from TrueNAS) | ZFS snapshots |
+| `/mnt/downloads` | Completed downloads staging (NFS from TrueNAS) | ZFS snapshots |
 
 ---
 

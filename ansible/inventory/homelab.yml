@@ -5,14 +5,22 @@ all:
         varys:
           ansible_host: 10.0.10.10
 
-    k3s_nodes:
+    k3s_primary:
       hosts:
         tywin:
           ansible_host: 10.0.10.11
-        tyrion:
-          ansible_host: 10.0.10.12
+
+    k3s_servers:
+      hosts:
         jaime:
+          ansible_host: 10.0.10.12
+        tyrion:
           ansible_host: 10.0.10.13
+
+    k3s_nodes:
+      children:
+        k3s_primary:
+        k3s_servers:
 
     docker:
       hosts:

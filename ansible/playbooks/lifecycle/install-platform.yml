@@ -52,7 +52,7 @@
     - ../../vars/vault.yml
 
   vars:
-    flux_version: "2.4.0"
+    flux_version: "v2.4.0"
     kubeconfig: "/etc/rancher/k3s/k3s.yaml"
 
   environment:
