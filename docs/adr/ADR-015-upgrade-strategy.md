@@ -165,6 +165,81 @@ midnight does not require manual intervention to recover.
 
 ---
 
+## Rolling Update Strategy
+
+Key stateful applications are configured with zero-downtime rolling updates:
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+```
+
+`maxUnavailable: 0` means the old pod stays running until the new pod passes its readiness
+probe. `maxSurge: 1` allows one extra pod during the transition. Together this guarantees
+no downtime during a chart upgrade for the following applications:
+
+| Application | Why rolling update matters |
+|-------------|---------------------------|
+| Authentik | SSO provider — all apps depend on it for authentication |
+| Nextcloud | File storage — users may be mid-operation during an upgrade |
+| Immich | Photo library — long-running background jobs |
+
+Applications not listed (n8n, Vaultwarden) run as single replicas on NFS storage.
+`maxSurge: 1` would require two pods writing to the same PVC simultaneously, which is
+unsafe with `ReadWriteOnce` access mode. These apps tolerate a brief restart window.
+
+---
+
+## Minimum Release Age
+
+Patch and digest updates are not auto-merged immediately upon publication. A 3-day
+`minimumReleaseAge` is enforced before auto-merge is eligible:
+
+```json
+"minimumReleaseAge": "3 days"
+```
+
+**Why:** A breaking patch is possible. A 3-day window allows the community to discover
+and report regressions before they land in the cluster. Critical security patches can
+be triggered immediately via the Renovate Dependency Dashboard if needed.
+
+---
+
+## Docker Host Health Check
+
+After deploying Docker stacks via Ansible, the deploy playbook waits 10 seconds and
+then verifies no containers are in a restart loop or exited with a non-zero status:
+
+```bash
+docker ps -a | grep -Ev 'Up|Exited (0)'
+```
+
+If any container is unhealthy the playbook fails, surfacing the issue immediately
+rather than silently leaving a broken stack running.
+
+---
+
+## Kustomize Path Drift Detection
+
+The validate CI job includes a check that compares the `path:` entries in
+`clusters/prod/infrastructure.yaml` and `clusters/prod/apps.yaml` against the
+`KUSTOMIZE_PATHS` list in the validate workflow. If a new Flux kustomization is added
+to the infrastructure but its path is not added to the workflow, CI fails with:
+
+```
+ERROR: The following Flux kustomization paths are not validated in this workflow:
+platform/networking/new-component
+Add them to the KUSTOMIZE_PATHS list in this workflow.
+```
+
+This prevents the class of error where a new component is deployed via Flux but its
+manifests are never validated in CI.
+
+---
+
 ## Manual Override
 
 To force Renovate to open a specific PR immediately (outside schedule):

@@ -60,10 +60,11 @@
       "automergeType": "pr"
     },
     {
-      "description": "Auto-merge patch and digest updates across the board",
+      "description": "Auto-merge patch and digest updates across the board — 3 day wait lets community catch regressions first",
       "matchUpdateTypes": ["patch", "digest"],
       "automerge": true,
-      "automergeType": "pr"
+      "automergeType": "pr",
+      "minimumReleaseAge": "3 days"
     },
     {
       "description": "Do not auto-merge minor updates — require review",
