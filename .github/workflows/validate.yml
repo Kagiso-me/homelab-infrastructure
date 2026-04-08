@@ -194,6 +194,49 @@ jobs:
           print("All HelmRelease chart versions verified.")
           EOF
 
+      - name: Check kustomize paths match Flux kustomizations
+        run: |
+          # Extract paths from infrastructure.yaml and apps.yaml
+          GIT_PATHS=$(grep '^\s*path:' clusters/prod/infrastructure.yaml clusters/prod/apps.yaml \
+            | awk '{print $2}' \
+            | sed 's|^\./||' \
+            | sort)
+
+          # Paths registered in this workflow
+          WORKFLOW_PATHS=$(cat << 'EOF'
+          clusters/prod/flux-system
+          platform/networking
+          platform/networking/metallb-config
+          platform/networking/traefik-config
+          platform/security
+          platform/security/cluster-issuers
+          platform/namespaces
+          platform/observability
+          platform/observability/observability-config
+          platform/observability/daily-digest
+          platform/storage
+          platform/backup
+          platform/backup/velero-config
+          platform/databases
+          platform/upgrade
+          platform/upgrade/upgrade-plans
+          platform/security/crowdsec
+          platform/security/authentik
+          apps/prod
+          EOF
+          )
+          WORKFLOW_PATHS_SORTED=$(echo "$WORKFLOW_PATHS" | tr -d ' ' | sort)
+
+          MISSING=$(comm -23 <(echo "$GIT_PATHS") <(echo "$WORKFLOW_PATHS_SORTED"))
+          if [ -n "$MISSING" ]; then
+            echo "ERROR: The following Flux kustomization paths are not validated in this workflow:"
+            echo "$MISSING"
+            echo ""
+            echo "Add them to the KUSTOMIZE_PATHS list in this workflow."
+            exit 1
+          fi
+          echo "All Flux kustomization paths are covered by this workflow."
+
       - name: Check for deprecated Kubernetes APIs
         run: |
           KUSTOMIZE_PATHS=(

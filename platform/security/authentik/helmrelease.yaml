@@ -89,6 +89,11 @@ spec:
               key: redis-password
 
     server:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
       metrics:
         enabled: true
         serviceMonitor:

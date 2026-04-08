@@ -101,3 +101,19 @@
       args:
         chdir: "{{ stacks_dest }}"
       when: target_stack == 'all' or target_stack == 'platform-stack'
+
+    - name: Wait for containers to stabilise
+      pause:
+        seconds: 10
+
+    - name: Verify no containers are in a restart loop or exited
+      shell: |
+        UNHEALTHY=$(docker ps -a --format '{% raw %}{{.Names}} {{.Status}}{% endraw %}' \
+          | grep -Ev 'Up|Exited \(0\)' || true)
+        if [ -n "$UNHEALTHY" ]; then
+          echo "Unhealthy containers detected:"
+          echo "$UNHEALTHY"
+          exit 1
+        fi
+        echo "All containers healthy."
+      changed_when: false

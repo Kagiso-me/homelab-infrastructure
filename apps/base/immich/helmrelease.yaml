@@ -50,6 +50,14 @@ spec:
                 REDIS_DBINDEX: "2"
                 # REDIS_PASSWORD injected via valuesFrom
 
+    # Rolling update — keep old pod running until new one is healthy.
+    server:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
+
     immich:
       persistence:
         library:
