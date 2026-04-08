@@ -87,10 +87,10 @@
       "groupName": "media-stack images"
     },
     {
-      "description": "Group monitoring-stack image updates into one PR",
+      "description": "Group monitoring-exporters image updates into one PR",
       "matchManagers": ["docker-compose"],
-      "matchFileNames": ["docker/compose/monitoring-stack.yml"],
-      "groupName": "monitoring-stack images"
+      "matchFileNames": ["docker/compose/monitoring-exporters.yml"],
+      "groupName": "monitoring-exporters images"
     },
     {
       "description": "Group proxy-stack image updates into one PR",
