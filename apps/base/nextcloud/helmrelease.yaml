@@ -158,6 +158,13 @@ spec:
     redis:
       enabled: false
 
+    # Rolling update — keep old pod running until new one is healthy.
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+
     # Give Nextcloud time to complete first-run DB setup before probes fire.
     livenessProbe:
       initialDelaySeconds: 120

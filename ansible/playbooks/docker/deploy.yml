@@ -108,7 +108,7 @@
 
     - name: Verify no containers are in a restart loop or exited
       shell: |
-        UNHEALTHY=$(docker ps -a --format '{% raw %}{{.Names}} {{.Status}}{% endraw %}' \
+        UNHEALTHY=$(docker ps -a --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Status{{ '}}' }}' \
           | grep -Ev 'Up|Exited \(0\)' || true)
         if [ -n "$UNHEALTHY" ]; then
           echo "Unhealthy containers detected:"
