@@ -17,6 +17,7 @@ jobs:
 
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
@@ -86,11 +87,24 @@ jobs:
 
           echo "Appended: $NEW_LINE"
 
-      - name: Commit updated CHANGELOG
+      - name: Open PR with updated CHANGELOG
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git diff --quiet && echo "No changes to commit" && exit 0
+
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH="changelog/append-${SHORT_SHA}"
+
+          git checkout -b "$BRANCH"
           git add CHANGELOG.md
-          git commit -m "ci: auto-append changelog [skip changelog]"
-          git push
+          git commit -m "docs(changelog): append entry for ${SHORT_SHA}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "docs(changelog): append entry for ${SHORT_SHA}" \
+            --body "Auto-generated changelog entry for commit \`${SHORT_SHA}\`. Review and edit the entry before merging." \
+            --base main \
+            --head "$BRANCH"
