@@ -164,6 +164,7 @@ spec:
   prune: true
   dependsOn:
     - name: platform-observability
+    - name: platform-networking-tls
   decryption:
     provider: sops
     secretRef:
