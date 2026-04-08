@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       target_stack:
-        description: 'Stack to deploy (all / media-stack / proxy-stack / monitoring-stack / platform-stack)'
+        description: 'Stack to deploy (all / media-stack / proxy-stack / monitoring-exporters / platform-stack)'
         required: false
         default: 'all'
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           docker compose --env-file docker/compose/.env -f docker/compose/media-stack.yml config -q
           docker compose --env-file docker/compose/.env -f docker/compose/proxy-stack.yml config -q
-          docker compose --env-file docker/compose/.env -f docker/compose/monitoring-stack.yml config -q
+          docker compose --env-file docker/compose/.env -f docker/compose/monitoring-exporters.yml config -q
           docker compose --env-file docker/compose/.env -f docker/compose/platform-stack.yml config -q
 
       - name: Validate backup and restore scripts

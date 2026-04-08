@@ -239,8 +239,8 @@ repository. Clone the repo and copy them into place:
 
 ```bash
 git clone https://github.com/Kagiso-me/homelab-infrastructure.git ~/homelab-infrastructure
-cp ~/homelab-infrastructure/docker/compose/*.yml /srv/docker/compose/
-cp ~/homelab-infrastructure/docker/compose/.env.example /srv/docker/compose/
+cp ~/homelab-infrastructure/bronn/compose/*.yml /srv/docker/compose/
+cp ~/homelab-infrastructure/bronn/compose/.env.example /srv/docker/compose/
 ```
 
 Verify the files are in place:
@@ -252,7 +252,7 @@ ls /srv/docker/compose/
 Expected output:
 
 ```
-.env.example  media-stack.yml  monitoring-stack.yml  proxy-stack.yml
+.env.example  media-stack.yml  monitoring-exporters.yml  platform-stack.yml  proxy-stack.yml
 ```
 
 > The `.env.example` template is the source of truth for all configurable values. Guide 04
@@ -277,9 +277,10 @@ mkdir -p /srv/docker/appdata/bazarr
 mkdir -p /srv/docker/appdata/overseerr
 mkdir -p /srv/docker/appdata/sabnzbd
 mkdir -p /srv/docker/appdata/navidrome
-mkdir -p /srv/docker/appdata/grafana
-mkdir -p /srv/docker/appdata/prometheus
-mkdir -p /srv/docker/appdata/loki
+mkdir -p /srv/docker/appdata/freshrss
+mkdir -p /srv/docker/appdata/glance
+mkdir -p /srv/docker/appdata/uptime-kuma
+mkdir -p /srv/docker/appdata/promtail
 mkdir -p /srv/docker/appdata/npm
 ```
 
@@ -296,7 +297,6 @@ Backing up `/srv/docker/appdata` is equivalent to backing up the entire applicat
 - Sonarr's series database, history, and quality profiles
 - Radarr's movie database and download history
 - Plex's metadata cache and user accounts
-- Prometheus's retention database
 - NPM's proxy host configuration and TLS certificates
 
 A complete platform restore requires only:
@@ -385,6 +385,8 @@ Add the following lines at the end of the file (replace `10.0.10.80` with your T
 | `tcp` | Use TCP rather than UDP for reliability |
 
 ### Apply and Verify the Mounts
+
+> **Note:** Despite `_netdev` in fstab, these NFS mounts do not always auto-mount on boot on this host. After every reboot, verify the mounts are active and run `sudo mount -a` if they are not.
 
 ```bash
 sudo mount -a
@@ -475,7 +477,7 @@ docker info | grep -A 5 "Logging Driver"
 
 # Filesystem layout
 ls /srv/docker/appdata/
-ls /srv/docker/compose/    # should show media-stack.yml, proxy-stack.yml, monitoring-stack.yml, .env.example
+ls /srv/docker/compose/    # should show media-stack.yml, proxy-stack.yml, monitoring-exporters.yml, platform-stack.yml, .env.example
 
 # NFS mounts
 df -h | grep -E "media|downloads"
@@ -501,11 +503,11 @@ This guide is complete when all of the following are confirmed:
 - [ ] `docker run hello-world` succeeds without `sudo`
 - [ ] `/etc/docker/daemon.json` exists with log rotation configured
 - [ ] `docker info` confirms the `json-file` logging driver is active
-- [ ] `/srv/docker/appdata/` contains all 13 service subdirectories
-- [ ] `/srv/docker/compose/` contains `media-stack.yml`, `proxy-stack.yml`, `monitoring-stack.yml`, and `.env.example`
+- [ ] `/srv/docker/appdata/` contains all service subdirectories
+- [ ] `/srv/docker/compose/` contains `media-stack.yml`, `proxy-stack.yml`, `monitoring-exporters.yml`, `platform-stack.yml`, and `.env.example`
 - [ ] `/mnt/media` is mounted from TrueNAS and writable
 - [ ] `/mnt/downloads` is mounted from TrueNAS and writable
-- [ ] Mounts persist across reboot (confirmed by rebooting and running `df -h`)
+- [ ] Mounts are active (`df -h` shows both) — run `sudo mount -a` after reboot if they are not
 - [ ] `media-net` appears in `docker network ls`
 
 ---

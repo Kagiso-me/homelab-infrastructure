@@ -57,6 +57,16 @@ spec:
         expose:
           default: false
 
+    providers:
+      kubernetesCRD:
+        # Watch only the namespaces this instance serves — avoids TLSStore
+        # conflicts with the external Traefik instance in the ingress namespace.
+        namespaces:
+          - ingress-internal
+          - apps
+          - auth
+          - monitoring
+
     # No CrowdSec on internal entrypoint — LAN traffic only.
 
     # Expose Prometheus metrics

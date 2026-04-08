@@ -6,3 +6,4 @@ resources:
   - tls-store-internal.yaml
   - wildcard-certificate.yaml
   - wildcard-certificate-local.yaml
+  - ingressroute-dashboard.yaml

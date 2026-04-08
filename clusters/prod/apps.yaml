@@ -14,6 +14,7 @@ spec:
   path: ./apps/prod
   prune: true
   dependsOn:
+    - name: platform-networking-tls
     - name: platform-observability
     - name: platform-storage
     - name: platform-authentik

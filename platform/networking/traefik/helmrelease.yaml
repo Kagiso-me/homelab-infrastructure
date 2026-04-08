@@ -23,6 +23,17 @@ spec:
       strategy: rollback
       retries: 3
   values:
+    providers:
+      kubernetesCRD:
+        # Watch only the namespaces this instance serves — avoids TLSStore
+        # conflicts with the internal Traefik instance in the ingress-internal namespace.
+        namespaces:
+          - ingress
+          - apps
+          - auth
+          - monitoring
+          - crowdsec
+
     # k3s bundles its own Traefik — this deployment replaces it.
     # Disable k3s bundled Traefik in k3s config before applying this.
     deployment:
