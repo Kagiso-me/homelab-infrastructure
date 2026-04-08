@@ -186,7 +186,7 @@ pihole enable
 pihole update
 ```
 
-Admin UI: `http://10.0.10.15/admin`
+Admin UI: `http://10.0.10.9/admin`
 
 ---
 
