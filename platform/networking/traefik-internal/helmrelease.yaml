@@ -45,7 +45,7 @@ spec:
         http:
           redirections:
             entryPoint:
-              to: websecure-int
+              to: ":443"
               scheme: https
               permanent: true
       websecure:
