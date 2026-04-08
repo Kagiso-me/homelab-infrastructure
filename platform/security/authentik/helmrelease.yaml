@@ -89,6 +89,7 @@ spec:
               key: redis-password
 
     server:
+      # Rolling update — keep old pod running until new one is healthy.
       strategy:
         type: RollingUpdate
         rollingUpdate:
