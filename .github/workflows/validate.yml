@@ -197,7 +197,7 @@ jobs:
       - name: Check kustomize paths match Flux kustomizations
         run: |
           # Paths registered in Flux kustomization objects
-          GIT_PATHS=$(grep '^\s*path:' clusters/prod/infrastructure.yaml clusters/prod/apps.yaml \
+          GIT_PATHS=$(grep -h '^\s*path:\s\+\.' clusters/prod/infrastructure.yaml clusters/prod/apps.yaml \
             | awk '{print $2}' \
             | sed 's|^\./||' \
             | sort)
