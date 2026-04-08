@@ -182,6 +182,44 @@
       tags: [flux]
 
     # ============================================================================
+    # STEP 3b — Create SOPS age key secret
+    # Required for Flux to decrypt SOPS-encrypted secrets in the repo.
+    # Must exist before any kustomization with decryption.provider: sops is reconciled.
+    # ============================================================================
+
+    - name: "flux | Validate sops_age_key is defined"
+      assert:
+        that:
+          - sops_age_key is defined
+          - sops_age_key != ""
+        fail_msg: "sops_age_key not defined in Ansible Vault. Add it to vars/vault.yml"
+      tags: [sops]
+
+    - name: "flux | Write age key to temp file"
+      copy:
+        content: "{{ sops_age_key }}"
+        dest: /tmp/flux-age.key
+        mode: '0600'
+      no_log: true
+      tags: [sops]
+
+    - name: "flux | Create sops-age secret"
+      shell: >
+        kubectl create secret generic sops-age
+        --namespace flux-system
+        --from-file=age.agekey=/tmp/flux-age.key
+        --dry-run=client -o yaml | kubectl apply -f -
+      changed_when: false
+      no_log: true
+      tags: [sops]
+
+    - name: "flux | Remove temp age key file"
+      file:
+        path: /tmp/flux-age.key
+        state: absent
+      tags: [sops]
+
+    # ============================================================================
     # STEP 4 — Apply GitRepository + Kustomization sync
     # gotk-sync.yaml tells Flux where to pull from (the GitHub repo) and which
     # path to reconcile (clusters/prod). Flux takes it from here.
