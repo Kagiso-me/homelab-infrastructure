@@ -36,9 +36,18 @@ jobs:
           SECTION="## ${YEAR}-${MONTH_NUM}"
 
           # Skip non-infra commit types
-          if echo "$COMMIT_MSG" | grep -qE "^(docs|ci|test|style|build)\b"; then
+          if echo "$COMMIT_MSG" | grep -qE "^(docs|ci|test|style|build|refactor)\b"; then
             echo "Commit type excluded from changelog — skipping."
             exit 0
+          fi
+
+          # Skip Renovate patch/digest bumps — too noisy, low risk, auto-merged.
+          # Only log minor/major dependency updates (meaningful runtime changes).
+          if echo "$COMMIT_MSG" | grep -qE "^chore\(deps\)"; then
+            if echo "$COMMIT_MSG" | grep -qiE "\bpatch\b|\bdigest\b"; then
+              echo "Renovate patch/digest update — skipping."
+              exit 0
+            fi
           fi
 
           # Map conventional commit prefix → ops-log type
@@ -54,8 +63,6 @@ jobs:
             TYPE="SECURITY"
           elif echo "$COMMIT_MSG" | grep -qE "^incident"; then
             TYPE="INCIDENT"
-          elif echo "$COMMIT_MSG" | grep -qE "^refactor"; then
-            TYPE="CONFIG"
           elif echo "$COMMIT_MSG" | grep -qE "^network"; then
             TYPE="NETWORK"
           elif echo "$COMMIT_MSG" | grep -qE "^storage"; then
