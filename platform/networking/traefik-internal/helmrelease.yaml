@@ -41,13 +41,7 @@ spec:
       web:
         port: 80
         expose:
-          default: true
-        http:
-          redirections:
-            entryPoint:
-              to: ":443"
-              scheme: https
-              permanent: true
+          default: false    # LAN-only instance — no HTTP, HTTPS-only via websecure-int
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
