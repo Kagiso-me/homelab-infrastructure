@@ -75,6 +75,7 @@ spec:
     name: flux-system
   path: ./platform/security/cluster-issuers
   prune: true
+  wait: true
   dependsOn:
     - name: platform-security
   decryption:
@@ -233,6 +234,7 @@ spec:
   wait: true
   dependsOn:
     - name: platform-storage
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
@@ -277,6 +279,7 @@ spec:
   dependsOn:
     - name: platform-namespaces
     - name: platform-storage
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
@@ -343,6 +346,7 @@ spec:
     - name: platform-namespaces
     - name: platform-networking
     - name: platform-storage
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
@@ -370,6 +374,7 @@ spec:
     - name: platform-namespaces
     - name: platform-networking-tls
     - name: platform-storage
+    - name: platform-observability
   decryption:
     provider: sops
     secretRef:
