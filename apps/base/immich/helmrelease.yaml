@@ -34,6 +34,12 @@ spec:
       targetPath: server.controllers.main.containers.main.env.REDIS_PASSWORD
   values:
     server:
+      # Rolling update — keep old pod running until new one is healthy.
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
       controllers:
         main:
           containers:

@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: authentik
-      version: "2026.2.1"
+      version: "2026.2.2"
       sourceRef:
         kind: HelmRepository
         name: authentik
@@ -89,6 +89,12 @@ spec:
               key: redis-password
 
     server:
+      # Rolling update — keep old pod running until new one is healthy.
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
       metrics:
         enabled: true
         serviceMonitor:
