@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "39.0.7"
+      version: "28.3.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -41,7 +41,9 @@ spec:
       web:
         port: 80
         expose:
-          default: false    # LAN-only instance — no HTTP, HTTPS-only via websecure-int
+          default: true
+        redirectTo:
+          port: websecure-int
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
@@ -49,22 +51,11 @@ spec:
         port: 443
         expose:
           default: true
-        http:
-          tls:
-            enabled: true
+        tls:
+          enabled: true
       traefik:
         expose:
           default: false
-
-    providers:
-      kubernetesCRD:
-        # Watch only the namespaces this instance serves — avoids TLSStore
-        # conflicts with the external Traefik instance in the ingress namespace.
-        namespaces:
-          - ingress-internal
-          - apps
-          - auth
-          - monitoring
 
     # No CrowdSec on internal entrypoint — LAN traffic only.
 
@@ -82,7 +73,4 @@ spec:
 
     ingressRoute:
       dashboard:
-        enabled: false    # managed via IngressRoute in traefik-config (traefik.local.kagiso.me)
-
-    api:
-      dashboard: true
+        enabled: false

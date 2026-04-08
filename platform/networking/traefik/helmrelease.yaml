@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "39.0.7"
+      version: "28.3.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -23,17 +23,6 @@ spec:
       strategy: rollback
       retries: 3
   values:
-    providers:
-      kubernetesCRD:
-        # Watch only the namespaces this instance serves — avoids TLSStore
-        # conflicts with the internal Traefik instance in the ingress-internal namespace.
-        namespaces:
-          - ingress
-          - apps
-          - auth
-          - monitoring
-          - crowdsec
-
     # k3s bundles its own Traefik — this deployment replaces it.
     # Disable k3s bundled Traefik in k3s config before applying this.
     deployment:
@@ -51,20 +40,15 @@ spec:
     # Redirect all HTTP to HTTPS globally
     ports:
       web:
-        http:
-          redirections:
-            entryPoint:
-              to: websecure
-              scheme: https
-              permanent: true
+        redirectTo:
+          port: websecure
       websecure:
-        http:
-          tls:
-            enabled: true
-          # Apply CrowdSec ForwardAuth to every route on this entrypoint.
-          # Requires platform/security/crowdsec to be deployed first.
-          middlewares:
-            - ingress-crowdsec-bouncer@kubernetescrd
+        tls:
+          enabled: true
+        # Apply CrowdSec ForwardAuth to every route on this entrypoint.
+        # Requires platform/security/crowdsec to be deployed first.
+        middlewares:
+          - ingress-crowdsec-bouncer@kubernetescrd
 
     # Expose Prometheus metrics
     metrics:
