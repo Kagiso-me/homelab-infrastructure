@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** update lscr.io/linuxserver/lidarr docker tag to v8 `66bfb7f`
 - **[CONFIG]** allow SSH from bran on k3s nodes `2ff6abe`
 - **[CONFIG]** copy vault_pass to bran in provision playbook `437c72b`
 - **[CONFIG]** symlink ansible bins to /usr/local/bin on bran `7316402`
