@@ -42,8 +42,12 @@ spec:
         port: 80
         expose:
           default: true
-        redirectTo:
-          port: websecure-int
+        http:
+          redirections:
+            entryPoint:
+              to: websecure-int
+              scheme: https
+              permanent: true
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
@@ -51,8 +55,9 @@ spec:
         port: 443
         expose:
           default: true
-        tls:
-          enabled: true
+        http:
+          tls:
+            enabled: true
       traefik:
         expose:
           default: false
@@ -83,4 +88,7 @@ spec:
 
     ingressRoute:
       dashboard:
-        enabled: false
+        enabled: false    # managed via IngressRoute in traefik-config (traefik.local.kagiso.me)
+
+    api:
+      dashboard: true
