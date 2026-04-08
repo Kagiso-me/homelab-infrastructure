@@ -26,7 +26,7 @@ services:
   # Web UI: http://10.0.10.20:32400/web
   # ---------------------------------------------------------------------------
   plex:
-    image: lscr.io/linuxserver/plex:1.43.0
+    image: lscr.io/linuxserver/plex:1.43.1
     container_name: plex
     restart: unless-stopped
     networks:
@@ -129,7 +129,7 @@ services:
   # Web UI: http://10.0.10.20:8686
   # ---------------------------------------------------------------------------
   lidarr:
-    image: lscr.io/linuxserver/lidarr:3.1.0
+    image: lscr.io/linuxserver/lidarr:8.1.2135
     container_name: lidarr
     restart: unless-stopped
     networks:
@@ -186,36 +186,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ---------------------------------------------------------------------------
-  # Overseerr — Media request management
-  # Web UI: http://10.0.10.20:5055
-  # ---------------------------------------------------------------------------
-  overseerr:
-    image: lscr.io/linuxserver/overseerr:1.35.0
-    container_name: overseerr
-    restart: unless-stopped
-    networks:
-      - media-net
-    ports:
-      - "5055:5055"
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-Africa/Johannesburg}
-    volumes:
-      - /srv/docker/appdata/overseerr:/config
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:5055/api/v1/status || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
+ 
   # ---------------------------------------------------------------------------
   # SABnzbd — Usenet download client
   # Web UI: http://10.0.10.20:8085
@@ -254,7 +225,7 @@ services:
   # Web UI: http://10.0.10.20:6767
   # ---------------------------------------------------------------------------
   bazarr:
-    image: lscr.io/linuxserver/bazarr:1.5.5
+    image: lscr.io/linuxserver/bazarr:1.5.6
     container_name: bazarr
     restart: unless-stopped
     networks:
@@ -274,31 +245,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ---------------------------------------------------------------------------
-  # FreshRSS — Self-hosted RSS feed aggregator
-  # Web UI: http://10.0.10.20:8810
-  # Compatible with Fever/Google Reader API for native RSS apps
-  # ---------------------------------------------------------------------------
-  freshrss:
-    image: lscr.io/linuxserver/freshrss:1.28.1
-    container_name: freshrss
-    restart: unless-stopped
-    networks:
-      - media-net
-    ports:
-      - "8810:80"
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-Africa/Johannesburg}
-    volumes:
-      - /srv/docker/appdata/freshrss:/config
     logging:
       driver: "json-file"
       options:
