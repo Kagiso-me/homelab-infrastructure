@@ -266,7 +266,7 @@ To skip a specific update entirely, add to `renovate.json`:
 
 ### Positive
 
-- Patch-level security fixes land within 24 hours of publication with zero manual effort
+- Patch-level security fixes land within 3-4 days of publication with zero manual effort (3-day minimum age + next scheduled Renovate run)
 - Minor and major updates are surfaced automatically but never applied without review
 - Kubernetes-related packages are always gated regardless of version bump size
 - Upgrade history is fully captured in `git log main` via squash commits
