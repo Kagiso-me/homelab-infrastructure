@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** replace removed community.general.yaml callback with result_format=yaml `6319675`
 - **[MAINTENANCE]** removed freshRSS and overseer from docker. These will be re-deployed in the k3s cluster `dc312f7`
 - **[CONFIG]** allow SSH from bran on k3s nodes `2ff6abe`
 - **[CONFIG]** copy vault_pass to bran in provision playbook `437c72b`
