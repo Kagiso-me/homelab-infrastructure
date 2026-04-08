@@ -82,6 +82,11 @@
       "automerge": false
     },
     {
+      "description": "Never auto-merge Traefik — chart schema breaks across minor bumps (v28→v39 example)",
+      "matchPackageNames": ["traefik/traefik"],
+      "automerge": false
+    },
+    {
       "description": "Group media-stack image updates into one PR",
       "matchManagers": ["docker-compose"],
       "matchFileNames": ["docker/compose/media-stack.yml"],
