@@ -239,8 +239,8 @@ repository. Clone the repo and copy them into place:
 
 ```bash
 git clone https://github.com/Kagiso-me/homelab-infrastructure.git ~/homelab-infrastructure
-cp ~/homelab-infrastructure/bronn/compose/*.yml /srv/docker/compose/
-cp ~/homelab-infrastructure/bronn/compose/.env.example /srv/docker/compose/
+cp ~/homelab-infrastructure/docker/compose/*.yml /srv/docker/compose/
+cp ~/homelab-infrastructure/docker/compose/.env.example /srv/docker/compose/
 ```
 
 Verify the files are in place:
