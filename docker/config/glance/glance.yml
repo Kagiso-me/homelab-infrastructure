@@ -1,0 +1,261 @@
+# =============================================================================
+# Glance Dashboard — varys (10.0.10.20:8800)
+# Glance v0.8.4
+#
+# Deploy: cp docker/config/glance/glance.yml /srv/docker/appdata/glance/glance.yml
+#         docker compose -f /srv/docker/stacks/platform-stack.yml restart glance
+#
+# Env vars required in /srv/docker/stacks/.env:
+#   GITHUB_TOKEN=ghp_...   (read:public_repo scope)
+#   PIHOLE_PASSWORD=...
+# =============================================================================
+
+server:
+  port: 8080
+  assets-path: /app/assets
+
+theme:
+  background-color: 240 10 8
+  primary-color: 217 92 83
+  contrast-multiplier: 1.2
+
+pages:
+  # ===========================================================================
+  # HOME — live overview of the entire homelab
+  # ===========================================================================
+  - name: Home
+    columns:
+      # ── Left: clock, calendar, search, bookmarks ──────────────────────────
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h
+            timezones:
+              - timezone: Africa/Johannesburg
+                label: Johannesburg
+
+          - type: calendar
+
+          - type: search
+            search-engine: https://www.google.com/search?q={QUERY}
+            bangs:
+              - title: GitHub
+                shortcut: "!gh"
+                url: https://github.com/search?q={QUERY}
+              - title: Docker Hub
+                shortcut: "!dh"
+                url: https://hub.docker.com/search?q={QUERY}
+              - title: Artifact Hub
+                shortcut: "!ah"
+                url: https://artifacthub.io/packages/search?ts_query_web={QUERY}
+              - title: Reddit
+                shortcut: "!r"
+                url: https://www.reddit.com/search?q={QUERY}
+
+          - type: bookmarks
+            groups:
+              - title: Cluster
+                links:
+                  - title: Grafana
+                    url: http://grafana.local.kagiso.me
+                  - title: Longhorn
+                    url: http://longhorn.local.kagiso.me
+                  - title: Traefik (internal)
+                    url: http://traefik.local.kagiso.me
+                  - title: Prometheus
+                    url: http://prometheus.local.kagiso.me
+                  - title: Alertmanager
+                    url: http://alertmanager.local.kagiso.me
+              - title: Media
+                links:
+                  - title: Sonarr
+                    url: http://sonarr.local.kagiso.me
+                  - title: Radarr
+                    url: http://radarr.local.kagiso.me
+                  - title: Lidarr
+                    url: http://lidarr.local.kagiso.me
+                  - title: SABnzbd
+                    url: http://sabnzbd.local.kagiso.me
+                  - title: Plex
+                    url: http://plex.local.kagiso.me/web
+                  - title: Navidrome
+                    url: http://navidrome.local.kagiso.me
+              - title: Platform
+                links:
+                  - title: Uptime Kuma
+                    url: http://10.0.10.20:3001
+                  - title: Vaultwarden
+                    url: https://vault.kagiso.me
+                  - title: Authentik
+                    url: https://auth.kagiso.me
+                  - title: Pi-hole
+                    url: http://10.0.10.9/admin
+                  - title: TrueNAS
+                    url: http://10.0.10.80
+                  - title: MikroTik
+                    url: https://10.0.10.1
+
+      # ── Centre: monitors, docker, releases ───────────────────────────────
+      - size: full
+        widgets:
+          - type: monitor
+            title: Core Services
+            sites:
+              - title: Grafana
+                url: http://grafana.local.kagiso.me
+                icon: si:grafana
+              - title: Prometheus
+                url: http://prometheus.local.kagiso.me/-/healthy
+                icon: si:prometheus
+              - title: Traefik
+                url: http://traefik.local.kagiso.me/ping
+                icon: si:traefikproxy
+              - title: Longhorn
+                url: http://longhorn.local.kagiso.me
+                icon: si:kubernetes
+              - title: Vaultwarden
+                url: https://vault.kagiso.me
+                icon: si:vaultwarden
+              - title: Authentik
+                url: https://auth.kagiso.me
+                icon: si:authentik
+              - title: Uptime Kuma
+                url: http://10.0.10.20:3001
+                icon: si:uptimekuma
+
+          - type: monitor
+            title: Media Stack
+            sites:
+              - title: Sonarr
+                url: http://sonarr.local.kagiso.me/ping
+                icon: si:sonarr
+              - title: Radarr
+                url: http://radarr.local.kagiso.me/ping
+                icon: si:radarr
+              - title: Lidarr
+                url: http://lidarr.local.kagiso.me/ping
+                icon: si:lidarr
+              - title: SABnzbd
+                url: http://sabnzbd.local.kagiso.me
+                icon: si:sabnzbd
+              - title: Plex
+                url: http://plex.local.kagiso.me/web
+                icon: si:plex
+              - title: Navidrome
+                url: http://navidrome.local.kagiso.me
+                icon: si:navidrome
+
+          - type: docker-containers
+            title: Docker Containers (varys)
+            sock: /var/run/docker.sock
+
+          - type: releases
+            title: Infrastructure Releases
+            token: ${GITHUB_TOKEN}
+            limit: 10
+            collapse-after: 5
+            repositories:
+              - k3s-io/k3s
+              - traefik/traefik
+              - grafana/grafana
+              - cert-manager/cert-manager
+              - longhorn/longhorn
+              - renovatebot/renovate
+              - glanceapp/glance
+
+      # ── Right: server stats, DNS, RSS ─────────────────────────────────────
+      - size: small
+        widgets:
+          - type: server-stats
+            servers:
+              - type: local
+                name: varys (10.0.10.20)
+
+          - type: dns-stats
+            service: pihole
+            url: http://10.0.10.9
+            password: ${PIHOLE_PASSWORD}
+            display-graph: true
+            display-top-domains: true
+            top-domains-limit: 8
+
+          - type: rss
+            title: Homelab News
+            limit: 12
+            collapse-after: 5
+            feeds:
+              - url: https://selfhosted.show/rss
+                title: Self-Hosted Podcast
+              - url: https://www.reddit.com/r/selfhosted/.rss
+                title: r/selfhosted
+              - url: https://www.reddit.com/r/homelab/.rss
+                title: r/homelab
+              - url: https://changelog.glance.app/rss.xml
+                title: Glance Updates
+
+  # ===========================================================================
+  # GITOPS — repo state, release tracking, security advisories
+  # ===========================================================================
+  - name: GitOps
+    columns:
+      - size: small
+        widgets:
+          - type: repository
+            repository: Kagiso-me/homelab-infrastructure
+            token: ${GITHUB_TOKEN}
+            pull-requests-limit: 5
+            issues-limit: 10
+
+          - type: repository
+            repository: Kagiso-me/kagiso-me.github.io
+            token: ${GITHUB_TOKEN}
+            pull-requests-limit: 3
+            issues-limit: 5
+
+      - size: full
+        widgets:
+          - type: releases
+            title: Helm Chart Updates
+            token: ${GITHUB_TOKEN}
+            limit: 15
+            collapse-after: 8
+            repositories:
+              - prometheus-community/helm-charts
+              - grafana/helm-charts
+              - longhorn/charts
+              - oauth2-proxy/manifests
+              - cert-manager/cert-manager
+
+          - type: releases
+            title: App Container Updates
+            token: ${GITHUB_TOKEN}
+            limit: 12
+            collapse-after: 6
+            repositories:
+              - navidrome/navidrome
+              - louislam/uptime-kuma
+              - glanceapp/glance
+              - linuxserver/docker-sonarr
+              - linuxserver/docker-radarr
+              - linuxserver/docker-lidarr
+              - linuxserver/docker-sabnzbd
+
+      - size: small
+        widgets:
+          - type: rss
+            title: Security Advisories
+            limit: 10
+            collapse-after: 5
+            feeds:
+              - url: https://github.com/advisories.atom
+                title: GitHub Security
+
+          - type: rss
+            title: Kubernetes Blog
+            limit: 8
+            collapse-after: 4
+            feeds:
+              - url: https://kubernetes.io/feed.xml
+                title: Kubernetes
+              - url: https://grafana.com/blog/index.xml
+                title: Grafana Blog

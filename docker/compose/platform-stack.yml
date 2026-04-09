@@ -32,6 +32,8 @@ services:
       - platform-net
     ports:
       - "8800:8080"
+    env_file:
+      - /srv/docker/stacks/.env
     volumes:
       - /srv/docker/appdata/glance:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
