@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** remove unused assets-path causing startup error `8d18e17`
 - **[MAINTENANCE]** update helm release kube-prometheus-stack to v83.4.0 `aab945e`
 - **[CONFIG]** use /srv/docker/compose/.env instead of stacks/.env `6a5bdd8`
 - **[CONFIG]** rollback to v28.3.0 — v39 schema incompatible with websecure-int `dbd1908`
