@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** standardise deploy path to /srv/docker/compose across all layers `0880230`
 - **[CONFIG]** remove unused assets-path causing startup error `8d18e17`
 - **[MAINTENANCE]** update helm release kube-prometheus-stack to v83.4.0 `aab945e`
 - **[CONFIG]** use /srv/docker/compose/.env instead of stacks/.env `6a5bdd8`
