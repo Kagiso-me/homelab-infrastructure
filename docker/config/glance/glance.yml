@@ -5,7 +5,7 @@
 # Deploy: cp docker/config/glance/glance.yml /srv/docker/appdata/glance/glance.yml
 #         docker compose -f /srv/docker/stacks/platform-stack.yml restart glance
 #
-# Env vars required in /srv/docker/stacks/.env:
+# Env vars required in /srv/docker/compose/.env:
 #   GITHUB_TOKEN=ghp_...   (read:public_repo scope)
 #   PIHOLE_PASSWORD=...
 # =============================================================================
