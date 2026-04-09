@@ -1,17 +1,18 @@
 ---
 # Deploy Docker stacks on the Docker host (docked, 10.0.10.20)
 #
-# Syncs compose files from the repo to /srv/docker/stacks/ and reconciles
+# Syncs compose files from the repo to /srv/docker/compose/ and reconciles
 # each stack against the current state. This playbook is the source-of-truth
 # enforcer: what is in git is what runs on the host.
 #
 # Stack deployment order matters:
-#   1. media-stack   — creates the media-net Docker network
-#   2. proxy-stack   — joins media-net (external: true)
-#   3. monitoring-stack — independent (node-exporter, cAdvisor, promtail)
+#   1. media-stack          — creates the media-net Docker network
+#   2. proxy-stack          — joins media-net (external: true)
+#   3. monitoring-exporters — independent (node-exporter, cAdvisor, promtail)
+#   4. platform-stack       — glance, uptime-kuma (independent)
 #
 # Secrets (.env) are NOT managed here. The .env file must exist at
-# /srv/docker/stacks/.env on the host before first deploy. Ansible never
+# /srv/docker/compose/.env on the host before first deploy. Ansible never
 # creates or overwrites it — secrets stay off git.
 #
 # Usage:
@@ -23,7 +24,7 @@
 #
 # Prerequisites on the Docker host:
 #   - Docker CE installed
-#   - /srv/docker/stacks/.env populated
+#   - /srv/docker/compose/.env populated
 #   - NFS mounts active (/mnt/media, /mnt/downloads)
 #   - /var/lib/node_exporter/textfile_collector directory exists
 
@@ -32,7 +33,7 @@
   gather_facts: false
   vars:
     stacks_src: "{{ playbook_dir }}/../../../docker/compose"
-    stacks_dest: /srv/docker/stacks
+    stacks_dest: /srv/docker/compose
     target_stack: all   # override with -e target_stack=media-stack to deploy one stack
 
   tasks:
