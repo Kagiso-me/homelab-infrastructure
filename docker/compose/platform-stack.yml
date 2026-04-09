@@ -7,7 +7,7 @@
 #
 # Network: platform-net (internal) + host port exposure
 # Prerequisites:
-#   1. .env file at /srv/docker/stacks/.env
+#   1. .env file at /srv/docker/compose/.env
 # =============================================================================
 
 name: platform-stack
@@ -33,7 +33,7 @@ services:
     ports:
       - "8800:8080"
     env_file:
-      - /srv/docker/stacks/.env
+      - /srv/docker/compose/.env
     volumes:
       - /srv/docker/appdata/glance:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
