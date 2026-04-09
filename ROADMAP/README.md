@@ -21,6 +21,14 @@ Planned work, active projects, and upcoming hardware changes.
 
 ---
 
+## Planned — Observability
+
+| Item | Description | Target |
+|---|---|---|
+| [Daily Digest Overhaul](daily-digest.md) | Rewrite digest: firing alerts, disk, pod restarts 24h, backup status, Flux sync health, Mikrotik login attempts via Loki syslog | Early–Mid Jun 2026 |
+
+---
+
 ## Planned — Development
 
 | Project | Description | Target |
