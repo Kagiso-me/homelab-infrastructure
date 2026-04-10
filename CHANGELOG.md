@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** update prom/node-exporter docker tag to v1.11.1 (#76) `dc7d0fe`
 - **[CONFIG]** standardise deploy path to /srv/docker/compose across all layers `0880230`
 - **[CONFIG]** remove unused assets-path causing startup error `8d18e17`
 - **[MAINTENANCE]** update helm release kube-prometheus-stack to v83.4.0 `aab945e`
