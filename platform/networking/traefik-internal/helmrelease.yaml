@@ -71,6 +71,10 @@ spec:
       access:
         enabled: true
 
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+
     ingressRoute:
       dashboard:
         enabled: false

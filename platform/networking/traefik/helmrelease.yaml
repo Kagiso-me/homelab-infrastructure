@@ -64,6 +64,10 @@ spec:
         enabled: true
 
     # Expose Traefik dashboard (restricted — add IngressRoute with auth separately)
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
+
     ingressRoute:
       dashboard:
         enabled: false    # managed manually via IngressRoute for access control
