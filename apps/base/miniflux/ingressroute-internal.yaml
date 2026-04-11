@@ -5,9 +5,9 @@ metadata:
   namespace: apps
 spec:
   entryPoints:
-    - websecure
+    - websecure-int
   routes:
-    - match: Host(`rss.kagiso.internal`)
+    - match: Host(`rss.local.kagiso.me`)
       kind: Rule
       services:
         - name: miniflux
