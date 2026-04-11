@@ -43,7 +43,7 @@ spec:
         expose:
           default: true
         redirectTo:
-          port: websecure-int
+          entryPoint: websecure-int
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
