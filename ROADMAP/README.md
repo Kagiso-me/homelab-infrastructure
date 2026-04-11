@@ -25,6 +25,7 @@ Planned work, active projects, and upcoming hardware changes.
 
 | Item | Description | Target |
 |---|---|---|
+| Automated RCA Skeletons | Auto-generate `docs/rca/` skeleton + PR when a critical Prometheus alert fires. Alertmanager → in-cluster adapter → GitHub workflow_dispatch → Actions creates file + PR. Plan ready for review. | 13 Apr 2026 |
 | [Daily Digest Overhaul](daily-digest.md) | Rewrite digest: firing alerts, disk, pod restarts 24h, backup status, Flux sync health, Mikrotik login attempts via Loki syslog | Early–Mid Jun 2026 |
 
 ---

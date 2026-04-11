@@ -1,5 +1,5 @@
 
-# ADR-010 — Discord over Slack for Alert Notifications
+# ADR-007 — Discord over Slack for Alert Notifications
 
 **Status:** Accepted
 **Date:** 2026-03-23
