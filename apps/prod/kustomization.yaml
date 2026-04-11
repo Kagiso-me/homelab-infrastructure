@@ -7,3 +7,4 @@ resources:
   - ../base/n8n
   - ../base/vaultwarden
   - ../base/seerr
+  - ../base/miniflux

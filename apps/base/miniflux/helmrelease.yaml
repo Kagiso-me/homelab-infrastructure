@@ -1,0 +1,49 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: miniflux
+  namespace: apps
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: miniflux
+      version: ">=0.9.2"
+      sourceRef:
+        kind: HelmRepository
+        name: gabe565
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: 3
+  valuesFrom:
+    - kind: Secret
+      name: miniflux-secret
+      valuesKey: database-url
+      targetPath: env.DATABASE_URL
+    - kind: Secret
+      name: miniflux-secret
+      valuesKey: admin-password
+      targetPath: env.ADMIN_PASSWORD
+  values:
+    env:
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: kagiso
+      BASE_URL: https://rss.kagiso.me
+
+    # Disable bundled PostgreSQL — using shared central instance
+    postgresql:
+      enabled: false
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
