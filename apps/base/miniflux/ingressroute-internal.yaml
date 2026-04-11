@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: miniflux-internal
+  namespace: apps
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`rss.kagiso.internal`)
+      kind: Rule
+      services:
+        - name: miniflux
+          port: 8080
+  tls: {}
