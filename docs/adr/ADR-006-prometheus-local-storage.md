@@ -1,5 +1,5 @@
 
-# ADR-009 — Prometheus TSDB on Local Storage (not NFS)
+# ADR-006 — Prometheus TSDB on Local Storage (not NFS)
 
 **Status:** Accepted
 **Date:** 2026-03-23

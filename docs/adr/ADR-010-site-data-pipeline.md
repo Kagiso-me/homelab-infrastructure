@@ -1,4 +1,4 @@
-# ADR-013 — Public Site Live Data Pipeline
+# ADR-010 — Public Site Live Data Pipeline
 
 **Status:** Accepted
 **Date:** 2026-04-06
@@ -91,7 +91,7 @@ HTTP health check (status only, no stream count).
 ### Runner placement
 
 The `Kagiso-me.github.io` runner lives in `~/actions-runner-site/` on varys — separate from
-the `homelab-infrastructure` runner in `~/actions-runner/`. See ADR-007 for the multi-runner
+the `homelab-infrastructure` runner in `~/actions-runner/`. See ADR-005 for the multi-runner
 directory convention.
 
 **Planned migration:** when bran (10.0.10.9, RPi) is provisioned, the site runner will

@@ -1,5 +1,5 @@
 
-# ADR-011 — Central PostgreSQL and Redis on Control Plane
+# ADR-008 — Central PostgreSQL and Redis on Control Plane
 
 **Status:** Amended — 2026-04-06
 **Date:** 2026-03-24
@@ -127,7 +127,7 @@ means full cluster downtime regardless, this is an acceptable coupling.
 
 NFS is unsuitable for database workloads. Both PostgreSQL (WAL writes) and
 Redis (AOF persistence) write frequently to disk. NFS causes stale file handle
-failures on any server blip, silently dropping writes. See ADR-009 for the
+failures on any server blip, silently dropping writes. See ADR-006 for the
 full analysis of this failure mode.
 
 `local-path` provides local disk performance with no network dependency.

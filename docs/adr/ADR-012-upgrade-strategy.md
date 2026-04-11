@@ -1,4 +1,4 @@
-# ADR-015 — Automated Upgrade Strategy
+# ADR-012 — Automated Upgrade Strategy
 
 **Date:** 2026-04-08
 **Status:** Accepted
@@ -26,7 +26,7 @@ The goals are:
 ## Decision
 
 Use **Renovate Bot** for automated dependency discovery and PR creation, combined with the
-**PR validation pipeline** (ADR-012) for safety gating, with selective auto-merge based on
+**PR validation pipeline** (ADR-009) for safety gating, with selective auto-merge based on
 update risk level.
 
 ---
@@ -89,7 +89,7 @@ from auto-merged upgrades land at low-traffic times.
 | **GitHub Actions** (minor + patch) | Action version bumps. No cluster impact. |
 
 These update types proceed through CI validation and are squash-merged automatically by the
-auto-merge workflow (ADR-012) once all checks pass.
+auto-merge workflow (ADR-009) once all checks pass.
 
 ### What requires manual review
 
@@ -282,7 +282,7 @@ To skip a specific update entirely, add to `renovate.json`:
 
 ## Related
 
-- ADR-012 — PR-Based Validation Pipeline (the CI pipeline that gates all upgrades)
+- ADR-009 — PR-Based Validation Pipeline (the CI pipeline that gates all upgrades)
 - `.github/workflows/auto-merge.yml` — auto-merge workflow
 - `.github/workflows/validate.yml` — validation pipeline
 - `renovate.json` — full Renovate configuration

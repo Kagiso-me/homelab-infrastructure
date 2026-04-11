@@ -1,5 +1,5 @@
 
-# ADR-007 — Self-Hosted GitHub Actions Runners
+# ADR-005 — Self-Hosted GitHub Actions Runners
 
 **Status:** Accepted
 **Date:** 2026-03-19
@@ -124,7 +124,7 @@ not the control hub with cluster-admin credentials.
 
 ## Runner Setup
 
-Install the GitHub Actions runner on `varys` (10.0.10.10):
+Install the GitHub Actions runner on `bran` (10.0.10.9):
 
 ```bash
 # 1. Create a dedicated user (optional but recommended)
@@ -144,7 +144,7 @@ curl -sL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}
   --url https://github.com/Kagiso-me/homelab-infrastructure \
   --token <TOKEN_FROM_GITHUB> \
   --labels homelab \
-  --name varys \
+  --name bran \
   --unattended
 
 # 4. Install and start as a systemd service (NOT ./run.sh — that only runs in the foreground)
@@ -155,7 +155,7 @@ sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
-Pre-install required tools on `varys`:
+Pre-install required tools on `bran`:
 
 ```bash
 # kubectl (ARM64)
@@ -188,5 +188,5 @@ Add these to the GitHub repository under **Settings → Secrets and variables �
 |--------|-------|
 | `KUBECONFIG` | Contents of `/etc/rancher/k3s/k3s.yaml` on `tywin` (server stays as `10.0.10.100:6443`) |
 
-No Tailscale auth key is required. No staging kubeconfig is required — the staging cluster has been decommissioned (see ADR-006, ADR-012).
+No Tailscale auth key is required. No staging kubeconfig is required — the staging cluster has been decommissioned (see ADR-009).
 

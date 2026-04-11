@@ -1,4 +1,4 @@
-# ADR-014: Pi-hole + Unbound as the Homelab DNS Stack
+# ADR-011: Pi-hole + Unbound as the Homelab DNS Stack
 
 **Status:** Accepted — 2026-04-07
 **Deciders:** Kagiso

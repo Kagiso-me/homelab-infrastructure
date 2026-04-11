@@ -1,4 +1,4 @@
-# ADR-012 — PR-Based Validation Pipeline
+# ADR-009 — PR-Based Validation Pipeline
 
 **Date:** 2026-03-28
 **Last Updated:** 2026-04-05
@@ -9,7 +9,7 @@
 
 ## Context
 
-The previous CI/CD model (documented in ADR-006 and ADR-007) used a two-environment
+The previous CI/CD model (documented in ADR-005) used a two-environment
 promotion pipeline:
 
 1. Changes merged to `main`
@@ -426,7 +426,7 @@ analysis on GitHub-hosted runners, always available) from the post-merge health 
 (self-hosted runner, best-effort).
 
 **Tailscale to give GitHub-hosted runners cluster access**
-Evaluated and rejected in ADR-007. Creates a hard dependency on a third-party SaaS product
+Evaluated and rejected in ADR-005. Creates a hard dependency on a third-party SaaS product
 in the merge critical path.
 
 **GitHub's built-in auto-merge with branch protection**
@@ -527,8 +527,7 @@ CI. Mitigation: ensure the `actions-runner` systemd service is enabled to start 
 
 ## Related
 
-- ADR-006 — Proxmox Pivot (superseded — Proxmox and staging cluster decommissioned 2026-03-28)
-- ADR-007 — Self-Hosted Runners (runner label requirement: `self-hosted`, `linux`, `homelab`)
+- ADR-005 — Self-Hosted Runners (runner label requirement: `self-hosted`, `linux`, `homelab`)
 - `docs/guides/04-Flux-GitOps.md` — Self-hosted runner setup instructions
 - `.github/workflows/validate.yml` — Validation + cluster-diff + health-check workflow
 - `.github/workflows/auto-merge.yml` — Auto-merge workflow

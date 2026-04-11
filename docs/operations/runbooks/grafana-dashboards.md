@@ -1,5 +1,5 @@
 
-# ADR-008 — Grafana Dashboard Suite
+# ADR-006 — Grafana Dashboard Suite
 
 **Status:** Accepted
 **Date:** 2026-03-22

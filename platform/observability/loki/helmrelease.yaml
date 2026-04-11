@@ -25,6 +25,7 @@ spec:
   values:
     loki:
       enabled: true
+      isDefault: false  # Prometheus (via kube-prometheus-stack) is the default datasource
       persistence:
         enabled: true
         storageClassName: nfs-truenas
