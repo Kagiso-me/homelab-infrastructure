@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: seerr
+  namespace: apps
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`requests.kagiso.me`)
+      kind: Rule
+      services:
+        - name: seerr
+          port: 80
+  tls: {}

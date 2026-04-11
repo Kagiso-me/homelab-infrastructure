@@ -1,0 +1,102 @@
+- name: Wake k3s nodes via WOL
+  hosts: control_hub
+  become: false
+  tasks:
+    - name: Install wakeonlan utility if missing
+      ansible.builtin.apt:
+        name: wakeonlan
+        state: present
+      become: true
+
+    - name: Send magic packet to tywin
+      ansible.builtin.command: wakeonlan 00:23:24:7C:D5:3B
+
+    - name: Send magic packet to jaime
+      ansible.builtin.command: wakeonlan 00:23:24:93:06:04
+
+    - name: Send magic packet to tyrion
+      ansible.builtin.command: wakeonlan 00:23:24:A1:95:65
+
+    - name: Wait for tywin to come online
+      ansible.builtin.wait_for:
+        host: 10.0.10.11
+        port: 22
+        state: started
+        delay: 15
+        timeout: 300
+
+    - name: Wait for jaime to come online
+      ansible.builtin.wait_for:
+        host: 10.0.10.12
+        port: 22
+        state: started
+        delay: 5
+        timeout: 300
+
+    - name: Wait for tyrion to come online
+      ansible.builtin.wait_for:
+        host: 10.0.10.13
+        port: 22
+        state: started
+        delay: 5
+        timeout: 300
+
+- name: Start k3s on primary node
+  hosts: k3s_primary
+  become: true
+  tasks:
+    - name: Start k3s service
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: Wait for primary to be Ready
+      command: kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+
+- name: Start k3s on server nodes
+  hosts: k3s_servers
+  become: true
+  serial: 1
+  tasks:
+    - name: Start k3s service
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: Wait for node to be Ready
+      command: kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=300s
+      delegate_to: tywin
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      changed_when: false
+
+    - name: Uncordon node
+      command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: tywin
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Clear maintenance banner on kagiso.me
+  hosts: control_hub
+  become: false
+  tasks:
+    - name: Write maintenance.json (inactive)
+      ansible.builtin.copy:
+        content: |
+          { "active": false }
+        dest: /home/kagiso/kagiso-me.github.io/public/data/maintenance.json
+
+    - name: Commit and push cleared flag
+      ansible.builtin.shell: |
+        cd /home/kagiso/kagiso-me.github.io
+        git add public/data/maintenance.json
+        git pull --rebase
+        git commit -m "ops: clear maintenance mode"
+        git push
+      args:
+        executable: /bin/bash

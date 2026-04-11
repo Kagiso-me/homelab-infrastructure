@@ -6,3 +6,4 @@ resources:
   - ../base/immich
   - ../base/n8n
   - ../base/vaultwarden
+  - ../base/seerr
