@@ -11,6 +11,8 @@ spec:
       kind: Rule
       middlewares:
         - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
       services:
         - name: nextcloud
           port: 8080
