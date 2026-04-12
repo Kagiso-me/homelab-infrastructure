@@ -19,7 +19,6 @@ data:
       hosts {
         10.0.10.111 auth.kagiso.me
         10.0.10.111 cloud.kagiso.me
-        10.0.10.111 photos.local.kagiso.me
         fallthrough
       }
       forward . /etc/resolv.conf
