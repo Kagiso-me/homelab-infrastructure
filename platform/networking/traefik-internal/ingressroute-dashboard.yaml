@@ -10,7 +10,7 @@ spec:
   entryPoints:
     - websecure-int
   routes:
-    - match: Host(`traefik.local.kagiso.me`)
+    - match: Host(`traefik.local.kagiso.me`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
       kind: Rule
       services:
         - name: traefik-internal
