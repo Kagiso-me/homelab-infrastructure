@@ -9,6 +9,8 @@ spec:
   routes:
     - match: Host(`cloud.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: nextcloud
           port: 8080

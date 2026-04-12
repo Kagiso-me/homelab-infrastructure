@@ -54,6 +54,21 @@ spec:
     sourceRange:
       - "127.0.0.1/32"   # effectively blocks all — no real traffic comes from localhost
 ---
+# Secure HTTP headers — adds HSTS and other security headers.
+# Reference from IngressRoute (cross-namespace):
+#   middlewares:
+#     - name: ingress-secure-headers@kubernetescrd
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: secure-headers
+  namespace: ingress
+spec:
+  headers:
+    stsSeconds: 15552000
+    stsIncludeSubdomains: true
+    stsPreload: false
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
