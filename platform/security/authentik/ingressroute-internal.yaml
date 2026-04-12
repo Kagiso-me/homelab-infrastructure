@@ -12,4 +12,9 @@ spec:
       services:
         - name: authentik-server
           port: 80
+    - match: Host(`auth.kagiso.me`) && (PathPrefix(`/if/admin/`) || PathPrefix(`/api/v3/admin/`))
+      kind: Rule
+      services:
+        - name: authentik-server
+          port: 80
   tls: {}
