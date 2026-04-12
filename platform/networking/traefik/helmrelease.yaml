@@ -67,6 +67,10 @@ spec:
     providers:
       kubernetesCRD:
         allowCrossNamespace: true
+        namespaces:
+          - ingress
+          - apps
+          - auth
 
     ingressRoute:
       dashboard:
