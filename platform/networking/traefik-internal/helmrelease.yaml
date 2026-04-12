@@ -81,6 +81,9 @@ spec:
           - auth
           - monitoring
 
+    api:
+      dashboard: true
+
     ingressRoute:
       dashboard:
-        enabled: false
+        enabled: false  # managed manually via ingressroute-dashboard.yaml
