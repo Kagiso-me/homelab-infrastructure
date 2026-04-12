@@ -49,6 +49,7 @@ spec:
           default: false     # disable the default websecure entrypoint
       websecure-int:
         port: 443
+        exposedPort: 443
         expose:
           default: true
         tls:
