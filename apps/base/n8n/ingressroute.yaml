@@ -7,7 +7,8 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`n8n.kagiso.me`)
+    # Only expose webhook paths publicly — UI is internal only.
+    - match: Host(`n8n.kagiso.me`) && PathPrefix(`/webhook/`, `/webhook-test/`)
       kind: Rule
       services:
         - name: n8n
