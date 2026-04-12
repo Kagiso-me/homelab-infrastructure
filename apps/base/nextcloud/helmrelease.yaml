@@ -87,6 +87,10 @@ spec:
             'overwritehost' => 'cloud.kagiso.me',
             'trusted_proxies' => array('10.42.0.0/16'),
             'forwarded_for_headers' => array('HTTP_X_FORWARDED_FOR'),
+            // Allow server-side requests to resolve to private IPs.
+            // Needed so oidc_login can fetch the Authentik discovery doc via
+            // the split-horizon DNS entry (auth.kagiso.me → 10.0.10.111).
+            'allow_local_remote_servers' => true,
           );
         # Redis caching — use dbindex 1 to avoid key collisions with Authentik (uses 0).
         z-redis.config.php: |-
