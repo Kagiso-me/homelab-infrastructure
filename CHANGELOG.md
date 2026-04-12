@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** revert redirectTo.entryPoint to redirectTo.port for traefik chart `8872401`
 - **[CONFIG]** use source.toolkit.fluxcd.io/v1 for HelmRepository `588f635`
 - **[DEPLOY]** add Seerr and cluster maintenance playbooks `efb4a1b`
 - **[MAINTENANCE]** update prom/node-exporter docker tag to v1.11.1 (#76) `dc7d0fe`
