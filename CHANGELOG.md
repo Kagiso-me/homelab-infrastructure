@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** allow local remote servers for OIDC discovery via split-horizon DNS `94512f3`
 - **[DEPLOY]** wire Resend SMTP into Nextcloud, Vaultwarden, and Authentik `43b9cee`
 - **[CONFIG]** correct HTTP→HTTPS redirect entrypoint key for traefik-internal `4a64840`
 - **[CONFIG]** use source.toolkit.fluxcd.io/v1 for HelmRepository `588f635`
