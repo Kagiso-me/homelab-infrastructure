@@ -110,7 +110,7 @@ spec:
         z-oidc.config.php: |-
           <?php
           $CONFIG = array (
-            'oidc_login_provider_url'      => 'https://auth.kagiso.me/application/o/nextcloud/',
+            'oidc_login_provider_url'      => 'http://authentik-server.auth.svc.cluster.local/application/o/nextcloud/',
             'oidc_login_client_id'         => getenv('OIDC_CLIENT_ID'),
             'oidc_login_client_secret'     => getenv('OIDC_CLIENT_SECRET'),
             'oidc_login_auto_redirect'     => false,
