@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** scope Traefik providers per-namespace; expose internal dashboard `0084cf8`
 - **[CONFIG]** correct HTTP→HTTPS redirect entrypoint key for traefik-internal `4a64840`
 - **[CONFIG]** use source.toolkit.fluxcd.io/v1 for HelmRepository `588f635`
 - **[DEPLOY]** add Seerr and cluster maintenance playbooks `efb4a1b`
