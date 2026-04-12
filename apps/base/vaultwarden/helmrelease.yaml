@@ -35,7 +35,7 @@ spec:
     - kind: Secret
       name: vaultwarden-secret
       valuesKey: smtp-password
-      targetPath: smtp.password
+      targetPath: smtp.password.value
   values:
     # Disable bundled database — using shared central PostgreSQL.
     database:
@@ -59,7 +59,8 @@ spec:
       from: noreply@kagiso.me
       fromName: Vaultwarden
       security: starttls
-      username: resend
+      username:
+        value: resend
       # password injected via valuesFrom
 
     # Disable open registration — admin invites only.
