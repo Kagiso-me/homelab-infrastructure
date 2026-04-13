@@ -145,7 +145,7 @@ spec:
             'oidc_login_hide_password_form' => false,
             'oidc_login_scope'             => 'openid profile email',
             'oidc_login_attributes'        => array(
-              'id'     => 'preferred_username',
+              'id'     => 'email',
               'name'   => 'name',
               'mail'   => 'email',
               'groups' => 'groups',
