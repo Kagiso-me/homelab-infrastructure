@@ -72,6 +72,16 @@ spec:
               name: nextcloud-secret
               key: oidc-client-secret
 
+      # OPcache tuning — defaults (128MB, 8MB strings buffer) are too low for
+      # Nextcloud's ~10k PHP files and cause frequent cache evictions.
+      phpConfigs:
+        z-opcache.ini: |
+          opcache.memory_consumption=256
+          opcache.interned_strings_buffer=16
+          opcache.max_accelerated_files=10000
+          opcache.revalidate_freq=1
+          opcache.save_comments=1
+
       # Disable chart's auto-generated redis/proxy configs — we provide our own below.
       defaultConfigs:
         redis.config.php: false
@@ -87,6 +97,10 @@ spec:
             'overwritehost' => 'cloud.kagiso.me',
             'trusted_proxies' => array('10.42.0.0/16'),
             'forwarded_for_headers' => array('HTTP_X_FORWARDED_FOR'),
+            // Allow server-side requests to resolve to private IPs.
+            // Needed so oidc_login can fetch the Authentik discovery doc via
+            // the split-horizon DNS entry (auth.kagiso.me → 10.0.10.111).
+            'allow_local_remote_servers' => true,
           );
         # Redis caching — use dbindex 1 to avoid key collisions with Authentik (uses 0).
         z-redis.config.php: |-
@@ -102,6 +116,18 @@ spec:
               'dbindex' => 1,
               'timeout' => 1.5,
             ),
+          );
+        # Maintenance window — daily heavy background jobs run at 1am UTC (3am SAST).
+        # default_phone_region avoids the admin warning and normalises contact numbers.
+        # max preview sizes cap CPU/storage cost of thumbnail generation.
+        z-maintenance.config.php: |-
+          <?php
+          $CONFIG = array (
+            'maintenance_window_start' => 1,
+            'default_phone_region'     => 'ZA',
+            'preview_max_x'            => 2048,
+            'preview_max_y'            => 2048,
+            'jpeg_quality'             => 80,
           );
         # Authentik OIDC via oidc_login app.
         # Requires the app to be enabled first:
@@ -157,6 +183,22 @@ spec:
     # Bundled Redis disabled — using the shared central Redis instance.
     redis:
       enabled: false
+
+    # Background cron — runs occ cron.php every 5 minutes inside the pod.
+    # Without this, background jobs only fire on page visit (AJAX mode), causing
+    # file scans, notifications, previews, and activity feeds to stall.
+    cronjob:
+      enabled: true
+      schedule: "*/5 * * * *"
+
+    # Resource requests give the scheduler an accurate placement signal.
+    # No CPU limit — avoids PHP throttling on bursty requests.
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
 
     # Rolling update — keep old pod running until new one is healthy.
     deploymentStrategy:
