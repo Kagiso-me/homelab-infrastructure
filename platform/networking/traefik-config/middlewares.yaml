@@ -68,6 +68,12 @@ spec:
     stsSeconds: 15552000
     stsIncludeSubdomains: true
     stsPreload: false
+    contentTypeNosniff: true
+    customFrameOptionsValue: SAMEORIGIN
+    browserXssFilter: true
+    referrerPolicy: strict-origin-when-cross-origin
+    customResponseHeaders:
+      Permissions-Policy: "camera=(), microphone=(), geolocation=()"
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
@@ -78,6 +84,55 @@ spec:
   forwardAuth:
     address: http://traefik-bouncer-service.crowdsec.svc.cluster.local/api/v1/forwardAuth
     trustForwardHeader: true
+---
+# Auth rate limit — per-IP request cap on login-facing services (Authentik, Vaultwarden).
+# Adds a second layer over CrowdSec reputation blocking to slow brute-force attempts.
+# Reference from IngressRoute (cross-namespace):
+#   middlewares:
+#     - name: ingress-auth-rate-limit@kubernetescrd
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: auth-rate-limit
+  namespace: ingress
+spec:
+  rateLimit:
+    average: 20
+    period: 1m
+    burst: 40
+---
+# Authentik forward auth — gates access to an app behind Authentik SSO.
+# PREREQUISITE: create a Proxy Provider (forward auth, single application mode)
+# in Authentik for each protected app and assign it to the embedded outpost.
+# Also add a /outpost.goauthentik.io route on each app's IngressRoute pointing
+# to authentik-server.auth so the session cookie is set on the app's domain.
+# Reference from IngressRoute (cross-namespace):
+#   middlewares:
+#     - name: ingress-authentik-forwardauth@kubernetescrd
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: authentik-forwardauth
+  namespace: ingress
+spec:
+  forwardAuth:
+    address: http://authentik-server.auth.svc.cluster.local/outpost.goauthentik.io/auth/traefik
+    trustForwardHeader: true
+    authRequestHeaders:
+      - "Cookie"
+      - "Authorization"
+    authResponseHeaders:
+      - X-authentik-username
+      - X-authentik-groups
+      - X-authentik-email
+      - X-authentik-name
+      - X-authentik-uid
+      - X-authentik-jwt
+      - X-authentik-meta-jwks
+      - X-authentik-meta-outpost
+      - X-authentik-meta-provider
+      - X-authentik-meta-app
+      - X-authentik-meta-version
 ---
 # Compression — enables gzip/zstd/brotli for text-based responses.
 # Traefik automatically skips compression for already-compressed formats (images, video).
