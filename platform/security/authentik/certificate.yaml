@@ -1,0 +1,19 @@
+# Wildcard TLS certificate for *.kagiso.me in the auth namespace.
+# Required so the internal Traefik IngressRoute for auth.kagiso.me can serve
+# the correct cert — TLS secrets must be in the same namespace as the IngressRoute.
+# The equivalent cert in the ingress namespace covers external Traefik routes.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-kagiso-me
+  namespace: auth
+spec:
+  secretName: wildcard-kagiso-me-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.kagiso.me"
+    - "kagiso.me"
+  duration: 2160h    # 90 days (Let's Encrypt max)
+  renewBefore: 360h  # Renew 15 days before expiry
