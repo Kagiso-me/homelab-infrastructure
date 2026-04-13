@@ -9,6 +9,10 @@ spec:
   routes:
     - match: Host(`auth.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
       services:
         - name: authentik-server
           port: 80

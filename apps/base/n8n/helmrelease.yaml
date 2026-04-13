@@ -80,6 +80,10 @@ spec:
 
     timezone: Africa/Johannesburg
 
+    # Public webhook URL — n8n uses this to generate webhook URLs shown in the UI.
+    # The UI itself is only accessible via the internal ingress (n8n.local.kagiso.me).
+    webhookUrl: "https://n8n.kagiso.me/"
+
     ingress:
       enabled: false
 

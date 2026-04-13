@@ -17,8 +17,8 @@ data:
       errors
       cache 30
       hosts {
-        10.43.37.192 auth.kagiso.me
-        10.43.37.192 cloud.kagiso.me
+        10.0.10.111 auth.kagiso.me
+        10.0.10.111 cloud.kagiso.me
         fallthrough
       }
       forward . /etc/resolv.conf
