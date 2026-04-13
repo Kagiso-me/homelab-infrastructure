@@ -7,7 +7,8 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`auth.kagiso.me`)
+    # Public auth endpoints only — admin UI (/if/admin/) is internal-only.
+    - match: Host(`auth.kagiso.me`) && (PathPrefix(`/api/v3/`) || PathPrefix(`/application/`) || PathPrefix(`/if/flow/`) || PathPrefix(`/if/user/`) || PathPrefix(`/.well-known/`) || PathPrefix(`/outpost.goauthentik.io/`))
       kind: Rule
       middlewares:
         - name: ingress-secure-headers@kubernetescrd
