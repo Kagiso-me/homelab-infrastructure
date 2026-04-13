@@ -16,7 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
-- **[CONFIG]** enable insecure API to expose dashboard on port 9000 `fde5d06`
+- **[CONFIG]** pass --api.insecure via additionalArguments (#106) `b8d1944`
 - **[CONFIG]** move authentik admin paths to internal ingress only `2dcca4c`
 - **[CONFIG]** correct HTTP→HTTPS redirect entrypoint key for traefik-internal `4a64840`
 - **[CONFIG]** use source.toolkit.fluxcd.io/v1 for HelmRepository `588f635`
