@@ -23,6 +23,7 @@ spec:
         - name: ingress-secure-headers@kubernetescrd
         - name: ingress-compress@kubernetescrd
         - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-auth-rate-limit@kubernetescrd
       services:
         - name: vaultwarden
           port: 80

@@ -7,12 +7,25 @@ spec:
   entryPoints:
     - websecure
   routes:
+    # Authentik outpost — handles the post-auth callback and sets a session cookie
+    # scoped to rss.kagiso.me. Required for forward auth to work correctly.
+    - match: Host(`rss.kagiso.me`) && PathPrefix(`/outpost.goauthentik.io`)
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+      services:
+        - name: authentik-server
+          namespace: auth
+          port: 80
     - match: Host(`rss.kagiso.me`)
       kind: Rule
       middlewares:
         - name: ingress-secure-headers@kubernetescrd
         - name: ingress-compress@kubernetescrd
         - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-authentik-forwardauth@kubernetescrd
       services:
         - name: miniflux
           port: 8080
