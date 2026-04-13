@@ -7,8 +7,10 @@ spec:
   entryPoints:
     - websecure-int
   routes:
-    - match: Host(`cloud.local.kagiso.me`)
+    - match: Host(`cloud.local.kagiso.me`) || Host(`cloud.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: nextcloud
           port: 8080
