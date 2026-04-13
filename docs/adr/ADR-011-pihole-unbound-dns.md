@@ -1,6 +1,6 @@
 # ADR-011: Pi-hole + Unbound as the Homelab DNS Stack
 
-**Status:** Accepted — 2026-04-07
+**Status:** Superseded — 2026-04-13 by [ADR-018: MikroTik Adblock + Static DNS](ADR-018-mikrotik-adblock-static-dns.md)
 **Deciders:** Kagiso
 **Context:** DNS architecture for the homelab LAN
 
