@@ -7,6 +7,17 @@ spec:
   entryPoints:
     - websecure
   routes:
+    # Static assets — long-lived cache for hashed JS/CSS served by Nextcloud.
+    - match: Host(`cloud.kagiso.me`) && (PathPrefix(`/core/js/`) || PathPrefix(`/core/css/`) || PathPrefix(`/apps/`) && PathRegexp(`\.(js|css|woff2?|ttf|svg|png|ico)$`))
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-cache-static@kubernetescrd
+      services:
+        - name: nextcloud
+          port: 8080
     - match: Host(`cloud.kagiso.me`)
       kind: Rule
       middlewares:
