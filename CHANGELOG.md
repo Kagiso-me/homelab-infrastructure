@@ -16,7 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
-- **[CONFIG]** base64-encode smtp-password in secret data field `d5f1157`
+- **[CONFIG]** add fullnameOverride to produce predictable service name `3daa291`
 - **[CONFIG]** move authentik admin paths to internal ingress only `2dcca4c`
 - **[CONFIG]** correct HTTP→HTTPS redirect entrypoint key for traefik-internal `4a64840`
 - **[CONFIG]** use source.toolkit.fluxcd.io/v1 for HelmRepository `588f635`
