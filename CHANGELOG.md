@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** strip newline from secret_key `6517666`
 - **[DEPLOY]** apply secure-headers, compress, and crowdsec-bouncer middlewares globally `a6fc69c`
 - **[DEPLOY]** wire Resend SMTP into Nextcloud, Vaultwarden, and Authentik `43b9cee`
 - **[CONFIG]** correct HTTP→HTTPS redirect entrypoint key for traefik-internal `4a64840`
