@@ -9,7 +9,10 @@ spec:
   routes:
     - match: Host(`auth.local.kagiso.me`) || Host(`auth.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: authentik-server
           port: 80
-  tls: {}
+  tls:
+    secretName: wildcard-kagiso-me-tls

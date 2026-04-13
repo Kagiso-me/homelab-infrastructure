@@ -5,4 +5,5 @@ resources:
   - helmrelease.yaml
   - secret.yaml
   - ingressroute.yaml
+  - certificate.yaml
   - ingressroute-internal.yaml
