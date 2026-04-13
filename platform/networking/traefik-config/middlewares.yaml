@@ -67,7 +67,7 @@ spec:
   headers:
     stsSeconds: 15552000
     stsIncludeSubdomains: true
-    stsPreload: false
+    stsPreload: true
     contentTypeNosniff: true
     customFrameOptionsValue: SAMEORIGIN
     browserXssFilter: true
@@ -146,3 +146,19 @@ metadata:
   namespace: ingress
 spec:
   compress: {}
+---
+# Static asset cache — sets long-lived Cache-Control headers for immutable assets
+# (JS, CSS, fonts, images). Apply to IngressRoutes or specific path rules for
+# apps that serve versioned/hashed static files.
+# Reference from IngressRoute (cross-namespace):
+#   middlewares:
+#     - name: ingress-cache-static@kubernetescrd
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cache-static
+  namespace: ingress
+spec:
+  headers:
+    customResponseHeaders:
+      Cache-Control: "public, max-age=31536000, immutable"
