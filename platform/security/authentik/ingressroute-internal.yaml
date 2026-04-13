@@ -7,14 +7,12 @@ spec:
   entryPoints:
     - websecure-int
   routes:
-    - match: Host(`auth.local.kagiso.me`)
+    - match: Host(`auth.local.kagiso.me`) || Host(`auth.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: authentik-server
           port: 80
-    - match: Host(`auth.kagiso.me`) && (PathPrefix(`/if/admin/`) || PathPrefix(`/api/v3/admin/`))
-      kind: Rule
-      services:
-        - name: authentik-server
-          port: 80
-  tls: {}
+  tls:
+    secretName: wildcard-kagiso-me-tls

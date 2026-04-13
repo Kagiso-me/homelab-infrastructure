@@ -85,6 +85,9 @@ spec:
       dashboard: true
       insecure: true
 
+    additionalArguments:
+      - "--api.insecure=true"
+
     ingressRoute:
       dashboard:
         enabled: false  # managed manually via ingressroute-dashboard.yaml
