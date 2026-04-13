@@ -12,4 +12,3 @@ spec:
       services:
         - name: immich-server
           port: 2283
-  tls: {}

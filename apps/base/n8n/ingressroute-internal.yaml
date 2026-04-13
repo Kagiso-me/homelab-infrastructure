@@ -12,4 +12,3 @@ spec:
       services:
         - name: n8n
           port: 5678
-  tls: {}
