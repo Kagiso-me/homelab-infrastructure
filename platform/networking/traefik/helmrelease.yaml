@@ -45,6 +45,10 @@ spec:
       websecure:
         tls:
           enabled: true
+        # HTTP/3 (QUIC) — advertise UDP 443 alongside TCP 443.
+        # Requires UDP 443 open on the router/firewall in addition to TCP 443.
+        http3:
+          advertisedPort: 443
         # Apply CrowdSec ForwardAuth to every route on this entrypoint.
         # Requires platform/security/crowdsec to be deployed first.
         middlewares:
