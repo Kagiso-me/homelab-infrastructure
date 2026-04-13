@@ -9,6 +9,10 @@ spec:
   routes:
     - match: Host(`rss.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
       services:
         - name: miniflux
           port: 8080
