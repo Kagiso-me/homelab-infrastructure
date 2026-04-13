@@ -69,8 +69,10 @@ spec:
         allowCrossNamespace: true
         namespaces:
           - ingress
+          - ingress-internal
           - apps
           - auth
+          - monitoring
 
     ingressRoute:
       dashboard:

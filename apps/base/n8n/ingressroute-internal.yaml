@@ -14,4 +14,5 @@ spec:
       services:
         - name: n8n
           port: 5678
-  tls: {}
+  tls:
+    secretName: wildcard-kagiso-me-tls
