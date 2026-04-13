@@ -25,7 +25,7 @@ metadata:
   annotations:
     # Re-run this Job on every Flux reconcile by incrementing this value
     # whenever you need to re-run occ commands (e.g. after a version upgrade).
-    run-version: "1"
+    run-version: "2"
 spec:
   ttlSecondsAfterFinished: 86400
   template:
@@ -64,6 +64,12 @@ spec:
 
               echo "--- Running maintenance:repair ---"
               php /var/www/html/occ maintenance:repair
+
+              echo "--- Adding missing DB indices ---"
+              php /var/www/html/occ db:add-missing-indices
+
+              echo "--- Running mimetype migrations ---"
+              php /var/www/html/occ maintenance:repair --include-expensive
 
               echo "--- occ init complete ---"
           volumeMounts:
