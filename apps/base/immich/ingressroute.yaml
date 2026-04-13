@@ -7,8 +7,22 @@ spec:
   entryPoints:
     - websecure
   routes:
+    # Block /admin from the public internet — accessible only via internal ingress.
+    - match: Host(`photos.kagiso.me`) && PathPrefix(`/admin`)
+      kind: Rule
+      middlewares:
+        - name: block-admin
+          namespace: ingress
+      services:
+        - name: immich-server
+          port: 2283
+    # Allow all other paths publicly.
     - match: Host(`photos.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
       services:
         - name: immich-server
           port: 2283

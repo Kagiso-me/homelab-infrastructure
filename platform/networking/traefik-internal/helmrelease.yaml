@@ -83,6 +83,10 @@ spec:
 
     api:
       dashboard: true
+      insecure: true
+
+    additionalArguments:
+      - "--api.insecure=true"
 
     ingressRoute:
       dashboard:
