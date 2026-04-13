@@ -12,4 +12,3 @@ spec:
       services:
         - name: miniflux
           port: 8080
-  tls: {}
