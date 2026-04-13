@@ -19,6 +19,10 @@ spec:
     # Allow all other paths publicly.
     - match: Host(`photos.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
       services:
         - name: immich-server
           port: 2283
