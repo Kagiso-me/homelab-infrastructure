@@ -16,6 +16,18 @@ spec:
       services:
         - name: vaultwarden
           port: 80
+    # Static assets — long-lived cache for hashed JS/CSS/fonts.
+    - match: Host(`vault.kagiso.me`) && PathPrefix(`/app/`)
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-auth-rate-limit@kubernetescrd
+        - name: ingress-cache-static@kubernetescrd
+      services:
+        - name: vaultwarden
+          port: 80
     # Allow all other paths publicly.
     - match: Host(`vault.kagiso.me`)
       kind: Rule

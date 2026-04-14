@@ -16,6 +16,17 @@ spec:
       services:
         - name: immich-server
           port: 2283
+    # Static assets — long-lived cache for hashed JS/CSS/fonts.
+    - match: Host(`photos.kagiso.me`) && PathPrefix(`/assets/`)
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-cache-static@kubernetescrd
+      services:
+        - name: immich-server
+          port: 2283
     # Allow all other paths publicly.
     - match: Host(`photos.kagiso.me`)
       kind: Rule
