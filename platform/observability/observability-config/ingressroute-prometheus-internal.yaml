@@ -9,6 +9,9 @@ spec:
   routes:
     - match: Host(`prometheus.local.kagiso.me`)
       kind: Rule
+      middlewares:
+        - name: ak-outpost-authentik-embedded-outpost
+          namespace: auth
       services:
         - name: kube-prometheus-stack-prometheus
           port: 9090
