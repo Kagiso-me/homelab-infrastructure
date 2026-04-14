@@ -67,7 +67,7 @@ Because the cloud is great — until it isn't.
                    ┌────────────▼──────────────┐
                    │    Home Network            │
                    │    10.0.10.0/24            │
-                   │    DNS: bran (Pi-hole)    │
+                   │    DNS: MikroTik (10.0.10.1)    │
                    └────────────┬──────────────┘
                                 │
         ┌───────────────────────┼───────────────────────┐
@@ -84,7 +84,7 @@ Because the cloud is great — until it isn't.
 │  varys            │        │  bran            │
 │  Intel NUC        │        │  Raspberry Pi     │
 │  10.0.10.10       │        │  10.0.10.9        │
-│  Control hub      │        │  Pi-hole / DNS    │
+│  Control hub      │        │  CI runners / obs │
 └──────────────────┘        └──────────────────┘
         ▲
         │ SSH
@@ -101,7 +101,7 @@ Because the cloud is great — until it isn't.
 | **varys** | `10.0.10.10` | Control hub — kubectl, Ansible, SOPS/age key | Intel NUC i3-5010U |
 | **bronn** | `10.0.10.20` | Docker host — media stack | Intel NUC i3-7100U |
 | **ned** | `10.0.10.80` | NAS — NFS, MinIO S3, Backblaze B2 | HP MicroServer Gen8 — Xeon E31260L @ 2.40GHz, 16GB ECC RAM, LSI 9207-8i HBA, 1×8TB SAS + 2×4TB SAS + 2×480GB SSD + 1×128GB SSD (OS) |
-| **bran** | `10.0.10.9` | Pi-hole DNS + Unbound, Tailscale exit node, GitHub Actions runners | Raspberry Pi |
+| **bran** | `10.0.10.9` | Tailscale exit node, WOL proxy, GitHub Actions runners | Raspberry Pi |
 | **kube-vip** | `10.0.10.100` | Kubernetes API VIP | — |
 | **Traefik VIP** | `10.0.10.110` | Ingress load balancer | — |
 
@@ -211,7 +211,7 @@ homelab-infrastructure/
 │       └── docker/       # deploy.yml — GitOps for bronn
 │
 ├── varys/                # Control hub — scripts, runner config
-├── bran/                # bran RPi — Pi-hole, DNS, observer
+├── bran/                # bran RPi — Tailscale, WOL, CI runners, observer
 ├── docker/               # bronn — compose stacks and config
 ├── truenas/              # ned — NFS, MinIO, Backblaze docs
 │

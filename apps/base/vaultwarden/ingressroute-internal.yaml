@@ -9,10 +9,6 @@ spec:
   routes:
     - match: Host(`vault.local.kagiso.me`)
       kind: Rule
-      middlewares:
-        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: vaultwarden
           port: 80
-  tls:
-    secretName: wildcard-kagiso-me-tls

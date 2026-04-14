@@ -112,7 +112,14 @@ tar \
   --exclude="${BACKUP_SOURCE}/*/cache" \
   --exclude="${BACKUP_SOURCE}/*/Cache" \
   --exclude="${BACKUP_SOURCE}/*/transcodes" \
-  "${BACKUP_SOURCE}"
+  "${BACKUP_SOURCE}" || {
+    TAR_EXIT=$?
+    if [[ ${TAR_EXIT} -eq 1 ]]; then
+      log "WARN" "tar exited 1 (files changed during archive — non-fatal)"
+    else
+      exit ${TAR_EXIT}
+    fi
+  }
 
 BACKUP_SIZE_BYTES=$(stat --format="%s" "${ARCHIVE}")
 log "INFO" "Archive size: $(du -sh "${ARCHIVE}" | cut -f1) (${BACKUP_SIZE_BYTES} bytes)"

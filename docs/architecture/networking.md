@@ -20,7 +20,7 @@ All nodes are on the same Layer-2 network segment.
 | Router | 10.0.10.1 | Default gateway |
 | Docker host (NUC) | 10.0.10.20 | Intel NUC bare metal — Docker media stack |
 | varys | 10.0.10.10 | Control hub (Ansible, kubectl, GitHub runner, cloudflared) |
-| bran | 10.0.10.15 | RPi 4 — Primary Pi-hole + Unbound, Tailscale exit node, WOL proxy |
+| bran | 10.0.10.9 | RPi 4 — Tailscale exit node, WOL proxy, GitHub Actions runners |
 
 ---
 
@@ -64,7 +64,7 @@ The platform uses two independent Traefik deployments, each with their own Metal
 - **Cert:** Let's Encrypt wildcard for `*.local.kagiso.me` via Cloudflare DNS-01
 - **Entrypoint:** `websecure-int` (port 443)
 - **Protection:** None — LAN-only, private IP, unreachable from internet
-- **Reachable from:** LAN only (Pi-hole resolves `*.local.kagiso.me` to `10.0.10.111`)
+- **Reachable from:** LAN only (MikroTik static DNS resolves `*.local.kagiso.me` to `10.0.10.111`)
 - **Apps:** All user-facing apps (internal routes) + admin-only tools
 
 ### App Exposure Model
@@ -127,7 +127,7 @@ Application pod
 
 ```
 LAN device
-  │  (DNS: *.local.kagiso.me → 10.0.10.111 via Pi-hole)
+  │  (DNS: *.local.kagiso.me → 10.0.10.111 via MikroTik static DNS)
   ▼
 traefik-internal (10.0.10.111 — host matching, no CrowdSec)
   │
@@ -162,41 +162,36 @@ Application pod (Plex, SSH target, etc.)
 
 ## DNS Architecture
 
-All cluster services are accessed via hostnames. DNS is handled by Pi-hole on `bran` for LAN resolution, backed by Unbound for recursive resolution.
+All cluster services are accessed via hostnames. DNS is handled by the MikroTik router for LAN resolution, using its built-in adblock and static DNS entries for split DNS.
 
-### Pi-hole + Unbound — LAN DNS
+### MikroTik — LAN DNS
 
-**Pi-hole runs on bran at `10.0.10.15`** and is the DNS resolver for every device on the LAN. The USG DHCP server hands out `10.0.10.15` as DNS Server 1.
-
-**Unbound** runs on bran at `127.0.0.1:5335` as Pi-hole's upstream. It is a recursive resolver — it queries root nameservers directly. No third-party DNS provider (Cloudflare, Google) is involved in resolution.
+**The MikroTik router (`10.0.10.1`)** is the DNS server for every device on the LAN. UniFi DHCP hands out `10.0.10.1` as DNS Server 1. The MikroTik forwards unmatched queries to upstream resolvers (Cloudflare, Google).
 
 ```
 LAN device
   │
   ▼
-Pi-hole (10.0.10.15:53)
-  │  Split DNS rules (dnsmasq, longest match first):
+MikroTik (10.0.10.1:53)
+  │  Static DNS entries (longest match first):
   │    *.local.kagiso.me  → 10.0.10.111  (traefik-internal)
   │    *.kagiso.me        → 10.0.10.110  (traefik-external)
-  │  Ad/tracker domains   → blocked (NXDOMAIN)
+  │  Adblock domains      → blocked (NXDOMAIN)
   │  All other queries:
   ▼
-Unbound (127.0.0.1:5335)
-  │  Recursive resolution — no third party
-  ▼
-Root nameservers → TLD nameservers → Authoritative nameservers
+Upstream resolver (1.1.1.1 / 8.8.8.8)
 ```
 
-**Pi-hole dnsmasq config (`/etc/dnsmasq.d/02-kagiso-local.conf`):**
-```conf
-# Wildcard — *.local.kagiso.me resolves to internal Traefik (more specific, matched first)
-address=/.local.kagiso.me/10.0.10.111
+**MikroTik static DNS entries:**
 
-# Wildcard — *.kagiso.me resolves to external Traefik
-address=/.kagiso.me/10.0.10.110
-```
+| Pattern | IP | Purpose |
+|---------|-----|---------|
+| `*.kagiso.me` | `10.0.10.110` | External Traefik — public-facing apps |
+| `*.local.kagiso.me` | `10.0.10.111` | Internal Traefik — LAN-only apps and admin tools |
 
-**Blocklists (balanced tier):** oisd big, hagezi Pro, hagezi Threat Intelligence Feeds, Steven Black.
+Individual Docker/NPM services that aren't covered by these wildcards get explicit A records on the MikroTik.
+
+**Ad blocking:** MikroTik built-in adblock feature (router-native, no external process to maintain).
 
 ### Cloudflare DNS — Public Access
 
@@ -222,7 +217,7 @@ Admin-only tools (Grafana, Prometheus, Traefik dashboard) have no public DNS rec
 ### Adding a New Internal-Only Service
 
 1. Create an IngressRoute pointing to `websecure-int` with `Host(*.local.kagiso.me)`.
-2. That is all — Pi-hole's wildcard `*.local.kagiso.me → 10.0.10.111` handles DNS automatically. No Pi-hole changes needed.
+2. That is all — the MikroTik wildcard static entry `*.local.kagiso.me → 10.0.10.111` handles DNS automatically. No DNS changes needed.
 
 ### Adding a New Public Service
 
@@ -234,10 +229,10 @@ Admin-only tools (Grafana, Prometheus, Traefik dashboard) have no public DNS rec
 
 | DNS Server | IP | Notes |
 |------------|-----|-------|
-| DNS Server 1 | `10.0.10.15` (bran) | Primary — Pi-hole + Unbound, split DNS, ad blocking |
-| DNS Server 2 | `1.1.1.1` | Fallback — internet DNS only if bran is offline |
+| DNS Server 1 | `10.0.10.1` (MikroTik) | Primary — adblock + split DNS |
+| DNS Server 2 | `1.1.1.1` | Fallback — internet DNS only if router DNS process fails |
 
-When a second Pi-hole is deployed (target: varys), DNS Server 2 will be updated to its IP for full split-DNS redundancy.
+If the MikroTik DNS process fails, clients fall back to `1.1.1.1` — internet DNS continues but split DNS is lost. This is acceptable; `*.kagiso.me` is publicly routable and the risk window is short.
 
 ---
 
@@ -297,7 +292,7 @@ Applied by `playbooks/security/firewall.yml`:
 
 ```
 Settings → Networks → [LAN] → DHCP
-  DNS Server 1: 10.0.10.15   (bran — Pi-hole primary)
+  DNS Server 1: 10.0.10.1    (MikroTik — adblock + split DNS)
   DNS Server 2: 1.1.1.1      (Cloudflare — fallback)
 ```
 
@@ -306,7 +301,5 @@ Settings → Networks → [LAN] → DHCP
 ## Related
 
 - [ADR-003: Traefik over nginx-ingress](../adr/ADR-003-traefik-over-nginx-ingress.md)
-- [ADR-014: Pi-hole + Unbound DNS Architecture](../adr/ADR-014-pihole-unbound-dns.md)
-- [bran/docs/01_pihole.md](../../bran/docs/01_pihole.md)
-- [bran/docs/02_unbound.md](../../bran/docs/02_unbound.md)
+- [ADR-018: MikroTik Adblock + Static DNS](../adr/ADR-018-mikrotik-adblock-static-dns.md)
 - [Guide 05: Networking — MetalLB & Traefik](../guides/05-Networking-MetalLB-Traefik.md)

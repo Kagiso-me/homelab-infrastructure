@@ -9,10 +9,6 @@ spec:
   routes:
     - match: Host(`n8n.local.kagiso.me`)
       kind: Rule
-      middlewares:
-        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: n8n
           port: 5678
-  tls:
-    secretName: wildcard-kagiso-me-tls
