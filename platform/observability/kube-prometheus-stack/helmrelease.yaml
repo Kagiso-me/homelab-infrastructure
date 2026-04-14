@@ -117,18 +117,20 @@ spec:
                 labels:
                   instance: bronn
 
-          - job_name: node-ned
-            static_configs:
-              - targets: ["10.0.10.80:9100"]
-                labels:
-                  instance: ned
-                  role: storage
-
-          - job_name: smartctl-ned
-            static_configs:
-              - targets: ["10.0.10.80:9633"]
-                labels:
-                  instance: ned
+          # node-ned and smartctl-ned are disabled until node_exporter and smartctl_exporter
+          # are installed on TrueNAS (10.0.10.80). See docs/guides/10-Backups-Disaster-Recovery.md.
+          # - job_name: node-ned
+          #   static_configs:
+          #     - targets: ["10.0.10.80:9100"]
+          #       labels:
+          #         instance: ned
+          #         role: storage
+          #
+          # - job_name: smartctl-ned
+          #   static_configs:
+          #     - targets: ["10.0.10.80:9633"]
+          #       labels:
+          #         instance: ned
 
           - job_name: node-bran
             static_configs:

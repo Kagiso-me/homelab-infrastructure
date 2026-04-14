@@ -88,7 +88,8 @@ spec:
       enabled: false
 
     metrics:
-      # Disabled: postgres_exporter query for pg_stat_bgwriter.checkpoints_timed
-      # is incompatible with PostgreSQL 17 (column moved to pg_stat_checkpointer).
-      # TODO: fix the chart query then re-enable.
-      enabled: false
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+        scrapeTimeout: 10s
