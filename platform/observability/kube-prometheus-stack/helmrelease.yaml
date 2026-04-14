@@ -24,11 +24,6 @@ spec:
     remediation:
       strategy: rollback
       retries: 3
-  valuesFrom:
-    - kind: Secret
-      name: grafana-authentik-oidc
-      valuesKey: client-secret
-      targetPath: grafana.grafana\.ini.auth\.generic_oauth.client_secret
   values:
     # ----- Grafana -----
     defaultRules:
@@ -50,7 +45,6 @@ spec:
       enabled: false
     grafana:
       enabled: true
-      assertNoLeakedSecrets: false
       admin:
         existingSecret: grafana-admin
         userKey: admin-user
@@ -69,19 +63,6 @@ spec:
           root_url: https://grafana.local.kagiso.me
         analytics:
           check_for_updates: false
-        auth.generic_oauth:
-          enabled: true
-          name: Authentik
-          icon: signin
-          client_id: grafana
-          # client_secret injected via valuesFrom (grafana-authentik-oidc secret)
-          scopes: openid email profile
-          auth_url: https://auth.kagiso.me/application/o/grafana/authorize/
-          token_url: https://auth.kagiso.me/application/o/grafana/token/
-          api_url: https://auth.kagiso.me/application/o/userinfo/
-          role_attribute_path: contains(groups, 'grafana-admins') && 'Admin' || 'Viewer'
-          allow_sign_up: true
-          auto_login: false
       sidecar:
         dashboards:
           enabled: true
