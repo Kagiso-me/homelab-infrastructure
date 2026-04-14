@@ -50,6 +50,7 @@ spec:
       enabled: false
     grafana:
       enabled: true
+      assertNoLeakedSecrets: false
       admin:
         existingSecret: grafana-admin
         userKey: admin-user
