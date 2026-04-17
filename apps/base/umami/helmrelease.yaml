@@ -22,20 +22,17 @@ spec:
     remediation:
       strategy: rollback
       retries: 3
-  valuesFrom:
-    - kind: Secret
-      name: umami-secret
-      valuesKey: app-secret
-      targetPath: umami.appSecret
-    - kind: Secret
-      name: umami-secret
-      valuesKey: database-url
-      targetPath: umami.databaseUrl
   values:
     umami:
+      appSecret:
+        existingSecret: umami-secret
       # Disable bundled PostgreSQL — using shared central instance
       postgresql:
         enabled: false
+
+    database:
+      existingSecret: umami-secret
+      databaseUrlKey: database-url
 
     resources:
       requests:
