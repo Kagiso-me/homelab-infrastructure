@@ -1,0 +1,10 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: immich-buffering
+  namespace: apps
+spec:
+  buffering:
+    maxRequestBodyBytes: 0
+    memRequestBodyBytes: 10485760
+    retryExpression: "IsNetworkError() && Attempts() < 2"

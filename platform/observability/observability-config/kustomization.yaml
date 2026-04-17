@@ -11,11 +11,11 @@ resources:
   # Dashboards
   - grafana-dashboard-infra-overview.yaml
   - grafana-dashboard-node-deep-dive.yaml
-  - grafana-dashboard-storage-disks.yaml
-  - grafana-dashboard-backup-health.yaml
-  - grafana-dashboard-applications.yaml
-  - grafana-dashboard-databases.yaml
-  - grafana-dashboard-authentik.yaml
   - grafana-dashboard-cluster-overview.yaml
+  - grafana-dashboard-applications.yaml
+  - grafana-dashboard-postgres.yaml
+  - grafana-dashboard-redis.yaml
+  - grafana-dashboard-velero.yaml
+  - grafana-dashboard-authentik.yaml
   # Internal IngressRoutes
   - ingressroute-prometheus-internal.yaml

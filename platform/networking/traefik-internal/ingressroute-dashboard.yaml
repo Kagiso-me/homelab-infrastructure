@@ -15,4 +15,3 @@ spec:
       services:
         - name: traefik-internal
           port: 9000
-  tls: {}

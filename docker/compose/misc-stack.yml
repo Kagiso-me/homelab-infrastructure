@@ -1,0 +1,45 @@
+# =============================================================================
+# Misc Stack — Docker Compose
+# Host: 10.0.10.20
+#
+# Miscellaneous self-hosted apps that don't belong in the media or platform
+# stacks.
+#
+# Network: misc-net (internal) + host port exposure
+# Prerequisites:
+#   1. .env file at /srv/docker/compose/.env
+# =============================================================================
+
+name: misc-stack
+
+networks:
+  misc-net:
+    name: misc-net
+    driver: bridge
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Open Dronelog — DJI/Litchi flight log analyzer
+  # Web UI: http://10.0.10.20:8081
+  # Data: /srv/docker/appdata/open-dronelog
+  # Docs: https://github.com/arpanghosh8453/open-dronelog
+  # ---------------------------------------------------------------------------
+  open-dronelog:
+    image: ghcr.io/arpanghosh8453/open-dronelog:3.2.2
+    container_name: open-dronelog
+    restart: unless-stopped
+    networks:
+      - misc-net
+    ports:
+      - "8081:80"
+    environment:
+      - DATA_DIR=/data/drone-logbook
+      - KEEP_UPLOADED_FILES=true
+    volumes:
+      - /srv/docker/appdata/open-dronelog:/data/drone-logbook
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

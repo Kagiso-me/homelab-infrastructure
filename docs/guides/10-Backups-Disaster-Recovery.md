@@ -253,9 +253,8 @@ echo "0 2 * * * root /usr/local/bin/k3s-snapshot.sh >> /var/log/k3s-snapshot.log
 | Backup type | Retention |
 |-------------|-----------|
 | etcd daily snapshots | 7 days |
-| Velero daily backups | 7 days |
-| Velero weekly backups | 4 weeks |
-| Velero monthly backups | 6 months |
+| Velero daily full-cluster backup | 7 days |
+| Velero 6-hourly databases backup | 48h (8 snapshots) |
 
 Storage usage is bounded. For a small homelab cluster, etcd snapshots are typically 10–50 MB each.
 
@@ -323,6 +322,82 @@ Check the log and confirm the archive appeared on TrueNAS:
 ```bash
 tail -20 /var/log/docker-backup.log
 ls -lh /mnt/archive/backups/docker/
+```
+
+---
+
+# Host Key Material Backups
+
+The control-plane node (`varys`, 10.0.10.10) and the Raspberry Pi observer node hold credentials that cannot be reconstructed: the SOPS age private key, SSH keys, and the kubeconfig. Losing these without a backup means losing the ability to decrypt secrets, access nodes, or manage the cluster.
+
+Two scripts back up this material:
+
+| Script | Source host | Deploy path | Schedule |
+|--------|-------------|-------------|----------|
+| `varys/scripts/backup_varys.sh` | varys (10.0.10.10) | `/usr/local/bin/backup-varys.sh` | Daily 01:00 |
+| `rpi/scripts/backup_rpi.sh` | RPi observer (10.0.10.9) | `/usr/local/bin/backup-rpi.sh` | Daily 01:00 |
+
+Both scripts:
+- Archive `~/.kube/config`, `~/.config/sops/age/keys.txt`, and SSH keys
+- GPG-encrypt the archive with AES-256 before writing to TrueNAS NFS (mandatory — the age key must never land on disk unencrypted)
+- Enforce a **30-day retention** policy
+- Write Prometheus textfile metrics with job labels `varys-keys` and `rpi-keys` respectively
+
+---
+
+# MikroTik Router Config Backup
+
+The MikroTik router (10.0.10.1) replaced the USG and holds the complete network configuration: firewall rules, VLANs, DNS, routing. This config is not in Git — it is managed directly on the device.
+
+The backup script lives at `varys/scripts/backup_mikrotik.sh` in this repository.
+
+The script runs on **varys** (the router cannot initiate SSH outbound). It connects to the router, runs `/export`, GPG-encrypts the output, and writes it to TrueNAS NFS.
+
+## Deploy to varys
+
+```bash
+sudo cp varys/scripts/backup_mikrotik.sh /usr/local/bin/backup-mikrotik.sh
+sudo chmod 700 /usr/local/bin/backup-mikrotik.sh
+```
+
+## One-time setup
+
+```bash
+# Store the GPG passphrase
+echo "your-strong-passphrase" | sudo tee /root/.mikrotik_backup_passphrase
+sudo chmod 600 /root/.mikrotik_backup_passphrase
+
+# Create the NFS mount point
+sudo mkdir -p /mnt/backup_mikrotik
+
+# Ensure the varys SSH key is trusted by the router
+# On MikroTik: /user ssh-keys import public-key-file=id_ed25519.pub user=admin
+```
+
+## Schedule via cron
+
+```bash
+echo "0 2 * * * root /usr/local/bin/backup-mikrotik.sh" \
+  | sudo tee /etc/cron.d/mikrotik-backup
+```
+
+## What is backed up
+
+| Property | Value |
+|----------|-------|
+| Source | MikroTik `/export` (full RSC config) |
+| Format | GPG-encrypted `.rsc.gpg` (AES-256) |
+| Destination | TrueNAS NFS → `/mnt/archive/backups/mikrotik` |
+| Schedule | Daily 02:00 |
+| Retention | 30 days |
+| Prometheus job label | `mikrotik-config` |
+
+To decrypt and inspect a backup:
+
+```bash
+gpg --batch --decrypt \
+  --passphrase-file /root/.mikrotik_backup_passphrase \
+  mikrotik_backup_YYYY-MM-DD_HHMMSS.rsc.gpg
 ```
 
 ---
@@ -516,7 +591,7 @@ Each backup script writes five Prometheus textfile metrics directly on completio
 | `backup_duration_seconds{job="..."}` | Duration of last run in seconds |
 | `backup_failures_total{job="..."}` | Cumulative failure count (never reset on success) |
 
-Job labels in use: `etcd`, `docker-appdata`, `varys-keys`.
+Job labels in use: `etcd`, `docker-appdata`, `rpi-keys`, `varys-keys`, `mikrotik-config`.
 
 Metrics are written to `/var/lib/node_exporter/textfile_collector/` and scraped by node-exporter on each host. Alert rules are defined in `docker/config/prometheus/alerts/backups.yml` — they fire generically across all jobs, so adding a new backup target requires no new alert rules.
 

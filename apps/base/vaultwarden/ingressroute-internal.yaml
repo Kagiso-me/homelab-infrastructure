@@ -12,4 +12,3 @@ spec:
       services:
         - name: vaultwarden
           port: 80
-  tls: {}
