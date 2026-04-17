@@ -1,0 +1,92 @@
+---
+# =============================================================================
+# install-nut-client.yml
+#
+# Installs and configures nut-client on all nodes so they monitor the UPS via
+# the NUT server running on bran (10.0.10.9). On power loss, each node will
+# shut down gracefully when the UPS reaches critical battery.
+#
+# Prerequisites:
+#   - NUT server must be running on bran (10.0.10.9)
+#   - upsd.users on bran must have a 'monitor' user with the password set in
+#     nut_monitor_password below (default: override with --extra-vars)
+#
+# Target hosts: k3s nodes, varys, bronn, ned
+#
+# Usage:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-nut-client.yml
+#
+#   # Single host:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-nut-client.yml --limit bronn
+#
+#   # Override password:
+#   ansible-playbook -i ansible/inventory/homelab.yml \
+#     ansible/playbooks/services/install-nut-client.yml \
+#     --extra-vars "nut_monitor_password=yourpassword"
+# =============================================================================
+
+- name: Install and configure NUT client
+  hosts: k3s_nodes:control_hub:docker:storage
+  become: true
+
+  vars:
+    nut_server_host: 10.0.10.9
+    nut_ups_name: apc
+    nut_monitor_user: monitor
+    nut_monitor_password: "changeme"
+
+  tasks:
+    - name: Install nut-client
+      ansible.builtin.apt:
+        name: nut-client
+        state: present
+        update_cache: true
+
+    - name: Configure NUT mode (netclient)
+      ansible.builtin.copy:
+        dest: /etc/nut/nut.conf
+        owner: root
+        group: nut
+        mode: "0640"
+        content: |
+          MODE=netclient
+
+    - name: Configure upsmon
+      ansible.builtin.copy:
+        dest: /etc/nut/upsmon.conf
+        owner: root
+        group: nut
+        mode: "0640"
+        content: |
+          MONITOR {{ nut_ups_name }}@{{ nut_server_host }} 1 {{ nut_monitor_user }} {{ nut_monitor_password }} slave
+          MINSUPPLIES 1
+          SHUTDOWNCMD "/sbin/shutdown -h +0"
+          POLLFREQ 5
+          POLLFREQALERT 5
+          HOSTSYNC 15
+          DEADTIME 15
+          RBWARNTIME 43200
+          NOCOMMWARNTIME 300
+      notify: Restart nut-monitor
+
+    - name: Enable and start nut-monitor
+      ansible.builtin.systemd:
+        name: nut-monitor
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Verify nut-monitor is active
+      ansible.builtin.command: systemctl is-active nut-monitor
+      register: nut_status
+      changed_when: false
+      failed_when: nut_status.stdout != 'active'
+
+  handlers:
+    - name: Restart nut-monitor
+      ansible.builtin.systemd:
+        name: nut-monitor
+        state: restarted
+        daemon_reload: true

@@ -1,0 +1,68 @@
+- name: Upgrade k3s on all server nodes
+  hosts: k3s_nodes
+  become: true
+  gather_facts: true
+  serial: 1
+  order: inventory
+
+  vars:
+    k3s_version: "v1.34.6+k3s1"
+
+  tasks:
+    - name: Drain node
+      command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=300s
+      delegate_to: "{{ groups['k3s_primary'][0] }}"
+      when: inventory_hostname != groups['k3s_primary'][0]
+
+    - name: Drain primary node (last resort, run locally)
+      command: kubectl drain {{ inventory_hostname }} --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=300s
+      when: inventory_hostname == groups['k3s_primary'][0]
+
+    - name: Upgrade k3s (primary)
+      shell: |
+        curl -sfL https://get.k3s.io | \
+          INSTALL_K3S_VERSION="{{ k3s_version }}" \
+          INSTALL_K3S_EXEC="server \
+            --cluster-init \
+            --node-ip {{ ansible_host }} \
+            --cluster-cidr {{ k3s_cluster_cidr }} \
+            --service-cidr {{ k3s_service_cidr }} \
+            {% for item in k3s_disable %} --disable {{ item }} {% endfor %} \
+            --write-kubeconfig-mode=644 \
+            --tls-san {{ ansible_host }} \
+            --tls-san {{ k3s_api_endpoint }}" \
+          sh -
+      args:
+        executable: /bin/bash
+      when: inventory_hostname in groups['k3s_primary']
+
+    - name: Upgrade k3s (server join)
+      shell: |
+        curl -sfL https://get.k3s.io | \
+          INSTALL_K3S_VERSION="{{ k3s_version }}" \
+          INSTALL_K3S_EXEC="server \
+            --node-ip {{ ansible_host }} \
+            --cluster-cidr {{ k3s_cluster_cidr }} \
+            --service-cidr {{ k3s_service_cidr }} \
+            {% for item in k3s_disable %} --disable {{ item }} {% endfor %} \
+            --write-kubeconfig-mode=644 \
+            --tls-san {{ ansible_host }} \
+            --tls-san {{ k3s_api_endpoint }}" \
+          sh -
+      args:
+        executable: /bin/bash
+      when: inventory_hostname in groups['k3s_servers']
+
+    - name: Wait for k3s to be ready
+      wait_for:
+        port: 6443
+        host: "{{ ansible_host }}"
+        timeout: 120
+
+    - name: Uncordon node
+      command: kubectl uncordon {{ inventory_hostname }}
+      delegate_to: "{{ groups['k3s_primary'][0] }}"
+
+    - name: Pause between nodes
+      pause:
+        seconds: 30

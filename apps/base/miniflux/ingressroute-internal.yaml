@@ -9,10 +9,6 @@ spec:
   routes:
     - match: Host(`rss.local.kagiso.me`)
       kind: Rule
-      middlewares:
-        - name: ingress-secure-headers@kubernetescrd
       services:
         - name: miniflux
           port: 8080
-  tls:
-    secretName: wildcard-kagiso-me-tls

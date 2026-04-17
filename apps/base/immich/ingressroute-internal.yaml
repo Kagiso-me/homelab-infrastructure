@@ -10,9 +10,7 @@ spec:
     - match: Host(`photos.local.kagiso.me`)
       kind: Rule
       middlewares:
-        - name: ingress-secure-headers@kubernetescrd
+        - name: immich-buffering
       services:
         - name: immich-server
           port: 2283
-  tls:
-    secretName: wildcard-kagiso-me-tls
