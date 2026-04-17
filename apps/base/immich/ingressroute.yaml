@@ -34,6 +34,7 @@ spec:
         - name: ingress-secure-headers@kubernetescrd
         - name: ingress-compress@kubernetescrd
         - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: immich-buffering
       services:
         - name: immich-server
           port: 2283

@@ -256,7 +256,7 @@ services:
   # Web UI: http://10.0.10.20:4533
   # ---------------------------------------------------------------------------
   navidrome:
-    image: deluan/navidrome:0.61.1
+    image: deluan/navidrome:0.61.2
     container_name: navidrome
     restart: unless-stopped
     networks:
