@@ -1,0 +1,42 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: umami
+  namespace: apps
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # Public — tracker script and event collection endpoint (no auth, needed by site visitors)
+    - match: Host(`analytics.kagiso.me`) && (PathPrefix(`/script.js`) || PathPrefix(`/api/send`))
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+      services:
+        - name: umami
+          port: 3000
+    # Admin UI — Authentik forward auth
+    - match: Host(`analytics.kagiso.me`) && PathPrefix(`/outpost.goauthentik.io`)
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+      services:
+        - name: authentik-server
+          namespace: auth
+          port: 80
+    - match: Host(`analytics.kagiso.me`)
+      kind: Rule
+      middlewares:
+        - name: ingress-secure-headers@kubernetescrd
+        - name: ingress-compress@kubernetescrd
+        - name: ingress-crowdsec-bouncer@kubernetescrd
+        - name: ingress-auth-rate-limit@kubernetescrd
+        - name: ingress-authentik-forwardauth@kubernetescrd
+      services:
+        - name: umami
+          port: 3000
+  tls: {}
