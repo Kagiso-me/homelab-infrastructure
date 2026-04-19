@@ -55,7 +55,7 @@ spec:
             - name: MOODLE_ADMIN_EMAIL
               value: ktjeane@outlook.com
             - name: MOODLE_SITENAME
-              value: "Kagiso LMS"
+              value: KagisoLMS
           volumeMounts:
             - name: moodle-data
               mountPath: /var/www/moodledata
