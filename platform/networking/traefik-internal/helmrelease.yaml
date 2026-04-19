@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "28.3.0"
+      version: "35.4.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -42,8 +42,10 @@ spec:
         port: 80
         expose:
           default: true
-        redirectTo:
-          port: websecure-int
+        redirections:
+          entryPoint:
+            to: websecure-int
+            scheme: https
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
