@@ -22,7 +22,7 @@ spec:
         - name: moodle
           image: docker.io/erseco/alpine-moodle:v5.0.7
           ports:
-            - containerPort: 80
+            - containerPort: 8080
           securityContext:
             allowPrivilegeEscalation: false
           env:
@@ -62,7 +62,7 @@ spec:
           startupProbe:
             httpGet:
               path: /login/index.php
-              port: 80
+              port: 8080
             initialDelaySeconds: 120
             periodSeconds: 15
             failureThreshold: 40
@@ -70,7 +70,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /login/index.php
-              port: 80
+              port: 8080
             initialDelaySeconds: 180
             periodSeconds: 30
             failureThreshold: 6
@@ -78,7 +78,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /login/index.php
-              port: 80
+              port: 8080
             initialDelaySeconds: 60
             periodSeconds: 15
             failureThreshold: 10
