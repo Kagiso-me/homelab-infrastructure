@@ -32,9 +32,11 @@ spec:
       valuesKey: postgresql-password
       targetPath: externalDatabase.password
   values:
+    global:
+      security:
+        allowInsecureImages: true
     image:
       registry: registry.bitnami.com
-      repository: bitnami/moodle
 
     moodleUsername: admin
     moodleEmail: ktjeane@outlook.com
