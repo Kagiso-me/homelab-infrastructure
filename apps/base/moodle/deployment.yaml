@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle
+  namespace: apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moodle
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: moodle
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: moodle
+          image: docker.io/moodlehq/moodle-php-apache:8.3
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: MOODLE_DB_TYPE
+              value: pgsql
+            - name: MOODLE_DB_HOST
+              value: postgresql.databases.svc.cluster.local
+            - name: MOODLE_DB_PORT
+              value: "5432"
+            - name: MOODLE_DB_NAME
+              value: moodle
+            - name: MOODLE_DB_USER
+              value: moodle
+            - name: MOODLE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secret
+                  key: postgresql-password
+            - name: MOODLE_WWWROOT
+              value: https://moodle.local.kagiso.me
+            - name: MOODLE_ADMIN
+              value: admin
+            - name: MOODLE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-secret
+                  key: moodle-password
+            - name: MOODLE_ADMIN_EMAIL
+              value: ktjeane@outlook.com
+            - name: MOODLE_SITENAME
+              value: "Kagiso LMS"
+          volumeMounts:
+            - name: moodle-data
+              mountPath: /var/www/moodledata
+          startupProbe:
+            httpGet:
+              path: /login/index.php
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            failureThreshold: 40
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login/index.php
+              port: 8080
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 6
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /login/index.php
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: moodle-data
+          persistentVolumeClaim:
+            claimName: moodle-data-pvc
