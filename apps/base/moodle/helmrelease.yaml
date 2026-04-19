@@ -32,6 +32,10 @@ spec:
       valuesKey: postgresql-password
       targetPath: externalDatabase.password
   values:
+    image:
+      registry: registry.bitnami.com
+      repository: bitnami/moodle
+
     moodleUsername: admin
     moodleEmail: ktjeane@outlook.com
     moodleSiteName: "Kagiso LMS"
