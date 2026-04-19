@@ -11,4 +11,4 @@ spec:
       kind: Rule
       services:
         - name: moodle
-          port: 8080
+          port: 80
