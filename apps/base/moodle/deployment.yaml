@@ -16,9 +16,6 @@ spec:
         app: moodle
     spec:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -28,8 +25,6 @@ spec:
             - containerPort: 8080
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
           env:
             - name: MOODLE_DB_TYPE
               value: pgsql
