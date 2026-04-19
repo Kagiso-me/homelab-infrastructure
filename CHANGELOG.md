@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[CONFIG]** remove space from site name — passed as CLI arg `f63b0a6`
 - **[CONFIG]** match OIDC login identity by email instead of username `966547b`
 - **[DEPLOY]** apply secure-headers, compress, and crowdsec-bouncer middlewares globally `a6fc69c`
 - **[DEPLOY]** wire Resend SMTP into Nextcloud, Vaultwarden, and Authentik `43b9cee`
