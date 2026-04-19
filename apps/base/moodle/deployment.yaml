@@ -26,17 +26,19 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
           env:
-            - name: MOODLE_DB_TYPE
+            - name: MOODLE_DATABASE_TYPE
               value: pgsql
-            - name: MOODLE_DB_HOST
+            - name: DB_TYPE
+              value: pgsql
+            - name: DB_HOST
               value: postgresql.databases.svc.cluster.local
-            - name: MOODLE_DB_PORT
+            - name: DB_PORT
               value: "5432"
-            - name: MOODLE_DB_NAME
+            - name: DB_NAME
               value: moodle
-            - name: MOODLE_DB_USER
+            - name: DB_USER
               value: moodle
-            - name: MOODLE_DB_PASSWORD
+            - name: DB_PASS
               valueFrom:
                 secretKeyRef:
                   name: moodle-secret
