@@ -20,9 +20,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: moodle
-          image: docker.io/moodlehq/moodle-php-apache:8.3
+          image: docker.io/erseco/alpine-moodle:v5.0.7
           ports:
-            - containerPort: 8080
+            - containerPort: 80
           securityContext:
             allowPrivilegeEscalation: false
           env:
@@ -41,9 +41,9 @@ spec:
                 secretKeyRef:
                   name: moodle-secret
                   key: postgresql-password
-            - name: MOODLE_WWWROOT
+            - name: MOODLE_URL
               value: https://moodle.local.kagiso.me
-            - name: MOODLE_ADMIN
+            - name: MOODLE_ADMIN_USER
               value: admin
             - name: MOODLE_ADMIN_PASSWORD
               valueFrom:
@@ -60,7 +60,7 @@ spec:
           startupProbe:
             httpGet:
               path: /login/index.php
-              port: 8080
+              port: 80
             initialDelaySeconds: 120
             periodSeconds: 15
             failureThreshold: 40
@@ -68,7 +68,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /login/index.php
-              port: 8080
+              port: 80
             initialDelaySeconds: 180
             periodSeconds: 30
             failureThreshold: 6
@@ -76,7 +76,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /login/index.php
-              port: 8080
+              port: 80
             initialDelaySeconds: 60
             periodSeconds: 15
             failureThreshold: 10
