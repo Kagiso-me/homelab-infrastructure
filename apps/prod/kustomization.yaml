@@ -10,4 +10,3 @@ resources:
   - ../base/miniflux
   - ../base/umami
   - ../base/moodle
-  - ../base/erpnext
