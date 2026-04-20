@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: erpnext
-      version: ">=7.0.261"
+      version: ">=8.0.43"
       sourceRef:
         kind: HelmRepository
         name: frappe
