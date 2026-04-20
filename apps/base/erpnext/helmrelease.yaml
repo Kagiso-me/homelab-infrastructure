@@ -65,7 +65,8 @@ spec:
     persistence:
       worker:
         enabled: true
-        storageClass: nfs-truenas
+        # local-path avoids NFS root-squash chown failures in the frappe init container.
+        storageClass: local-path
         size: 10Gi
 
     jobs:
