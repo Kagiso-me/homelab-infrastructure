@@ -42,11 +42,10 @@ spec:
         port: 80
         expose:
           default: true
-        http:
-          redirections:
-            entryPoint:
-              to: websecure-int
-              scheme: https
+        redirections:
+          entryPoint:
+            to: websecure-int
+            scheme: https
       websecure:
         expose:
           default: false     # disable the default websecure entrypoint
@@ -55,9 +54,8 @@ spec:
         exposedPort: 443
         expose:
           default: true
-        http:
-          tls:
-            enabled: true
+        tls:
+          enabled: true
       traefik:
         expose:
           default: true

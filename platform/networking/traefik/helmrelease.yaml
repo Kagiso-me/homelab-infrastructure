@@ -40,19 +40,17 @@ spec:
     # Redirect all HTTP to HTTPS globally
     ports:
       web:
-        http:
-          redirections:
-            entryPoint:
-              to: websecure
-              scheme: https
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
       websecure:
-        http:
-          tls:
-            enabled: true
-          # Apply CrowdSec ForwardAuth to every route on this entrypoint.
-          # Requires platform/security/crowdsec to be deployed first.
-          middlewares:
-            - ingress-crowdsec-bouncer@kubernetescrd
+        tls:
+          enabled: true
+        # Apply CrowdSec ForwardAuth to every route on this entrypoint.
+        # Requires platform/security/crowdsec to be deployed first.
+        middlewares:
+          - ingress-crowdsec-bouncer@kubernetescrd
 
     # Expose Prometheus metrics
     metrics:
