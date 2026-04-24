@@ -16,6 +16,7 @@ Types: `DEPLOY` `UPGRADE` `CONFIG` `NETWORK` `STORAGE` `SCALE` `INCIDENT` `MAINT
 ---
 
 ## 2026-04
+- **[MAINTENANCE]** update dependency fluxcd/flux2 to v2.8.6 (#234) `0f57db0`
 - **[CONFIG]** migrate ports config to new http.* schema for chart 39.x `32c58d3`
 - **[CONFIG]** match OIDC login identity by email instead of username `966547b`
 - **[DEPLOY]** apply secure-headers, compress, and crowdsec-bouncer middlewares globally `a6fc69c`
